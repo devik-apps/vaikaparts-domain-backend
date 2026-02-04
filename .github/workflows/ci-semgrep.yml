@@ -11,13 +11,18 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        uses: actions/checkout@v4
+
       - name: Run Semgrep analysis
         run: make ci-semgrep
-      - name: Upload SARIF results
-        uses: github/codeql-action/upload-sarif@v4
+        continue-on-error: false
+      
+      - name: Upload Semgrep results as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
         with:
-          sarif_file: semgrep.sarif
+          name: semgrep-results
+          path: semgrep.sarif
+          retention-days: 30
