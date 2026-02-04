@@ -1,0 +1,267 @@
+openapi: 3.1.0
+info:
+  title: Title
+  description: Title
+  version: 1.0.0
+servers:
+  - url: https
+paths:
+  /:
+    get:
+      operationId: rootRedirect
+      tags:
+        - Docs
+      summary: Redirect root path to Swagger UI
+      responses:
+        302:
+          description: Redirects to /doc
+          headers:
+            Location:
+              description: URL to redirect
+              schema:
+                type: string
+                example: /doc
+  /ping:
+    get:
+      operationId: pong
+      tags:
+        - Health
+      summary: Check if the server is alive
+      responses:
+        200:
+          description: A message showing that the server is alive
+          content:
+            application/json:
+              schema:
+                type: string
+                example: pong
+  /health/bucket:
+    get:
+      operationId: healthBucketCheck
+      tags:
+        - Health
+      summary: Check bucket health by uploading, downloading, and presigning a file
+      description: 'This endpoint uploads a randomly generated text file to the storage bucket,  verifies its content by downloading it, and returns a presigned URL for the file.
+
+'
+      responses:
+        200:
+          description: Successfully uploaded, verified, and presigned file.
+          content:
+            application/json:
+              schema:
+                type: string
+                example: https://unfaked-bucket.s3.amazonaws.com/health/uuid.txt?X-Amz-Signature=...
+        500:
+          description: Uploaded and downloaded content mismatch or other error occurred.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Uploaded and downloaded content mismatch
+  /health/email:
+    get:
+      operationId: sendHealthEmail
+      tags:
+        - Health
+      summary: Send health check email
+      description: Sends a test email to verify email service functionality
+      security: []
+      parameters:
+        - name: to
+          in: query
+          required: true
+          description: Email address to send the health check email to
+          schema:
+            type: string
+            format: email
+      responses:
+        '200':
+          description: Email sent successfully
+          content:
+            application/json:
+              schema:
+                type: string
+                example: Email sent successfully
+        '400':
+          description: Invalid email address format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: '2025-11-04T10:30:00Z'
+                status: 400
+                error: Bad Request
+                message: Invalid email address format
+                path: /health/email
+                errorCode: BAD_FORM
+  /health/message:
+    get:
+      operationId: triggerDummyEvents
+      tags:
+        - Health
+      summary: Trigger dummy health check events
+      description: 'This endpoint triggers one or more dummy events through the event producer  for testing the messaging system (e.g., RabbitMQ or Kafka).
+
+'
+      parameters:
+        - name: nbEvent
+          in: query
+          required: false
+          description: Number of events to trigger (1–500)
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+            maximum: 500
+        - name: waitInSeconds
+          in: query
+          required: false
+          description: Duration (in seconds) to simulate event processing
+          schema:
+            type: integer
+            default: 2
+            minimum: 1
+      responses:
+        200:
+          description: List of UUIDs corresponding to triggered dummy events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                example:
+                  - c91f2c9b-9c8e-4e7f-84e2-09c95edff3e4
+                  - 51af4d2b-745a-465d-b9a2-bf0b1c1ffb23
+        400:
+          description: Invalid parameter values (e.g., nbEvent not in 1–500)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: nbEvent must be between 1 and 500
+  /health/db:
+    get:
+      summary: Health check for the dummy database
+      description: Returns a paginated list of Dummy entities.
+      tags:
+        - Health
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 0
+          description: Page number (0-based)
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 10
+          description: Page size
+      responses:
+        '200':
+          description: Successful database health check
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Dummy'
+                  totalElements:
+                    type: integer
+                  totalPages:
+                    type: integer
+                  number:
+                    type: integer
+                  size:
+                    type: integer
+                example:
+                  content:
+                    - id: 550e8400-e29b-41d4-a716-446655440000
+                      description: First dummy description
+                  totalElements: 5
+                  totalPages: 1
+                  number: 0
+                  size: 5
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          $ref: '#/components/schemas/DateTime'
+          description: When the error occurred
+        status:
+          type: integer
+          description: HTTP status code
+          example: 400
+        error:
+          type: string
+          description: HTTP status reason phrase
+          example: Bad Request
+        message:
+          type: string
+          description: Detailed error message
+          example: Validation failed
+        path:
+          type: string
+          description: Request path where error occurred
+          example: /path/of/the/endpoint
+        errorCode:
+          type: string
+          description: Application-specific error code
+          enum:
+            - AUTHORIZATION_DENIED
+            - ENTITY_NOT_FOUND
+            - CONSTRAINT_VIOLATION_ON_FIELDS
+            - TOKEN_UNIQUENESS_CONFLICT
+            - BAD_FORM
+            - MISSING_AUTHORIZATION
+            - INVALID_AUTHORIZATION_FORMAT
+            - INVALID_TOKEN
+            - TOKEN_NOT_FOUND
+            - USER_DEACTIVATED
+            - AUTHENTICATION_FAILED
+            - INTERNAL_SERVER_ERROR
+            - MISSING_REQUIRED_PARAMETER
+            - INVALID_PARAMETER
+            - MALFORMED_JSON
+            - METHOD_NOT_ALLOWED
+      required:
+        - timestamp
+        - status
+        - error
+        - message
+        - path
+    DateTime:
+      type: string
+      format: date-time
+      description: Date and time in ISO 8601 format (RFC 3339)
+      example: '2025-12-06T11:23:45Z'
+    UUID:
+      type: string
+      pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+      format: uuid
+      example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+    Dummy:
+      type: object
+      required:
+        - id
+        - description
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        description:
+          type: string

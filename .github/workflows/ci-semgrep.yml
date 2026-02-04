@@ -1,0 +1,23 @@
+name: CI - Semgrep
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+jobs:
+  semgrep:
+    name: Analyze (Semgrep)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+      - name: Run Semgrep analysis
+        run: make ci-semgrep
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: semgrep.sarif
