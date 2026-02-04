@@ -1,286 +1,44 @@
-name: CI - CodeQL Analysis
-
+name: CI - CodeQL
 on:
   push:
-    branches: ["**"]
+    branches:
+      - '**'
   pull_request:
-    branches: ["**"]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  security-events: write
-  pull-requests: write
-
+    branches:
+      - '**'
 jobs:
   analyze:
-    name: Analyze (CodeQL)
+    name: Analyze (Java)
     runs-on: ubuntu-latest
-
     permissions:
+      actions: read
       contents: read
       security-events: write
-      pull-requests: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        language: ['java']
-
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           fetch-depth: 0
-
-      - name: Set up JDK
-        uses: actions/setup-java@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@f2beeb24e141e01a676f977032f5a29d81c9e27e
         with:
-          distribution: 'temurin'
           java-version: '21'
-          cache: 'gradle'
-
-      - name: Download CodeQL CLI
-        run: |
-          CODEQL_VERSION="2.24.0"
-          wget -q "https://github.com/github/codeql-cli-binaries/releases/download/v${CODEQL_VERSION}/codeql-linux64.zip"
-          unzip -q codeql-linux64.zip
-          echo "${PWD}/codeql" >> $GITHUB_PATH
-
-      - name: Verify CodeQL installation
-        run: |
-          codeql --version
-          codeql resolve languages
-
-      - name: Create custom query suite
-        run: |
-          mkdir -p .codeql
-          cat > .codeql/custom-java-backend.qls << 'EOF'
-          ---
-          - description: Java backend security queries (Spring Boot optimized)
-          - queries: .
-            from: codeql/java-queries
-          - include:
-              tags contain:
-                - security
-          - exclude:
-              tags contain:
-                - android
-          EOF
-
-      - name: Initialize CodeQL database
-        run: |
-          codeql database create codeql-db \
-            --language=java \
-            --source-root=. \
-            --command="./gradlew clean build -x test" \
-            --overwrite
-
-      - name: Perform CodeQL analysis
-        run: |
-          codeql pack download codeql/java-queries
-          codeql database analyze codeql-db \
-            --format=sarif-latest \
-            --output=codeql-results.sarif \
-            --sarif-category=codeql \
-            --sarif-add-query-help \
-            --threads=0 \
-            --ram=3072 \
-            -- \
-            .codeql/custom-java-backend.qls
-
-      - name: Process analysis results
-        id: process_results
-        run: |
-          if [ ! -f codeql-results.sarif ]; then
-            echo "ERROR: SARIF file not generated"
-            exit 1
-          fi
-          
-          # Extract severity counts
-          CRITICAL=$(jq '[.runs[].results[] | select(.level == "error" and (.properties.severity // "" | test("critical"; "i")))] | length' codeql-results.sarif)
-          HIGH=$(jq '[.runs[].results[] | select(.level == "error" and (.properties.severity // "" | test("high"; "i")))] | length' codeql-results.sarif)
-          MEDIUM=$(jq '[.runs[].results[] | select(.level == "warning" and (.properties.severity // "" | test("medium"; "i")))] | length' codeql-results.sarif)
-          LOW=$(jq '[.runs[].results[] | select(.level == "note" or (.level == "warning" and (.properties.severity // "" | test("low"; "i"))))] | length' codeql-results.sarif)
-          TOTAL=$(jq '[.runs[].results[]] | length' codeql-results.sarif)
-          
-          echo "critical=${CRITICAL}" >> $GITHUB_OUTPUT
-          echo "high=${HIGH}" >> $GITHUB_OUTPUT
-          echo "medium=${MEDIUM}" >> $GITHUB_OUTPUT
-          echo "low=${LOW}" >> $GITHUB_OUTPUT
-          echo "total=${TOTAL}" >> $GITHUB_OUTPUT
-          
-          # Generate findings summary
-          cat > findings-summary.txt << EOF
-          CodeQL Analysis Results
-          ========================
-          
-          Total Findings: ${TOTAL}
-          
-          Severity Breakdown:
-          - Critical: ${CRITICAL}
-          - High: ${HIGH}
-          - Medium: ${MEDIUM}
-          - Low: ${LOW}
-          
-          EOF
-          
-          if [ $TOTAL -eq 0 ]; then
-            echo "Analysis completed successfully. No security vulnerabilities detected." >> findings-summary.txt
-          else
-            if [ $CRITICAL -gt 0 ] || [ $HIGH -gt 0 ] || [ $MEDIUM -gt 0 ]; then
-              echo "Analysis detected security vulnerabilities requiring attention." >> findings-summary.txt
-              echo "Review the detailed findings in the artifacts section." >> findings-summary.txt
-            else
-              echo "Analysis detected low-severity findings only." >> findings-summary.txt
-            fi
-          fi
-
-      - name: Generate detailed report
-        if: always()
-        run: |
-          cat > codeql-report.md << 'EOF'
-          # CodeQL Security Analysis Report
-          
-          ## Summary
-          
-          | Metric | Count |
-          |--------|-------|
-          | Total Findings | ${{ steps.process_results.outputs.total }} |
-          | Critical Severity | ${{ steps.process_results.outputs.critical }} |
-          | High Severity | ${{ steps.process_results.outputs.high }} |
-          | Medium Severity | ${{ steps.process_results.outputs.medium }} |
-          | Low Severity | ${{ steps.process_results.outputs.low }} |
-          
-          ## Analysis Details
-          
-          - **Language**: Java
-          - **Query Suite**: Custom Spring Boot Backend
-          - **Build System**: Gradle
-          - **Analysis Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          - **Commit**: ${{ github.sha }}
-          - **Branch**: ${{ github.ref_name }}
-          
-          ## Findings Disposition
-          
-          EOF
-          
-          CRITICAL=${{ steps.process_results.outputs.critical }}
-          HIGH=${{ steps.process_results.outputs.high }}
-          MEDIUM=${{ steps.process_results.outputs.medium }}
-          
-          if [ $CRITICAL -gt 0 ] || [ $HIGH -gt 0 ] || [ $MEDIUM -gt 0 ]; then
-            cat >> codeql-report.md << 'EOF'
-          **Status**: FAILED
-          
-          Security vulnerabilities of medium severity or higher were detected. Review required before merge.
-          
-          Refer to the SARIF artifact for detailed vulnerability information including:
-          - Precise source locations
-          - Vulnerability descriptions
-          - Remediation guidance
-          - CWE classifications
-          EOF
-          else
-            cat >> codeql-report.md << 'EOF'
-          **Status**: PASSED
-          
-          No security vulnerabilities of medium severity or higher detected.
-          EOF
-          fi
-
-      - name: Comment on pull request
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+          distribution: 'temurin'
+          cache: gradle
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@5d4e8d1aca955e8d8589aabd499c5cae939e33c7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const fs = require('fs');
-            const report = fs.readFileSync('codeql-report.md', 'utf8');
-            
-            const critical = parseInt('${{ steps.process_results.outputs.critical }}');
-            const high = parseInt('${{ steps.process_results.outputs.high }}');
-            const medium = parseInt('${{ steps.process_results.outputs.medium }}');
-            
-            let status = 'PASSED';
-            if (critical > 0 || high > 0 || medium > 0) {
-              status = 'FAILED';
-            }
-            
-            const comment = `## CodeQL Analysis ${status}\n\n${report}`;
-            
-            // Find existing comment
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-            
-            const existingComment = comments.find(c => 
-              c.user.type === 'Bot' && c.body.includes('CodeQL Analysis')
-            );
-            
-            if (existingComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existingComment.id,
-                body: comment
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: comment
-              });
-            }
-
-      - name: Upload SARIF results
-        if: always()
-        uses: actions/upload-artifact@v4
+          languages: java
+          queries: security-extended
+          debug: true
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@5d4e8d1aca955e8d8589aabd499c5cae939e33c7
+        env:
+          JAVA_HOME_21_X64: ${{ steps.setup-java.outputs.java-home }}
         with:
-          name: codeql-results
-          path: |
-            codeql-results.sarif
-            codeql-report.md
-            findings-summary.txt
-          retention-days: 30
-
-      - name: Upload detailed report
-        if: always()
-        uses: actions/upload-artifact@v4
+          debug: true
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@5d4e8d1aca955e8d8589aabd499c5cae939e33c7
         with:
-          name: codeql-analysis-report
-          path: codeql-report.md
-          retention-days: 30
-
-      - name: Enforce severity gate
-        run: |
-          CRITICAL=${{ steps.process_results.outputs.critical }}
-          HIGH=${{ steps.process_results.outputs.high }}
-          MEDIUM=${{ steps.process_results.outputs.medium }}
-          
-          if [ $CRITICAL -gt 0 ] || [ $HIGH -gt 0 ] || [ $MEDIUM -gt 0 ]; then
-            echo "════════════════════════════════════════════════════════════════"
-            echo "CodeQL Analysis: FAILED"
-            echo "════════════════════════════════════════════════════════════════"
-            echo ""
-            cat findings-summary.txt
-            echo ""
-            echo "Security vulnerabilities of medium severity or higher detected."
-            echo "Remediation required before merge approval."
-            echo ""
-            echo "Detailed findings available in artifacts section."
-            echo "════════════════════════════════════════════════════════════════"
-            exit 1
-          else
-            echo "════════════════════════════════════════════════════════════════"
-            echo "CodeQL Analysis: PASSED"
-            echo "════════════════════════════════════════════════════════════════"
-            echo ""
-            cat findings-summary.txt
-            echo ""
-            echo "════════════════════════════════════════════════════════════════"
-            exit 0
-          fi
+          category: "/language:java"
+          debug: true
