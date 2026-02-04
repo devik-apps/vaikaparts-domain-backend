@@ -1,4 +1,12 @@
 # This file defines code ownership for the repository
-# All files are owned by @devik-apps
+# All files are owned by @devik-apps/vaikaparts-backend
 
-* @devik-apps
+* @devik-apps/vaikaparts-backend
+src @devik-apps/vaikaparts-backend
+.github @devik-apps/vaikaparts-backend
+doc @devik-apps/vaikaparts-backend
+Dockerfile @devik-apps/vaikaparts-backend
+docker-start.sh @devik-apps/vaikaparts-backend
+readme.md @devik-apps/vaikaparts-backend
+licence @devik-apps/vaikaparts-backend
+build.gradle @devik-apps/vaikaparts-backend
