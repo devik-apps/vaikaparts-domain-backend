@@ -19,11 +19,6 @@ jobs:
     outputs:
       should_deploy: ${{ steps.check.outputs.deploy }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-
       - name: Verify all CI checks passed
         id: check
         run: |
