@@ -1,0 +1,281 @@
+name: CD - Deploy to Prod
+
+on:
+  push:
+    branches:
+      - prod
+  workflow_run:
+    workflows: ["CI - Build"]
+    types:
+      - completed
+    branches:
+      - prod
+
+jobs:
+  verify-ci-status:
+    name: Verify CI Pipeline Success
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    outputs:
+      should_deploy: ${{ steps.check.outputs.deploy }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Verify all CI checks passed
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            if [ "${{ github.event.workflow_run.conclusion }}" == "success" ]; then
+              echo "deploy=true" >> $GITHUB_OUTPUT
+            else
+              echo "deploy=false" >> $GITHUB_OUTPUT
+              echo "CI pipeline did not succeed. Deployment aborted."
+              exit 1
+            fi
+          else
+            echo "deploy=true" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-deploy:
+    name: Build and Deploy Docker Image
+    runs-on: ubuntu-latest
+    needs: verify-ci-status
+    if: needs.verify-ci-status.outputs.should_deploy == 'true'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+      - name: Generate image metadata
+        id: metadata
+        run: |
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          VERSION="v1.0.${GITHUB_RUN_NUMBER}"
+          IMAGE_ID="${TIMESTAMP}"
+          IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/vaikaparts-core-backend-${IMAGE_ID}"
+          IMAGE_TAG="${VERSION}"
+          FULL_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
+          
+          echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "image_id=${IMAGE_ID}" >> $GITHUB_OUTPUT
+          echo "image_name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "full_image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Parse environment variables from secret
+        id: parse_env
+        run: |
+          echo "${{ secrets.ENV_VARS }}" > .env
+          if [ ! -s .env ]; then
+            echo "Error: ENV_VARS secret is empty or not set"
+            exit 1
+          fi
+          echo "Environment variables file created successfully"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Authenticate to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Docker image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: ${{ steps.metadata.outputs.full_image }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ steps.metadata.outputs.timestamp }}
+            VCS_REF=${{ steps.metadata.outputs.short_sha }}
+            VERSION=${{ steps.metadata.outputs.version }}
+
+      - name: Verify Docker image integrity
+        run: |
+          docker images | grep vaikaparts-core-backend
+          docker inspect ${{ steps.metadata.outputs.full_image }}
+
+      - name: Start container for health check
+        run: |
+          docker run -d --name vaikaparts-test \
+            -p 9090:9090 \
+            --env-file .env \
+            ${{ steps.metadata.outputs.full_image }}
+          
+          echo "Waiting for application to start..."
+          sleep 15
+
+      - name: Execute health check
+        run: |
+          MAX_RETRIES=10
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9090/ping || echo "000")
+          
+            if [ "$HTTP_STATUS" == "200" ]; then
+              echo "Health check passed. Application is responding correctly."
+              exit 0
+            fi
+          
+            echo "Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: Received status $HTTP_STATUS. Retrying..."
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            sleep 3
+          done
+          
+          echo "Health check failed after $MAX_RETRIES attempts."
+          docker logs vaikaparts-test
+          exit 1
+
+      - name: Stop and remove test container
+        if: always()
+        run: |
+          docker stop vaikaparts-test || true
+          docker rm vaikaparts-test || true
+
+      - name: Remove environment file
+        if: always()
+        run: |
+          rm -f .env
+
+      - name: Push image to registry
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.metadata.outputs.full_image }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ steps.metadata.outputs.timestamp }}
+            VCS_REF=${{ steps.metadata.outputs.short_sha }}
+            VERSION=${{ steps.metadata.outputs.version }}
+
+      - name: Verify image pushed successfully
+        run: |
+          echo "Image successfully pushed to registry"
+          echo "Full image reference: ${{ steps.metadata.outputs.full_image }}"
+
+      - name: Cleanup old images from registry
+        if: success()
+        run: |
+          PACKAGE_NAME="vaikaparts-core-backend"
+          
+          echo "Fetching all versions of package: ${PACKAGE_NAME}"
+          
+          VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GHCR_PAT }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${PACKAGE_NAME}/versions" \
+            | jq -r 'sort_by(.created_at) | reverse | .[4:] | .[].id')
+          
+          if [ -z "$VERSIONS" ]; then
+            echo "No old versions to delete. Currently 4 or fewer versions exist."
+            exit 0
+          fi
+          
+          echo "Deleting old versions to maintain only the last 4 images..."
+          
+          for VERSION_ID in $VERSIONS; do
+            echo "Deleting version ID: ${VERSION_ID}"
+            curl -X DELETE \
+              -H "Authorization: Bearer ${{ secrets.GHCR_PAT }}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${PACKAGE_NAME}/versions/${VERSION_ID}"
+          
+            if [ $? -eq 0 ]; then
+              echo "Successfully deleted version ${VERSION_ID}"
+            else
+              echo "Warning: Failed to delete version ${VERSION_ID}"
+            fi
+          done
+          
+          echo "Cleanup completed. Only the last 4 versions are retained."
+
+      - name: Configure SSH connection
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p ${{ secrets.SSH_DOOR }} ${{ secrets.VPS_ADDR }} >> ~/.ssh/known_hosts
+
+      - name: Start SSH agent and load key
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+        run: |
+          ssh-agent -a $SSH_AUTH_SOCK > /dev/null
+          echo "${{ secrets.SSH_KEY_PASSPHRASE }}" | SSH_ASKPASS_REQUIRE=never ssh-add ~/.ssh/deploy_key
+
+      - name: Deploy to production server
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+        run: |
+          ssh -p ${{ secrets.SSH_DOOR }} \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -i ~/.ssh/deploy_key \
+            ${{ secrets.VPS_DEPLOYER }}@${{ secrets.VPS_ADDR }} \
+            "/opt/vaikaparts/deploy.sh ${{ steps.metadata.outputs.full_image }}"
+
+      - name: Verify deployment success
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+        run: |
+          echo "Deployment command executed. Verifying deployment status..."
+          sleep 5
+          
+          ssh -p ${{ secrets.SSH_DOOR }} \
+            -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/deploy_key \
+            ${{ secrets.VPS_DEPLOYER }}@${{ secrets.VPS_ADDR }} \
+            "docker ps | grep vaikaparts-core-backend"
+
+      - name: Cleanup SSH artifacts
+        if: always()
+        run: |
+          rm -f ~/.ssh/deploy_key
+          rm -f ~/.ssh/known_hosts
+
+      - name: Report deployment summary
+        if: success()
+        run: |
+          echo "=========================================="
+          echo "Deployment completed successfully"
+          echo "=========================================="
+          echo "Image: ${{ steps.metadata.outputs.full_image }}"
+          echo "Version: ${{ steps.metadata.outputs.version }}"
+          echo "Timestamp: ${{ steps.metadata.outputs.timestamp }}"
+          echo "Commit SHA: ${{ steps.metadata.outputs.short_sha }}"
+          echo "Deployed to: ${{ secrets.VPS_ADDR }}"
+          echo "=========================================="
+
+  notify-failure:
+    name: Notify Deployment Failure
+    runs-on: ubuntu-latest
+    needs: build-and-deploy
+    if: failure()
+    steps:
+      - name: Report failure
+        run: |
+          echo "=========================================="
+          echo "Deployment failed"
+          echo "=========================================="
+          echo "Please check the logs above for details."
+          echo "Branch: ${{ github.ref }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "=========================================="
