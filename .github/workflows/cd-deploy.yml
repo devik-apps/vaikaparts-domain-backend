@@ -170,37 +170,61 @@ jobs:
       - name: Cleanup old images from registry
         if: success()
         run: |
-          PACKAGE_NAME="vaikaparts-core-backend"
-          
-          echo "Fetching all versions of package: ${PACKAGE_NAME}"
-          
-          VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GHCR_PAT }}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${PACKAGE_NAME}/versions" \
-            | jq -r 'sort_by(.created_at) | reverse | .[4:] | .[].id')
-          
-          if [ -z "$VERSIONS" ]; then
-            echo "No old versions to delete. Currently 4 or fewer versions exist."
-            exit 0
-          fi
-          
-          echo "Deleting old versions to maintain only the last 4 images..."
-          
-          for VERSION_ID in $VERSIONS; do
-            echo "Deleting version ID: ${VERSION_ID}"
-            curl -X DELETE \
-              -H "Authorization: Bearer ${{ secrets.GHCR_PAT }}" \
+            echo "Fetching all packages matching pattern: vaikaparts-core-backend-*"
+            
+            # Get all packages for the organization
+            ALL_PACKAGES=$(curl -s -H "Authorization: Bearer ${{ secrets.GHCR_PAT }}" \
               -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${PACKAGE_NAME}/versions/${VERSION_ID}"
-          
-            if [ $? -eq 0 ]; then
-              echo "Successfully deleted version ${VERSION_ID}"
-            else
-              echo "Warning: Failed to delete version ${VERSION_ID}"
+              "https://api.github.com/orgs/${{ github.repository_owner }}/packages?package_type=container" \
+              | jq -r '.[] | select(.name | startswith("vaikaparts-core-backend-")) | {name: .name, created_at: .created_at, id: .id}')
+            
+            if [ -z "$ALL_PACKAGES" ]; then
+              echo "No packages found matching pattern."
+              exit 0
             fi
-          done
-          
-          echo "Cleanup completed. Only the last 4 versions are retained."
+            
+            echo "Found packages:"
+            echo "$ALL_PACKAGES" | jq -r '.name'
+            
+            # Sort by created_at and get packages to delete (keep last 4)
+            PACKAGES_TO_DELETE=$(echo "$ALL_PACKAGES" | jq -s 'sort_by(.created_at) | reverse | .[4:] | .[]')
+            
+            if [ -z "$PACKAGES_TO_DELETE" ]; then
+              echo "No old packages to delete. Currently 4 or fewer packages exist."
+              exit 0
+            fi
+            
+            echo "Deleting old packages to maintain only the last 4..."
+            
+            echo "$PACKAGES_TO_DELETE" | jq -r '.name' | while read PACKAGE_NAME; do
+              echo "Deleting package: ${PACKAGE_NAME}"
+            
+              # URL encode the package name (replace - with %2D if needed)
+              ENCODED_NAME=$(echo "$PACKAGE_NAME" | jq -sRr @uri)
+            
+              # Get all versions of this package
+              VERSIONS=$(curl -s -H "Authorization: Bearer ${{ secrets.GHCR_PAT }}" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${ENCODED_NAME}/versions" \
+                | jq -r '.[].id')
+            
+              # Delete all versions (which will delete the package)
+              for VERSION_ID in $VERSIONS; do
+                echo "  Deleting version ID: ${VERSION_ID}"
+                curl -X DELETE \
+                  -H "Authorization: Bearer ${{ secrets.GHCR_PAT }}" \
+                  -H "Accept: application/vnd.github+json" \
+                  "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${ENCODED_NAME}/versions/${VERSION_ID}"
+            
+                if [ $? -eq 0 ]; then
+                  echo "  Successfully deleted version ${VERSION_ID}"
+                else
+                  echo "  Warning: Failed to delete version ${VERSION_ID}"
+                fi
+              done
+            done
+            
+            echo "Cleanup completed. Only the last 4 packages are retained."
 
       - name: Configure SSH connection
         run: |
@@ -225,7 +249,7 @@ jobs:
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -i ~/.ssh/deploy_key \
             ${{ secrets.VPS_DEPLOYER }}@${{ secrets.VPS_ADDR }} \
-            "/opt/vaikaparts/deploy.sh ${{ steps.metadata.outputs.full_image }}"
+            "/home/vaikapartsdeployer/core-domain/deploy.sh ${{ steps.metadata.outputs.full_image }}"
 
       - name: Verify deployment success
         env:
