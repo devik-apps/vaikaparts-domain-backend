@@ -22,13 +22,11 @@
 
 set -euo pipefail
 
-# Parse command line arguments
 VERBOSE_MODE=false
 if [ "${1:-}" == "-v" ] || [ "${1:-}" == "--verbose" ]; then
 	VERBOSE_MODE=true
 fi
 
-# Test configuration
 readonly TEST_DIR="/tmp/vaikaparts-test"
 readonly TEST_SCRIPT_DIR="${TEST_DIR}"
 readonly TEST_LOG_DIR="${TEST_SCRIPT_DIR}/logs"
@@ -36,14 +34,10 @@ readonly TEST_ENV_FILE="${TEST_SCRIPT_DIR}/.env"
 readonly DEPLOY_SCRIPT="./deploy.sh"
 readonly TEST_PORT=8080 # Use 8080 instead of 80 to avoid conflicts
 
-# Use httpd (Apache) as mock - it responds properly to HTTP requests
 readonly MOCK_IMAGE_BASE="httpd"
 readonly MOCK_IMAGE_TAG_1="2.4-alpine"
 readonly MOCK_IMAGE_TAG_2="2.4.58-alpine"
-# Note: We'll only use tags 1 and 2 since we're hitting Docker rate limits
-# The cleanup test will work with just 2 different versions
 
-# Color codes
 if [ -t 1 ]; then
 	RED='\033[0;31m'
 	GREEN='\033[0;32m'
@@ -62,12 +56,10 @@ else
 	NC=''
 fi
 
-# Test result tracking
 TESTS_PASSED=0
 TESTS_FAILED=0
 TESTS_TOTAL=0
 
-# Logging functions
 log_test() {
 	echo -e "${CYAN}[TEST]${NC} $1"
 }
@@ -103,7 +95,6 @@ log_debug() {
 	fi
 }
 
-# Run command with optional verbose output
 run_deployment() {
 	local image="$1"
 	local exit_code
@@ -116,7 +107,6 @@ run_deployment() {
 		exit_code=$?
 		set -e
 
-		# In verbose mode, just return the exit code
 		echo "${exit_code}"
 	else
 		set +e
@@ -124,10 +114,8 @@ run_deployment() {
 		exit_code=$?
 		set -e
 
-		# Return exit code on first line
 		echo "${exit_code}"
 
-		# Return output on subsequent lines
 		if [ -f "${output_file}" ]; then
 			cat "${output_file}"
 			rm -f "${output_file}"
@@ -135,7 +123,6 @@ run_deployment() {
 	fi
 }
 
-# Setup test environment
 setup_test_environment() {
 	log_section "Setting Up Test Environment"
 
@@ -158,29 +145,21 @@ EOF
 		exit 1
 	fi
 
-	# Create modified version of deploy.sh for testing
 	cp "${DEPLOY_SCRIPT}" "${TEST_SCRIPT_DIR}/deploy.sh"
 
 	log_debug "Applying sed replacements..."
 
-	# Replace all path references
 	sed -i "s|readonly SCRIPT_DIR=\"/home/dummyUsername/dummyDirectory/core-domain\"|readonly SCRIPT_DIR=\"${TEST_SCRIPT_DIR}\"|g" "${TEST_SCRIPT_DIR}/deploy.sh"
 
-	# Replace container and image names
 	sed -i 's|readonly CONTAINER_NAME="vaikaparts-core-backend"|readonly CONTAINER_NAME="vaikaparts-test-backend"|g' "${TEST_SCRIPT_DIR}/deploy.sh"
 	sed -i 's|readonly IMAGE_BASE_NAME="vaikaparts-core-backend"|readonly IMAGE_BASE_NAME="httpd"|g' "${TEST_SCRIPT_DIR}/deploy.sh"
 
-	# Replace port (httpd uses port 80 internally, we map to 8080 externally)
 	sed -i "s|readonly CONTAINER_PORT=9090|readonly CONTAINER_PORT=${TEST_PORT}|g" "${TEST_SCRIPT_DIR}/deploy.sh"
 
-	# Replace health check endpoint to use hardcoded port
 	sed -i "s|readonly HEALTH_CHECK_ENDPOINT=\"http://localhost:\\\${CONTAINER_PORT}/actuator/health\"|readonly HEALTH_CHECK_ENDPOINT=\"http://localhost:${TEST_PORT}/\"|g" "${TEST_SCRIPT_DIR}/deploy.sh"
 
-	# CRITICAL FIX: httpd listens on port 80 internally, but we want to expose it on 8080
-	# Change the docker run command to map 8080:80 instead of 8080:8080
 	sed -i "s|-p \"\${CONTAINER_PORT}:\${CONTAINER_PORT}\"|-p \"\${CONTAINER_PORT}:80\"|g" "${TEST_SCRIPT_DIR}/deploy.sh"
 
-	# Reduce health check retries for faster testing
 	sed -i 's|readonly HEALTH_CHECK_MAX_RETRIES=30|readonly HEALTH_CHECK_MAX_RETRIES=15|g' "${TEST_SCRIPT_DIR}/deploy.sh"
 	sed -i 's|readonly HEALTH_CHECK_INTERVAL=2|readonly HEALTH_CHECK_INTERVAL=3|g' "${TEST_SCRIPT_DIR}/deploy.sh"
 
@@ -196,13 +175,11 @@ EOF
 	fi
 }
 
-# Pull mock images for testing
 prepare_mock_images() {
 	log_section "Preparing Mock Images"
 
 	local images_to_pull=()
 
-	# Check which images need to be pulled
 	if ! docker image inspect "${MOCK_IMAGE_BASE}:${MOCK_IMAGE_TAG_1}" >/dev/null 2>&1; then
 		images_to_pull+=("${MOCK_IMAGE_BASE}:${MOCK_IMAGE_TAG_1}")
 	else
@@ -215,7 +192,6 @@ prepare_mock_images() {
 		log_debug "Image ${MOCK_IMAGE_BASE}:${MOCK_IMAGE_TAG_2} already exists locally"
 	fi
 
-	# Pull missing images
 	if [ ${#images_to_pull[@]} -eq 0 ]; then
 		log_pass "All required images already exist locally"
 	else
@@ -232,7 +208,6 @@ prepare_mock_images() {
 	fi
 }
 
-# Cleanup any existing test containers and images
 cleanup_existing_tests() {
 	log_debug "Cleaning up any existing test artifacts"
 	docker stop vaikaparts-test-backend 2>/dev/null || true
@@ -240,14 +215,12 @@ cleanup_existing_tests() {
 	sleep 1
 }
 
-# Test 1: Validate script prerequisites check
 test_prerequisites_validation() {
 	log_section "Test 1: Prerequisites Validation"
 	TESTS_TOTAL=$((TESTS_TOTAL + 1))
 
 	log_test "Testing prerequisites validation with missing .env file"
 
-	# Temporarily remove .env file
 	mv "${TEST_ENV_FILE}" "${TEST_ENV_FILE}.backup"
 
 	local output
@@ -278,11 +251,9 @@ test_prerequisites_validation() {
 		TESTS_FAILED=$((TESTS_FAILED - 1)) # Correct the double counting
 	fi
 
-	# Restore .env file
 	mv "${TEST_ENV_FILE}.backup" "${TEST_ENV_FILE}"
 }
 
-# Test 2: First deployment (no existing container)
 test_first_deployment() {
 	log_section "Test 2: First Deployment"
 	TESTS_TOTAL=$((TESTS_TOTAL + 1))
@@ -294,7 +265,6 @@ test_first_deployment() {
 	local result
 	result=$(run_deployment "${MOCK_IMAGE_BASE}:${MOCK_IMAGE_TAG_1}")
 
-	# Extract exit code (first line) and output (rest)
 	local exit_code
 	exit_code=$(echo "$result" | head -n 1)
 	local output
@@ -303,7 +273,6 @@ test_first_deployment() {
 	if [ "${exit_code}" -eq 0 ]; then
 		log_pass "First deployment executed successfully"
 
-		# Verify container is running
 		if docker ps --filter "name=vaikaparts-test-backend" --format "{{.Names}}" | grep -q "vaikaparts-test-backend"; then
 			log_pass "Container is running after deployment"
 		else
@@ -315,7 +284,6 @@ test_first_deployment() {
 			return
 		fi
 
-		# Verify correct image is used
 		local running_image
 		running_image=$(docker ps --filter "name=vaikaparts-test-backend" --format "{{.Image}}")
 		if [[ "${running_image}" == "${MOCK_IMAGE_BASE}:${MOCK_IMAGE_TAG_1}" ]]; then
@@ -324,7 +292,6 @@ test_first_deployment() {
 			log_fail "Wrong image is running: ${running_image}"
 		fi
 
-		# Verify container is actually responding
 		sleep 3
 		if curl -sf "http://localhost:${TEST_PORT}/" >/dev/null 2>&1; then
 			log_pass "Container is responding to HTTP requests"
@@ -340,7 +307,6 @@ test_first_deployment() {
 	fi
 }
 
-# Test 3: Update deployment (replace existing container)
 test_update_deployment() {
 	log_section "Test 3: Update Deployment"
 	TESTS_TOTAL=$((TESTS_TOTAL + 1))
@@ -360,7 +326,6 @@ test_update_deployment() {
 	if [ "${exit_code}" -eq 0 ]; then
 		log_pass "Update deployment executed successfully"
 
-		# Verify new image is running
 		local running_image
 		running_image=$(docker ps --filter "name=vaikaparts-test-backend" --format "{{.Image}}")
 		if [[ "${running_image}" == "${MOCK_IMAGE_BASE}:${MOCK_IMAGE_TAG_2}" ]]; then
@@ -369,7 +334,6 @@ test_update_deployment() {
 			log_fail "Container not updated to new image. Running: ${running_image}"
 		fi
 
-		# Verify old image still exists (for rollback)
 		if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "${MOCK_IMAGE_BASE}:${MOCK_IMAGE_TAG_1}"; then
 			log_pass "Previous image retained for rollback"
 		else
@@ -384,7 +348,6 @@ test_update_deployment() {
 	fi
 }
 
-# Test 4: Image cleanup (keep only last 2 versions)
 test_image_cleanup() {
 	log_section "Test 4: Image Cleanup"
 	TESTS_TOTAL=$((TESTS_TOTAL + 1))
@@ -393,7 +356,6 @@ test_image_cleanup() {
 
 	sleep 3
 
-	# Re-deploy first image - this should keep both images since we only have 2
 	local result
 	result=$(run_deployment "${MOCK_IMAGE_BASE}:${MOCK_IMAGE_TAG_1}")
 
@@ -405,7 +367,6 @@ test_image_cleanup() {
 	if [ "${exit_code}" -eq 0 ]; then
 		log_pass "Re-deployment executed successfully"
 
-		# Count httpd images (should still have both)
 		local image_count
 		image_count=$(docker images --filter "reference=${MOCK_IMAGE_BASE}:*alpine*" --format "{{.Repository}}:{{.Tag}}" | wc -l)
 
@@ -415,7 +376,6 @@ test_image_cleanup() {
 			log_warn "More than 2 images present (${image_count} images)"
 		fi
 
-		# Verify both images still exist
 		if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "${MOCK_IMAGE_BASE}:${MOCK_IMAGE_TAG_1}"; then
 			log_pass "First image (${MOCK_IMAGE_TAG_1}) still exists"
 		else
@@ -436,14 +396,12 @@ test_image_cleanup() {
 	fi
 }
 
-# Test 5: Log file generation
 test_log_generation() {
 	log_section "Test 5: Log File Generation"
 	TESTS_TOTAL=$((TESTS_TOTAL + 1))
 
 	log_test "Testing log file generation"
 
-	# Check for detailed log files
 	local detailed_logs
 	detailed_logs=$(find "${TEST_LOG_DIR}" -name "deployment-log-*.txt" 2>/dev/null | wc -l)
 
@@ -453,7 +411,6 @@ test_log_generation() {
 		log_fail "No detailed log files found"
 	fi
 
-	# Check for summary log files
 	local summary_logs
 	summary_logs=$(find "${TEST_LOG_DIR}" -name "deployment-summary-*.md" 2>/dev/null | wc -l)
 
@@ -463,7 +420,6 @@ test_log_generation() {
 		log_fail "No summary log files found"
 	fi
 
-	# Verify log content
 	local latest_summary
 	latest_summary=$(find "${TEST_LOG_DIR}" -name "deployment-summary-*.md" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
 
@@ -486,7 +442,6 @@ test_log_generation() {
 	fi
 }
 
-# Test 6: Invalid image reference handling
 test_invalid_image_reference() {
 	log_section "Test 6: Invalid Image Reference Handling"
 	TESTS_TOTAL=$((TESTS_TOTAL + 1))
@@ -496,7 +451,6 @@ test_invalid_image_reference() {
 	local output
 	local exit_code
 
-	# Capture both output and exit code
 	set +e
 	output=$("${TEST_SCRIPT_DIR}/deploy.sh" "invalid-image-ref" 2>&1)
 	exit_code=$?
@@ -526,19 +480,16 @@ test_invalid_image_reference() {
 		log_pass "Script correctly rejected invalid image reference"
 	else
 		log_fail "Script did not properly validate image reference"
-		# Correct double counting since we already incremented failures above
 		TESTS_FAILED=$((TESTS_FAILED - 1))
 	fi
 }
 
-# Test 7: Container health check
 test_health_check() {
 	log_section "Test 7: Health Check Functionality"
 	TESTS_TOTAL=$((TESTS_TOTAL + 1))
 
 	log_test "Testing health check functionality"
 
-	# Find the most recent SUCCESSFUL deployment log (not the invalid-image-ref one)
 	local latest_detailed_log
 	latest_detailed_log=$(grep -l "Health check passed" "${TEST_LOG_DIR}"/deployment-log-*.txt 2>/dev/null | tail -1)
 
@@ -557,7 +508,6 @@ test_health_check() {
 	fi
 }
 
-# Display test results summary
 display_test_summary() {
 	log_section "Test Results Summary"
 
@@ -582,7 +532,6 @@ display_test_summary() {
 	fi
 }
 
-# Main test execution
 main() {
 	log_section "VaikaParts Deployment Script Test Suite"
 	echo "Starting test execution at $(date '+%Y-%m-%d %H:%M:%S')"
@@ -591,7 +540,6 @@ main() {
 	fi
 	echo ""
 
-	# Verify Docker is available
 	if ! command -v docker &>/dev/null; then
 		log_fail "Docker is not installed. Cannot run tests."
 		exit 1
@@ -602,11 +550,9 @@ main() {
 		exit 1
 	fi
 
-	# Setup
 	setup_test_environment
 	prepare_mock_images
 
-	# Run tests
 	test_prerequisites_validation
 	test_first_deployment
 	test_update_deployment
@@ -615,11 +561,9 @@ main() {
 	test_invalid_image_reference
 	test_health_check
 
-	# Display results
 	display_test_summary
 	local result=$?
 
-	# Cleanup instructions
 	echo ""
 	log_section "Manual Cleanup Instructions"
 	log_info "Test environment kept for inspection at: ${TEST_DIR}"
@@ -634,5 +578,4 @@ main() {
 	exit ${result}
 }
 
-# Run tests
 main "$@"

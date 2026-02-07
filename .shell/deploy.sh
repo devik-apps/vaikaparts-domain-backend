@@ -28,7 +28,7 @@ readonly ENV_FILE="${SCRIPT_DIR}/.env"
 readonly CONTAINER_NAME="vaikaparts-core-backend"
 readonly IMAGE_BASE_NAME="vaikaparts-core-backend"
 readonly MAX_IMAGE_VERSIONS=2
-readonly CONTAINER_PORT=9090
+readonly CONTAINER_PORT=8080
 readonly HEALTH_CHECK_ENDPOINT="http://localhost:${CONTAINER_PORT}/actuator/health"
 readonly HEALTH_CHECK_MAX_RETRIES=30
 readonly HEALTH_CHECK_INTERVAL=2
@@ -238,6 +238,14 @@ authenticate_registry() {
 pull_new_image() {
 	local image_ref="$1"
 
+	log_step "Checking if image already exists locally: ${image_ref}"
+
+	if docker image inspect "${image_ref}" >/dev/null 2>&1; then
+		log_success "Image already exists locally: ${image_ref}"
+		log_info "Skipping pull operation"
+		return 0
+	fi
+
 	log_step "Pulling new Docker image: ${image_ref}"
 
 	if docker pull "${image_ref}"; then
@@ -264,22 +272,25 @@ get_current_image() {
 	echo "${current_image}"
 }
 
-# Stop and remove current container
 stop_current_container() {
 	log_step "Stopping current container"
 
-	if docker ps --filter "name=${CONTAINER_NAME}" --format "{{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
-		log_info "Stopping container: ${CONTAINER_NAME}"
-
-		if docker stop "${CONTAINER_NAME}"; then
-			log_success "Container stopped successfully"
+	if docker ps -a --filter "name=${CONTAINER_NAME}" --format "{{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
+		# Check if it's running and stop it
+		if docker ps --filter "name=${CONTAINER_NAME}" --format "{{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
+			log_info "Stopping container: ${CONTAINER_NAME}"
+			if docker stop "${CONTAINER_NAME}"; then
+				log_success "Container stopped successfully"
+			else
+				log_error "Failed to stop container: ${CONTAINER_NAME}"
+				write_summary_log "FAILED" "$1" "" "Failed to stop current container"
+				exit 1
+			fi
 		else
-			log_error "Failed to stop container: ${CONTAINER_NAME}"
-			write_summary_log "FAILED" "$1" "" "Failed to stop current container"
-			exit 1
+			log_warn "Container exists but is not running: ${CONTAINER_NAME}"
 		fi
 
-		log_info "Removing stopped container: ${CONTAINER_NAME}"
+		log_info "Removing container: ${CONTAINER_NAME}"
 		if docker rm "${CONTAINER_NAME}"; then
 			log_success "Container removed successfully"
 		else
@@ -288,7 +299,7 @@ stop_current_container() {
 			exit 1
 		fi
 	else
-		log_warn "No running container found with name: ${CONTAINER_NAME}"
+		log_warn "No container found with name: ${CONTAINER_NAME}"
 	fi
 }
 
