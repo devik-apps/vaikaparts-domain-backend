@@ -1,224 +1,2779 @@
 openapi: 3.1.0
 info:
-  title: Title
-  description: Title
+  title: VaikaParts Core Domain API
+  description: |
+    ## Overview
+
+    The VaikaParts Core Domain API provides the foundational business logic and data management capabilities for the VaikaParts automotive parts marketplace platform. This API serves as the central domain service responsible for managing user profiles, auto parts demands, seller offers, contact exchange workflows, and notification systems.
+
+    ## Architecture
+
+    This API represents the core domain microservice within the VaikaParts distributed system architecture. It handles business logic and data persistence while integrating with external services through well-defined interfaces:
+
+    - **Authentication Provider**: Supabase Auth via JWT token validation and webhook integration
+    - **Payment Processing**: External Payment Service via webhook callbacks
+    - **Storage**: S3-compatible object storage for profile photos and attachment URLs
+    - **Messaging**: Event-driven notification system supporting multiple channels
+
+    ## Domain Model
+
+    The core domain encompasses the following primary entities:
+
+    ### Users
+    - **Buyers**: End users searching for automotive parts
+    - **Sellers**: Vendors offering automotive parts for sale
+    - **Managers**: Administrative users with platform oversight capabilities
+
+    ### Business Entities
+    - **Demands**: Buyer requests for specific automotive parts
+    - **Offers**: Seller responses to buyer demands with pricing and availability
+    - **Parts**: Structured automotive part specifications
+    - **Contact Unlocks**: Paid contact information exchange transactions
+    - **Ratings**: Seller performance and reliability feedback
+    - **Premium Subscriptions**: Enhanced seller features and notifications
+
+    ## Privacy and Data Protection
+
+    The API implements a privacy-first architecture where personally identifiable information (PII) is conditionally exposed based on business rules:
+
+    ### Anonymous Profile Model
+
+    By default, all user profiles are presented in an anonymized format:
+    - Profile photographs are masked or replaced with placeholder images
+    - Location data is generalized to city and region level only
+    - Contact information (names, phone numbers, addresses) is withheld
+    - Only aggregate statistics and ratings are publicly visible
+
+    ### Contact Information Disclosure
+
+    Full contact details are revealed exclusively under the following conditions:
+    - A buyer has completed payment for a specific contact unlock transaction
+    - The unlock status has been confirmed by the Payment Service
+    - The requesting user is authorized to access the information
+    - Administrative users with appropriate permissions
+
+    Each contact unlock transaction is scoped to a single offer. Subsequent offers from the same seller require separate unlock transactions, ensuring fair monetization and privacy protection.
+
+    ## Business Workflow
+
+    ### Standard Transaction Flow
+
+    1. **Demand Creation**: Buyer creates a demand specifying part requirements
+    2. **Seller Notification**: System notifies relevant sellers based on matching criteria
+    3. **Offer Submission**: Sellers respond with offers including pricing and conditions
+    4. **Offer Review**: Buyer reviews anonymous offers with masked seller information
+    5. **Contact Unlock Initiation**: Buyer selects an offer and initiates unlock request
+    6. **Payment Processing**: External Payment Service handles transaction
+    7. **Contact Revelation**: Upon payment confirmation, full contact details are revealed
+    8. **Transaction Confirmation**: Buyer confirms receipt and satisfaction within 48 hours
+    9. **Rating Submission**: Buyer rates seller performance
+
+    ### Premium Seller Features
+
+    Sellers may subscribe to premium tiers offering:
+    - Priority placement in seller notification queues
+    - Extended notification channel access (SMS, email in addition to push)
+    - Premium badge display on anonymous profiles
+    - Enhanced visibility in offer listings
+
+    ## Integration Points
+
+    ### Supabase Authentication
+
+    The API validates JWT tokens issued by Supabase Auth and receives user lifecycle events via webhooks:
+    - User creation triggers profile initialization
+    - User updates synchronize metadata
+    - User deletion triggers account deactivation
+
+    ### Payment Service Integration
+
+    The Payment Service communicates transaction outcomes via authenticated webhooks:
+    - Contact unlock payment confirmation
+    - Premium subscription activation and renewal
+    - Refund processing notifications
+
+    ## Support
+
+    For technical support, integration assistance, or to report issues, contact the development team at vaikaparts@gmail.com.
   version: 1.0.0
+  contact:
+    name: Devik'Apps Development Team
+    email: vaikaparts@gmail.com
+    url: https://devikapps.com
 servers:
-  - url: https
+  - url: https://vaikaparts-domain-backend.onrender.com
+    description: Pre-production environment
+  - url: http://localhost:9090
+    description: Local development environment
+security:
+  - supabaseAuth: []
+tags:
+  - name: Health
+    description: System health and monitoring endpoints
+  - name: Webhooks
+    description: External service integration webhooks
+  - name: Users
+    description: User profile management operations
+  - name: Buyers
+    description: Buyer-specific operations
+  - name: Sellers
+    description: Seller-specific operations
+  - name: Managers
+    description: Administrative operations
+  - name: Demands
+    description: Automotive parts demand management
+  - name: Offers
+    description: Seller offer management
+  - name: Contact Unlocks
+    description: Contact information unlock transactions
+  - name: Notifications
+    description: Notification management and preferences
+  - name: Premium
+    description: Premium subscription management
+  - name: Ratings
+    description: Seller rating and feedback system
+  - name: Statistics
+    description: Analytics and reporting
+  - name: Storage
+    description: File upload operations
 paths:
+  # ==================== HEALTH ENDPOINTS ====================
   /:
     get:
       operationId: rootRedirect
-      tags:
-        - Docs
-      summary: Redirect root path to Swagger UI
+      tags: [Health]
+      summary: Redirect root path to API documentation
+      description: Redirects requests to the root path to the OpenAPI documentation interface
+      security: []
       responses:
-        302:
-          description: Redirects to /doc
+        '302':
+          description: Redirect to documentation
           headers:
             Location:
-              description: URL to redirect
               schema:
                 type: string
                 example: /doc
   /ping:
     get:
-      operationId: pong
-      tags:
-        - Health
-      summary: Check if the server is alive
+      operationId: healthPing
+      tags: [Health]
+      summary: Basic health check
+      description: Returns server status and current timestamp. Used for uptime monitoring and basic connectivity verification.
+      security: []
       responses:
-        200:
-          description: A message showing that the server is alive
-          content:
-            application/json:
-              schema:
-                type: string
-                example: pong
-  /health/bucket:
-    get:
-      operationId: healthBucketCheck
-      tags:
-        - Health
-      summary: Check bucket health by uploading, downloading, and presigning a file
-      description: 'This endpoint uploads a randomly generated text file to the storage bucket,  verifies its content by downloading it, and returns a presigned URL for the file.
-
-'
-      responses:
-        200:
-          description: Successfully uploaded, verified, and presigned file.
-          content:
-            application/json:
-              schema:
-                type: string
-                example: https://unfaked-bucket.s3.amazonaws.com/health/uuid.txt?X-Amz-Signature=...
-        500:
-          description: Uploaded and downloaded content mismatch or other error occurred.
+        '200':
+          description: Server is operational
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  error:
+                  status:
                     type: string
-                    example: Uploaded and downloaded content mismatch
+                    example: ok
+                  message:
+                    type: string
+                    example: pong
+                  timestamp:
+                    $ref: '#/components/schemas/DateTime'
+  /health/bucket:
+    get:
+      operationId: healthBucket
+      tags: [Health]
+      summary: S3 storage health check
+      description: Verifies connectivity and permissions for the S3-compatible object storage system by performing upload, download, and presigning operations.
+      security: []
+      responses:
+        '200':
+          description: Storage system is operational
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  presignedUrl:
+                    type: string
+                    format: uri
+        '500':
+          description: Storage system error
   /health/email:
     get:
-      operationId: sendHealthEmail
-      tags:
-        - Health
-      summary: Send health check email
-      description: Sends a test email to verify email service functionality
+      operationId: healthEmail
+      tags: [Health]
+      summary: Email service health check
+      description: Sends a test email to verify email service configuration and connectivity.
       security: []
       parameters:
         - name: to
           in: query
           required: true
-          description: Email address to send the health check email to
+          description: Recipient email address for test message
           schema:
-            type: string
-            format: email
+            $ref: '#/components/schemas/EmailAddress'
       responses:
         '200':
-          description: Email sent successfully
-          content:
-            application/json:
-              schema:
-                type: string
-                example: Email sent successfully
-        '400':
-          description: Invalid email address format
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                timestamp: '2025-11-04T10:30:00Z'
-                status: 400
-                error: Bad Request
-                message: Invalid email address format
-                path: /health/email
-                errorCode: BAD_FORM
-  /health/message:
+          description: Email service is operational
+        '500':
+          description: Email service error
+  /health/messaging:
     get:
-      operationId: triggerDummyEvents
-      tags:
-        - Health
-      summary: Trigger dummy health check events
-      description: 'This endpoint triggers one or more dummy events through the event producer  for testing the messaging system (e.g., RabbitMQ or Kafka).
-
-'
+      operationId: healthMessaging
+      tags: [Health]
+      summary: Message queue health check
+      description: Triggers test events through the message queue system to verify broker connectivity and event processing capability.
+      security: []
       parameters:
         - name: nbEvent
           in: query
-          required: false
-          description: Number of events to trigger (1–500)
+          description: Number of test events to trigger
           schema:
             type: integer
-            default: 1
             minimum: 1
             maximum: 500
+            default: 1
         - name: waitInSeconds
           in: query
-          required: false
-          description: Duration (in seconds) to simulate event processing
+          description: Simulated processing delay in seconds
           schema:
             type: integer
-            default: 2
             minimum: 1
-      responses:
-        200:
-          description: List of UUIDs corresponding to triggered dummy events
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: string
-                example:
-                  - c91f2c9b-9c8e-4e7f-84e2-09c95edff3e4
-                  - 51af4d2b-745a-465d-b9a2-bf0b1c1ffb23
-        400:
-          description: Invalid parameter values (e.g., nbEvent not in 1–500)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: nbEvent must be between 1 and 500
-  /health/db:
-    get:
-      summary: Health check for the dummy database
-      description: Returns a paginated list of Dummy entities.
-      tags:
-        - Health
-      parameters:
-        - in: query
-          name: page
-          schema:
-            type: integer
-            default: 0
-          description: Page number (0-based)
-        - in: query
-          name: size
-          schema:
-            type: integer
-            default: 10
-          description: Page size
+            default: 2
       responses:
         '200':
-          description: Successful database health check
+          description: Message queue is operational
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  content:
+                  eventIds:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Dummy'
-                  totalElements:
-                    type: integer
-                  totalPages:
-                    type: integer
-                  number:
-                    type: integer
-                  size:
-                    type: integer
-                example:
-                  content:
-                    - id: 550e8400-e29b-41d4-a716-446655440000
-                      description: First dummy description
-                  totalElements: 5
-                  totalPages: 1
-                  number: 0
-                  size: 5
+                      $ref: '#/components/schemas/UUID'
+  /health/db:
+    get:
+      operationId: healthDatabase
+      tags: [Health]
+      summary: Database connectivity health check
+      description: Executes a simple query against the database to verify connectivity and basic query performance.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        '200':
+          description: Database is operational
+        '500':
+          description: Database connection error
+  # ==================== WEBHOOKS ====================
+  /webhooks/supabase/buyer-created:
+    post:
+      operationId: supabaseBuyerCreatedWebhook
+      tags: [Webhooks]
+      summary: Supabase buyer account creation webhook
+      description: |
+        Receives notifications from Supabase when a new buyer account is created. Initializes the corresponding VaikaParts buyer profile in the database.
+
+        **Authentication**: Requests must include a valid Supabase webhook signature in the X-Supabase-Signature header.
+      security:
+        - supabaseWebhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupabaseBuyerWebhookPayload'
+      responses:
+        '200':
+          description: Buyer profile created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Buyer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid webhook signature
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /webhooks/supabase/seller-created:
+    post:
+      operationId: supabaseSellerCreatedWebhook
+      tags: [Webhooks]
+      summary: Supabase seller account creation webhook
+      description: |
+        Receives notifications from Supabase when a new seller account is created. Initializes the corresponding VaikaParts seller profile in the database.
+
+        **Authentication**: Requests must include a valid Supabase webhook signature in the X-Supabase-Signature header.
+      security:
+        - supabaseWebhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupabaseSellerWebhookPayload'
+      responses:
+        '200':
+          description: Seller profile created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Seller'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid webhook signature
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /webhooks/supabase/manager-created:
+    post:
+      operationId: supabaseManagerCreatedWebhook
+      tags: [Webhooks]
+      summary: Supabase manager account creation webhook
+      description: |
+        Receives notifications from Supabase when a new manager account is created. Initializes the corresponding VaikaParts manager profile in the database.
+
+        **Authentication**: Requests must include a valid Supabase webhook signature in the X-Supabase-Signature header.
+      security:
+        - supabaseWebhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupabaseManagerWebhookPayload'
+      responses:
+        '200':
+          description: Manager profile created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Manager'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid webhook signature
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /webhooks/supabase/user-updated:
+    post:
+      operationId: supabaseUserUpdatedWebhook
+      tags: [Webhooks]
+      summary: Supabase user profile update webhook
+      description: |
+        Synchronizes user metadata changes from Supabase to the VaikaParts user profile. Handles updates for all user types since the userId uniquely identifies the existing entity.
+
+        **Authentication**: Requests must include a valid Supabase webhook signature in the X-Supabase-Signature header.
+      security:
+        - supabaseWebhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupabaseUserUpdateWebhookPayload'
+      responses:
+        '200':
+          description: User profile synchronized successfully
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Buyer'
+                  - $ref: '#/components/schemas/Seller'
+                  - $ref: '#/components/schemas/Manager'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          description: Invalid webhook signature
+  /webhooks/supabase/user-deleted:
+    post:
+      operationId: supabaseUserDeletedWebhook
+      tags: [Webhooks]
+      summary: Supabase user account deletion webhook
+      description: |
+        Marks the corresponding VaikaParts user profile as deleted or deactivated when a Supabase account is removed. Handles deletion for all user types since the userId uniquely identifies the existing entity.
+
+        **Authentication**: Requests must include a valid Supabase webhook signature in the X-Supabase-Signature header.
+      security:
+        - supabaseWebhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: Supabase user UUID
+      responses:
+        '200':
+          description: User profile deactivated successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          description: Invalid webhook signature
+  /webhooks/payment/contact-unlock-paid:
+    post:
+      operationId: paymentContactUnlockWebhook
+      tags: [Webhooks]
+      summary: Contact unlock payment confirmation webhook
+      description: |
+        Receives payment confirmation from the Payment Service when a buyer successfully completes payment for a contact unlock transaction. Updates the unlock status and reveals seller contact information to the buyer.
+
+        **Authentication**: Requests must include a valid payment service signature in the X-Payment-Signature header.
+      security:
+        - paymentWebhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentWebhookPayload'
+      responses:
+        '200':
+          description: Contact unlock processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactUnlock'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          description: Invalid webhook signature
+  /webhooks/payment/premium-subscription-paid:
+    post:
+      operationId: paymentPremiumSubscriptionWebhook
+      tags: [Webhooks]
+      summary: Premium subscription payment confirmation webhook
+      description: Activates or renews a seller's premium subscription when payment is confirmed by the Payment Service.
+      security:
+        - paymentWebhookSignature: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PremiumSubscriptionWebhookPayload'
+      responses:
+        '200':
+          description: Premium subscription activated successfully
+        '401':
+          description: Invalid webhook signature
+  # ==================== USER PROFILE ====================
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      tags: [Users]
+      summary: Retrieve current authenticated user profile
+      description: Returns the complete profile of the currently authenticated user based on the Supabase JWT token provided in the request.
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Buyer'
+                  - $ref: '#/components/schemas/Seller'
+                  - $ref: '#/components/schemas/Manager'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /users/me/profile-photo:
+    post:
+      operationId: uploadProfilePhoto
+      tags: [Users, Storage]
+      summary: Upload user profile photograph
+      description: |
+        Uploads a profile photograph to S3 storage and updates the user profile with the resulting URL. The photograph will be displayed in an anonymized format (blurred or masked) in public contexts until a contact unlock transaction is completed.
+
+        **File Requirements**:
+        - Formats: JPEG, PNG
+        - Maximum size: 5 MB
+        - Recommended dimensions: 400x400 pixels minimum
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Profile photograph uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  photoUrl:
+                    type: string
+                    format: uri
+                    description: S3 object URL for the uploaded photograph
+                    example: "https://vaikaparts-bucket.s3.amazonaws.com/profiles/user-123/photo.jpg"
+        '400':
+          description: Invalid file format or size exceeds limit
+    delete:
+      operationId: deleteProfilePhoto
+      tags: [Users, Storage]
+      summary: Remove user profile photograph
+      description: Deletes the current profile photograph from storage and removes the URL from the user profile.
+      responses:
+        '204':
+          description: Profile photograph deleted successfully
+  # ==================== BUYERS ====================
+  /buyers:
+    get:
+      operationId: getAllBuyers
+      tags: [Buyers]
+      summary: List all buyer profiles
+      description: |
+        Retrieves a paginated list of all buyer profiles in the system. This endpoint is restricted to users with manager-level permissions.
+
+        **Authorization**: Manager role required
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - name: status
+          in: query
+          description: Filter by account status
+          schema:
+            $ref: '#/components/schemas/UserStatus'
+      responses:
+        '200':
+          description: Buyer list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuyerPageResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /buyers/me:
+    get:
+      operationId: getMyBuyerProfile
+      tags: [Buyers]
+      summary: Retrieve current buyer profile
+      description: Returns the complete profile of the currently authenticated buyer.
+      responses:
+        '200':
+          description: Buyer profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Buyer'
+        '403':
+          description: Authenticated user is not a buyer
+    patch:
+      operationId: updateMyBuyerProfile
+      tags: [Buyers]
+      summary: Update current buyer profile
+      description: Modifies editable fields of the currently authenticated buyer's profile.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuyerUpdateRequest'
+      responses:
+        '200':
+          description: Buyer profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Buyer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /buyers/{buyerId}:
+    get:
+      operationId: getBuyerById
+      tags: [Buyers]
+      summary: Retrieve buyer profile by ID
+      description: |
+        Returns the complete profile of a specific buyer identified by UUID.
+
+        **Authorization**: Manager role required
+      parameters:
+        - name: buyerId
+          in: path
+          required: true
+          description: Unique identifier of the buyer
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: Buyer profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Buyer'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  # ==================== SELLERS ====================
+  /sellers:
+    get:
+      operationId: getAllSellers
+      tags: [Sellers]
+      summary: List all seller profiles
+      description: |
+        Retrieves a paginated list of seller profiles. For unauthenticated requests or non-manager users, returns anonymized seller profiles with masked contact information. Manager users receive complete seller details.
+
+        **Public Access**: This endpoint does not require authentication
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - name: status
+          in: query
+          description: Filter by account status
+          schema:
+            $ref: '#/components/schemas/UserStatus'
+        - name: location
+          in: query
+          description: Filter by city or region
+          schema:
+            type: string
+        - name: minRating
+          in: query
+          description: Minimum average rating threshold
+          schema:
+            type: number
+            minimum: 0
+            maximum: 5
+        - name: premiumOnly
+          in: query
+          description: Return only premium sellers
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Seller list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnonymousSellerPageResponse'
+  /sellers/me:
+    get:
+      operationId: getMySellerProfile
+      tags: [Sellers]
+      summary: Retrieve current seller profile
+      description: Returns the complete profile of the currently authenticated seller with all contact details and statistics.
+      responses:
+        '200':
+          description: Seller profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Seller'
+        '403':
+          description: Authenticated user is not a seller
+    patch:
+      operationId: updateMySellerProfile
+      tags: [Sellers]
+      summary: Update current seller profile
+      description: Modifies editable fields of the currently authenticated seller's profile including garage name and location.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SellerUpdateRequest'
+      responses:
+        '200':
+          description: Seller profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Seller'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /sellers/{sellerId}:
+    get:
+      operationId: getSellerById
+      tags: [Sellers]
+      summary: Retrieve seller profile by ID
+      description: |
+        Returns seller profile information for the specified UUID. Regular users receive an anonymized profile with masked contact information. Manager users receive complete details.
+
+        **Public Access**: This endpoint does not require authentication
+      security: []
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          description: Unique identifier of the seller
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: Seller profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnonymousSellerProfile'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /sellers/{sellerId}/statistics:
+    get:
+      operationId: getSellerStatistics
+      tags: [Sellers, Statistics]
+      summary: Retrieve seller performance statistics
+      description: |
+        Returns public performance metrics for a seller including total offers, successful unlocks, rating statistics, and average response time.
+
+        **Public Access**: This endpoint does not require authentication
+      security: []
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          description: Unique identifier of the seller
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerPublicStatistics'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  # ==================== MANAGERS ====================
+  /managers:
+    get:
+      operationId: getAllManagers
+      tags: [Managers]
+      summary: List all manager accounts
+      description: |
+        Retrieves a paginated list of all manager accounts in the system.
+
+        **Authorization**: Admin role required
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        '200':
+          description: Manager list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagerPageResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /managers/{managerId}:
+    patch:
+      operationId: updateManager
+      tags: [Managers]
+      summary: Update manager account
+      description: |
+        Modifies manager account properties including role assignment and account status.
+
+        **Authorization**: Admin role required
+      parameters:
+        - name: managerId
+          in: path
+          required: true
+          description: Unique identifier of the manager
+          schema:
+            $ref: '#/components/schemas/UUID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManagerUpdateRequest'
+      responses:
+        '200':
+          description: Manager account updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Manager'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  # ==================== DEMANDS ====================
+  /demands:
+    get:
+      operationId: getAllDemands
+      tags: [Demands]
+      summary: List demands with role-based filtering
+      description: |
+        Retrieves a paginated list of demands based on the authenticated user's role:
+        - **Buyers**: Returns only their own demands with full details
+        - **Sellers**: Returns active demands with anonymized buyer information
+        - **Managers**: Returns all demands with complete details
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - name: status
+          in: query
+          description: Filter by demand status
+          schema:
+            $ref: '#/components/schemas/DemandStatus'
+        - name: partCategory
+          in: query
+          description: Filter by automotive part category
+          schema:
+            $ref: '#/components/schemas/PartCategory'
+        - name: carBrand
+          in: query
+          description: Filter by vehicle brand
+          schema:
+            type: string
+        - name: location
+          in: query
+          description: Filter by city or region
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Demand list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DemandPageResponse'
+    post:
+      operationId: createDemand
+      tags: [Demands]
+      summary: Create new automotive parts demand
+      description: |
+        Creates a new demand for automotive parts. Upon creation, the system notifies relevant sellers based on matching criteria such as part category and location proximity.
+
+        **Authorization**: Buyer role required
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DemandCreateRequest'
+      responses:
+        '201':
+          description: Demand created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Demand'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: Only buyers may create demands
+  /demands/upload-images:
+    post:
+      operationId: uploadDemandImages
+      tags: [Demands, Storage]
+      summary: Upload demand attachment images
+      description: |
+        Uploads images to be associated with a demand. This endpoint should be called before creating the demand to obtain image URLs for inclusion in the demand creation request.
+
+        **File Requirements**:
+        - Formats: JPEG, PNG
+        - Maximum size: 5 MB per image
+        - Maximum count: 5 images per demand
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [images]
+              properties:
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  maxItems: 5
+      responses:
+        '200':
+          description: Images uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imageUrls:
+                    type: array
+                    items:
+                      type: string
+                      format: uri
+                    description: S3 object URLs for the uploaded images
+        '400':
+          description: Invalid file format, size, or count
+  /demands/my-demands:
+    get:
+      operationId: getMyDemands
+      tags: [Demands]
+      summary: Retrieve current buyer's demands
+      description: |
+        Returns a paginated list of demands created by the currently authenticated buyer.
+
+        **Authorization**: Buyer role required
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - name: status
+          in: query
+          description: Filter by demand status
+          schema:
+            $ref: '#/components/schemas/DemandStatus'
+      responses:
+        '200':
+          description: Demand list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DemandPageResponse'
+        '403':
+          description: Authenticated user is not a buyer
+  /demands/{demandId}:
+    get:
+      operationId: getDemandById
+      tags: [Demands]
+      summary: Retrieve demand details
+      description: |
+        Returns detailed information for a specific demand. The level of detail varies by user role:
+        - **Demand owner**: Full details including buyer information
+        - **Sellers**: Demand details with anonymized buyer information
+        - **Managers**: Complete details including all buyer information
+      parameters:
+        - name: demandId
+          in: path
+          required: true
+          description: Unique identifier of the demand
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: Demand retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Demand'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateDemand
+      tags: [Demands]
+      summary: Update demand details
+      description: |
+        Modifies editable fields of an existing demand including description, images, and status.
+
+        **Authorization**: Demand owner or manager role required
+      parameters:
+        - name: demandId
+          in: path
+          required: true
+          description: Unique identifier of the demand
+          schema:
+            $ref: '#/components/schemas/UUID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DemandUpdateRequest'
+      responses:
+        '200':
+          description: Demand updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Demand'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      operationId: deleteDemand
+      tags: [Demands]
+      summary: Cancel demand
+      description: |
+        Cancels an existing demand and notifies sellers who have submitted offers.
+
+        **Authorization**: Demand owner or manager role required
+      parameters:
+        - name: demandId
+          in: path
+          required: true
+          description: Unique identifier of the demand
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '204':
+          description: Demand cancelled successfully
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /demands/{demandId}/offers:
+    get:
+      operationId: getOffersForDemand
+      tags: [Demands, Offers]
+      summary: Retrieve offers for a demand
+      description: |
+        Returns all offers submitted for a specific demand. The level of detail varies by user role:
+        - **Buyer (demand owner)**: All offers with anonymized seller information
+        - **Seller**: Only their own offer with full details
+        - **Manager**: All offers with complete seller details
+      parameters:
+        - name: demandId
+          in: path
+          required: true
+          description: Unique identifier of the demand
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - name: sortBy
+          in: query
+          description: Sort offers by specified criterion
+          schema:
+            type: string
+            enum: [price_asc, price_desc, rating_desc, created_desc]
+            default: created_desc
+      responses:
+        '200':
+          description: Offer list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferPageResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  # ==================== OFFERS ====================
+  /offers:
+    post:
+      operationId: createOffer
+      tags: [Offers]
+      summary: Submit offer for demand
+      description: |
+        Creates a new offer in response to a buyer's demand. The buyer receives a notification and can view the offer with anonymized seller information until they complete a contact unlock transaction.
+
+        **Authorization**: Seller role required
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfferCreateRequest'
+      responses:
+        '201':
+          description: Offer created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: Only sellers may create offers
+  /offers/upload-images:
+    post:
+      operationId: uploadOfferImages
+      tags: [Offers, Storage]
+      summary: Upload offer attachment images
+      description: |
+        Uploads images to be associated with an offer. This endpoint should be called before creating the offer to obtain image URLs for inclusion in the offer creation request.
+
+        **File Requirements**:
+        - Formats: JPEG, PNG
+        - Maximum size: 5 MB per image
+        - Maximum count: 5 images per offer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [images]
+              properties:
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  maxItems: 5
+      responses:
+        '200':
+          description: Images uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imageUrls:
+                    type: array
+                    items:
+                      type: string
+                      format: uri
+        '400':
+          description: Invalid file format, size, or count
+  /offers/my-offers:
+    get:
+      operationId: getMyOffers
+      tags: [Offers]
+      summary: Retrieve current seller's offers
+      description: |
+        Returns a paginated list of offers submitted by the currently authenticated seller.
+
+        **Authorization**: Seller role required
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - name: status
+          in: query
+          description: Filter by offer status
+          schema:
+            $ref: '#/components/schemas/OfferStatus'
+        - name: demandId
+          in: query
+          description: Filter by specific demand
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: Offer list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferPageResponse'
+        '403':
+          description: Authenticated user is not a seller
+  /offers/{offerId}:
+    get:
+      operationId: getOfferById
+      tags: [Offers]
+      summary: Retrieve offer details
+      description: |
+        Returns detailed information for a specific offer. The level of seller information disclosure depends on the requesting user's role and whether a contact unlock transaction has been completed:
+        - **Buyer (without unlock)**: Offer details with anonymized seller information
+        - **Buyer (with unlock)**: Offer details with complete seller contact information
+        - **Seller (offer owner)**: Full offer and seller details
+        - **Manager**: Complete details including all seller information
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          description: Unique identifier of the offer
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: Offer retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateOffer
+      tags: [Offers]
+      summary: Update offer details
+      description: |
+        Modifies editable fields of an existing offer including price, condition, description, and images.
+
+        **Authorization**: Offer owner required
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          description: Unique identifier of the offer
+          schema:
+            $ref: '#/components/schemas/UUID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfferUpdateRequest'
+      responses:
+        '200':
+          description: Offer updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      operationId: withdrawOffer
+      tags: [Offers]
+      summary: Withdraw offer
+      description: |
+        Withdraws an existing offer and notifies the buyer if the offer was still under consideration.
+
+        **Authorization**: Offer owner or manager role required
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          description: Unique identifier of the offer
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '204':
+          description: Offer withdrawn successfully
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  # ==================== CONTACT UNLOCKS ====================
+  /contact-unlocks/initiate:
+    post:
+      operationId: initiateContactUnlock
+      tags: [Contact Unlocks]
+      summary: Initiate contact information unlock
+      description: |
+        Creates a contact unlock request for a specific offer. Returns a payment reference to be used with the Payment Service. Upon successful payment confirmation via webhook, the seller's contact information will be revealed to the buyer.
+
+        Each unlock transaction is scoped to a single offer. Multiple unlocks require separate payment transactions.
+
+        **Authorization**: Buyer role required
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [offerId]
+              properties:
+                offerId:
+                  $ref: '#/components/schemas/UUID'
+      responses:
+        '201':
+          description: Contact unlock initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactUnlock'
+        '400':
+          description: Invalid offer or unlock already exists for this offer
+        '403':
+          description: Only buyers may initiate contact unlocks
+  /contact-unlocks/my-unlocks:
+    get:
+      operationId: getMyContactUnlocks
+      tags: [Contact Unlocks]
+      summary: Retrieve current user's contact unlocks
+      description: |
+        Returns a paginated list of contact unlock transactions where the current user is either the buyer or seller. Full contact information is included only for unlocks with PAID status.
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - name: status
+          in: query
+          description: Filter by unlock status
+          schema:
+            $ref: '#/components/schemas/ContactUnlockStatus'
+      responses:
+        '200':
+          description: Contact unlock list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactUnlockPageResponse'
+  /contact-unlocks/{unlockId}:
+    get:
+      operationId: getContactUnlockById
+      tags: [Contact Unlocks]
+      summary: Retrieve contact unlock details
+      description: |
+        Returns detailed information for a specific contact unlock transaction. Contact information disclosure depends on payment status:
+        - **PENDING_PAYMENT**: Both parties see anonymized information
+        - **PAID**: Buyer sees full seller contact, seller sees full buyer contact
+        - **Manager**: Always sees complete information for both parties
+      parameters:
+        - name: unlockId
+          in: path
+          required: true
+          description: Unique identifier of the contact unlock
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: Contact unlock retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactUnlock'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /contact-unlocks/{unlockId}/confirm:
+    post:
+      operationId: confirmContactUnlock
+      tags: [Contact Unlocks]
+      summary: Confirm successful transaction
+      description: |
+        Buyer confirms that they have received the automotive part and are satisfied with the transaction. Must be completed within 48 hours of contact unlock payment. This action triggers the seller rating workflow.
+
+        **Authorization**: Buyer (unlock owner) required
+      parameters:
+        - name: unlockId
+          in: path
+          required: true
+          description: Unique identifier of the contact unlock
+          schema:
+            $ref: '#/components/schemas/UUID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [satisfied]
+              properties:
+                satisfied:
+                  type: boolean
+                  description: Whether the part met expectations
+                comment:
+                  type: string
+                  description: Optional feedback
+                  maxLength: 500
+      responses:
+        '200':
+          description: Transaction confirmed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactUnlock'
+        '400':
+          description: Confirmation deadline expired or unlock not in valid state
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /contact-unlocks/{unlockId}/request-refund:
+    post:
+      operationId: requestRefund
+      tags: [Contact Unlocks]
+      summary: Request contact unlock refund
+      description: |
+        Initiates a refund request if the automotive part was misrepresented or transaction was unsatisfactory. The request is forwarded to the Payment Service for processing and creates a dispute record requiring manager review.
+
+        **Authorization**: Buyer (unlock owner) required
+      parameters:
+        - name: unlockId
+          in: path
+          required: true
+          description: Unique identifier of the contact unlock
+          schema:
+            $ref: '#/components/schemas/UUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  description: Detailed explanation for refund request
+                  maxLength: 1000
+                evidenceUrls:
+                  type: array
+                  items:
+                    type: string
+                    format: uri
+                  description: Photo or document URLs supporting the claim
+                  maxItems: 5
+      responses:
+        '200':
+          description: Refund request submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactUnlock'
+        '400':
+          description: Refund request deadline expired or invalid state
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  # ==================== PREMIUM SUBSCRIPTION ====================
+  /premium/initiate-subscription:
+    post:
+      operationId: initiatePremiumSubscription
+      tags: [Premium]
+      summary: Initiate premium subscription
+      description: |
+        Creates a premium subscription request for the current seller. Returns a payment reference for use with the Payment Service. Upon payment confirmation, premium features are automatically activated.
+
+        **Authorization**: Seller role required
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscriptionPlan]
+              properties:
+                subscriptionPlan:
+                  $ref: '#/components/schemas/PremiumPlan'
+      responses:
+        '201':
+          description: Subscription initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PremiumSubscription'
+        '403':
+          description: Only sellers may subscribe to premium
+  /premium/my-subscription:
+    get:
+      operationId: getMyPremiumSubscription
+      tags: [Premium]
+      summary: Retrieve current premium subscription
+      description: |
+        Returns the current seller's premium subscription status including plan details, expiration date, and enabled features.
+
+        **Authorization**: Seller role required
+      responses:
+        '200':
+          description: Subscription details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PremiumSubscription'
+        '404':
+          description: No active subscription found
+        '403':
+          description: Authenticated user is not a seller
+  /premium/cancel-subscription:
+    post:
+      operationId: cancelPremiumSubscription
+      tags: [Premium]
+      summary: Cancel premium subscription
+      description: |
+        Cancels the current seller's premium subscription. Premium features remain active until the current billing period expires.
+
+        **Authorization**: Seller role required
+      responses:
+        '200':
+          description: Subscription cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PremiumSubscription'
+        '404':
+          description: No active subscription found
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  # ==================== RATINGS ====================
+  /ratings:
+    post:
+      operationId: createRating
+      tags: [Ratings]
+      summary: Submit seller rating
+      description: |
+        Creates a rating for a seller following a completed contact unlock transaction. Ratings can only be submitted once per contact unlock and must be submitted after the buyer confirms receipt of the automotive part.
+
+        **Authorization**: Buyer role required
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RatingCreateRequest'
+      responses:
+        '201':
+          description: Rating submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rating'
+        '400':
+          description: Invalid unlock reference or rating already exists
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /ratings/seller/{sellerId}:
+    get:
+      operationId: getSellerRatings
+      tags: [Ratings]
+      summary: Retrieve seller ratings
+      description: |
+        Returns a paginated list of ratings for a specific seller including aggregate statistics.
+
+        **Public Access**: This endpoint does not require authentication
+      security: []
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          description: Unique identifier of the seller
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        '200':
+          description: Ratings retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RatingPageResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  # ==================== NOTIFICATIONS ====================
+  /notifications/preferences:
+    get:
+      operationId: getNotificationPreferences
+      tags: [Notifications]
+      summary: Retrieve notification preferences
+      description: Returns the current user's notification preferences including enabled event types and delivery channels.
+      responses:
+        '200':
+          description: Preferences retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+    patch:
+      operationId: updateNotificationPreferences
+      tags: [Notifications]
+      summary: Update notification preferences
+      description: Modifies the current user's notification preferences for event types and delivery channels.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferences'
+      responses:
+        '200':
+          description: Preferences updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+  /notifications:
+    get:
+      operationId: getMyNotifications
+      tags: [Notifications]
+      summary: Retrieve user notifications
+      description: Returns a paginated list of notifications for the current user with optional filtering by read status and notification type.
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - name: unreadOnly
+          in: query
+          description: Return only unread notifications
+          schema:
+            type: boolean
+            default: false
+        - name: type
+          in: query
+          description: Filter by notification type
+          schema:
+            $ref: '#/components/schemas/NotificationType'
+      responses:
+        '200':
+          description: Notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPageResponse'
+  /notifications/{notificationId}/mark-read:
+    patch:
+      operationId: markNotificationRead
+      tags: [Notifications]
+      summary: Mark notification as read
+      description: Updates the read status of a specific notification.
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          description: Unique identifier of the notification
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '204':
+          description: Notification marked as read
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /notifications/mark-all-read:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [Notifications]
+      summary: Mark all notifications as read
+      description: Updates the read status of all notifications for the current user.
+      responses:
+        '204':
+          description: All notifications marked as read
+  # ==================== STATISTICS ====================
+  /statistics/platform:
+    get:
+      operationId: getPlatformStatistics
+      tags: [Statistics]
+      summary: Retrieve platform-wide statistics
+      description: |
+        Returns aggregate statistics for the entire platform including user counts, transaction volumes, and popular categories.
+
+        **Authorization**: Manager role required
+      parameters:
+        - name: startDate
+          in: query
+          description: Start date for statistics period
+          schema:
+            $ref: '#/components/schemas/DateTime'
+        - name: endDate
+          in: query
+          description: End date for statistics period
+          schema:
+            $ref: '#/components/schemas/DateTime'
+      responses:
+        '200':
+          description: Platform statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformStatistics'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /statistics/dashboard:
+    get:
+      operationId: getDashboard
+      tags: [Statistics]
+      summary: Retrieve role-specific dashboard
+      description: |
+        Returns dashboard data tailored to the current user's role:
+        - **Buyers**: Demand statistics and offer summaries
+        - **Sellers**: Offer performance and unlock metrics
+        - **Managers**: Platform overview and recent activity
+      responses:
+        '200':
+          description: Dashboard data retrieved successfully
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/BuyerDashboard'
+                  - $ref: '#/components/schemas/SellerDashboard'
+                  - $ref: '#/components/schemas/ManagerDashboard'
+# ==================== COMPONENTS ====================
 components:
+  securitySchemes:
+    supabaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase-issued JWT token for user authentication
+    supabaseWebhookSignature:
+      type: apiKey
+      in: header
+      name: X-Supabase-Signature
+      description: HMAC signature for Supabase webhook verification
+    paymentWebhookSignature:
+      type: apiKey
+      in: header
+      name: X-Payment-Signature
+      description: HMAC signature for Payment Service webhook verification
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: Zero-indexed page number for pagination
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    SizeParam:
+      name: size
+      in: query
+      description: Number of items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
   schemas:
+    # ========== Base Types ==========
+    UUID:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+      description: RFC 4122 compliant UUID
+      example: "e6b5cc3e-eaaa-4cb3-912c-e059e983bb78"
+    DateTime:
+      type: string
+      format: date-time
+      description: ISO 8601 formatted date-time string
+      example: "2025-12-06T11:23:45Z"
+    PhoneNumber:
+      type: string
+      pattern: '^\+[1-9]\d{1,14}$'
+      description: E.164 formatted international phone number
+      example: "+261380012345"
+    EmailAddress:
+      type: string
+      format: email
+      pattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+      minLength: 5
+      maxLength: 254
+      description: RFC 5322 compliant email address
+      example: "jane.doe@example.mg"
+    Location:
+      type: object
+      required: [city, region]
+      description: Geographical location information
+      properties:
+        city:
+          type: string
+          example: "Antananarivo"
+        region:
+          type: string
+          example: "Analamanga"
+        address:
+          type: string
+          description: Detailed street address
+        latLon:
+          $ref: '#/components/schemas/LatLon'
+    LatLon:
+      type: object
+      required: [latitude, longitude]
+      description: Geographic coordinates
+      properties:
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+          example: -18.8792
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          example: 47.5079
+    # ========== Enums ==========
+    UserType:
+      type: string
+      enum: [BUYER, SELLER, MANAGER]
+      description: User account type
+    UserStatus:
+      type: string
+      enum: [ENABLED, DISABLED, SUSPENDED]
+      default: ENABLED
+      description: User account status
+    ManagerRole:
+      type: string
+      enum: [ADMIN, MANAGER]
+      description: Manager permission level
+    PartCategory:
+      type: string
+      description: Automotive part category classification
+      enum:
+        - engine_part
+        - direction_suspension
+        - braking
+        - starter
+        - alternator
+        - distribution
+        - headlights
+        - clutch_gearbox
+        - sensors_and_probes
+        - exhaust_pipe
+        - passenger_compartment
+        - body
+        - tire
+        - other
+    PartCondition:
+      type: string
+      enum: [NEW, USED]
+      description: Physical condition of automotive part
+    DemandStatus:
+      type: string
+      enum: [ACTIVE, FULFILLED, CANCELLED, EXPIRED]
+      description: Current state of demand lifecycle
+    OfferStatus:
+      type: string
+      enum: [PENDING, SELECTED, REJECTED, WITHDRAWN]
+      description: Current state of offer lifecycle
+    ContactUnlockStatus:
+      type: string
+      enum: [PENDING_PAYMENT, PAID, CONFIRMED, REFUND_REQUESTED, REFUNDED, DISPUTED]
+      description: Current state of contact unlock transaction
+    PremiumPlan:
+      type: string
+      enum: [MONTHLY, QUARTERLY, YEARLY]
+      description: Premium subscription billing period
+    NotificationType:
+      type: string
+      enum: [NEW_OFFER, DEMAND_MATCH, PAYMENT_SUCCESS, UNLOCK_CONFIRMED, RATING_RECEIVED, PREMIUM_EXPIRING, SYSTEM]
+      description: Notification event type
+    NotificationChannel:
+      type: string
+      enum: [IN_APP, EMAIL, SMS, PUSH]
+      description: Notification delivery channel
+    # ========== Webhook Payloads ==========
+    SupabaseBuyerWebhookPayload:
+      type: object
+      required: [userId, email, profileData]
+      description: Payload structure for Supabase buyer account creation webhook
+      properties:
+        userId:
+          type: string
+          format: uuid
+          description: Supabase user UUID
+        email:
+          $ref: '#/components/schemas/EmailAddress'
+        phoneNumber:
+          $ref: '#/components/schemas/PhoneNumber'
+        profileData:
+          type: object
+          required: [name]
+          description: Buyer-specific profile information
+          properties:
+            name:
+              type: string
+              minLength: 2
+              maxLength: 100
+            location:
+              $ref: '#/components/schemas/Location'
+    SupabaseSellerWebhookPayload:
+      type: object
+      required: [userId, email, profileData]
+      description: Payload structure for Supabase seller account creation webhook
+      properties:
+        userId:
+          type: string
+          format: uuid
+          description: Supabase user UUID
+        email:
+          $ref: '#/components/schemas/EmailAddress'
+        phoneNumber:
+          $ref: '#/components/schemas/PhoneNumber'
+        profileData:
+          type: object
+          required: [name]
+          description: Seller-specific profile information
+          properties:
+            name:
+              type: string
+              minLength: 2
+              maxLength: 100
+            garageName:
+              type: string
+              maxLength: 200
+            location:
+              $ref: '#/components/schemas/Location'
+    SupabaseManagerWebhookPayload:
+      type: object
+      required: [userId, email, profileData]
+      description: Payload structure for Supabase manager account creation webhook
+      properties:
+        userId:
+          type: string
+          format: uuid
+          description: Supabase user UUID
+        email:
+          $ref: '#/components/schemas/EmailAddress'
+        phoneNumber:
+          $ref: '#/components/schemas/PhoneNumber'
+        profileData:
+          type: object
+          required: [name, managerRole]
+          description: Manager-specific profile information
+          properties:
+            name:
+              type: string
+              minLength: 2
+              maxLength: 100
+            managerRole:
+              $ref: '#/components/schemas/ManagerRole'
+    SupabaseUserUpdateWebhookPayload:
+      type: object
+      required: [userId]
+      description: Payload structure for Supabase user profile update webhook
+      properties:
+        userId:
+          type: string
+          format: uuid
+          description: Supabase user UUID
+        email:
+          $ref: '#/components/schemas/EmailAddress'
+        phoneNumber:
+          $ref: '#/components/schemas/PhoneNumber'
+        profileData:
+          type: object
+          description: Updated profile metadata
+          properties:
+            name:
+              type: string
+            location:
+              $ref: '#/components/schemas/Location'
+            garageName:
+              type: string
+            managerRole:
+              $ref: '#/components/schemas/ManagerRole'
+    PaymentWebhookPayload:
+      type: object
+      required: [unlockId, paymentId, transactionId, amount, status]
+      description: Payload structure for Payment Service transaction webhooks
+      properties:
+        unlockId:
+          $ref: '#/components/schemas/UUID'
+          description: Associated contact unlock identifier
+        paymentId:
+          type: string
+          description: Payment Service payment identifier
+        transactionId:
+          type: string
+          description: Mobile money provider transaction reference
+        amount:
+          type: number
+          format: double
+          description: Transaction amount in MGA
+        paymentMethod:
+          type: string
+          enum: [ORANGE_MONEY, MVOLA, AIRTEL_MONEY]
+        status:
+          type: string
+          enum: [SUCCESS, FAILED]
+        paidAt:
+          $ref: '#/components/schemas/DateTime'
+    PremiumSubscriptionWebhookPayload:
+      type: object
+      required: [sellerId, subscriptionId, plan, status, paidAt]
+      description: Payload structure for premium subscription payment webhooks
+      properties:
+        sellerId:
+          $ref: '#/components/schemas/UUID'
+        subscriptionId:
+          type: string
+          description: Payment Service subscription identifier
+        plan:
+          $ref: '#/components/schemas/PremiumPlan'
+        amount:
+          type: number
+          format: double
+        status:
+          type: string
+          enum: [ACTIVATED, RENEWED, CANCELLED]
+        paidAt:
+          $ref: '#/components/schemas/DateTime'
+        expiresAt:
+          $ref: '#/components/schemas/DateTime'
+    # ========== User Schemas ==========
+    BaseUser:
+      type: object
+      required: [id, supabaseUserId, name, phoneNumber, userType, status, createdAt]
+      description: Common user profile attributes
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+          description: VaikaParts internal user identifier
+        supabaseUserId:
+          type: string
+          description: Supabase authentication system user identifier
+        name:
+          type: string
+          description: Full name of the user
+        phoneNumber:
+          $ref: '#/components/schemas/PhoneNumber'
+        email:
+          $ref: '#/components/schemas/EmailAddress'
+        profilePhotoUrl:
+          type: string
+          format: uri
+          description: S3 object URL for profile photograph
+        userType:
+          $ref: '#/components/schemas/UserType'
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        createdAt:
+          $ref: '#/components/schemas/DateTime'
+        updatedAt:
+          $ref: '#/components/schemas/DateTime'
+    Buyer:
+      allOf:
+        - $ref: '#/components/schemas/BaseUser'
+        - type: object
+          required: [location]
+          description: Buyer user profile with demand statistics
+          properties:
+            location:
+              $ref: '#/components/schemas/Location'
+            totalDemands:
+              type: integer
+              description: Lifetime demand count
+            activeDemands:
+              type: integer
+              description: Currently active demand count
+            totalContactUnlocks:
+              type: integer
+              description: Total contact unlocks purchased
+    Seller:
+      allOf:
+        - $ref: '#/components/schemas/BaseUser'
+        - type: object
+          required: [location]
+          description: Seller user profile with performance metrics
+          properties:
+            garageName:
+              type: string
+              description: Business or garage name
+            location:
+              $ref: '#/components/schemas/Location'
+            averageRating:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 5
+              description: Average customer rating
+            totalRatings:
+              type: integer
+              description: Total number of ratings received
+            totalOffers:
+              type: integer
+              description: Lifetime offer count
+            successfulUnlocks:
+              type: integer
+              description: Number of completed contact unlock transactions
+            premiumSubscription:
+              $ref: '#/components/schemas/PremiumSubscription'
+              description: Current premium subscription status (null if not subscribed)
+    AnonymousSellerProfile:
+      type: object
+      required: [id, location, averageRating, memberSince]
+      description: Anonymized seller profile visible before contact unlock
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        maskedProfilePhotoUrl:
+          type: string
+          format: uri
+          description: Blurred or placeholder profile photograph URL
+        garageName:
+          type: string
+          description: Business name (visible only for premium sellers)
+          nullable: true
+        location:
+          type: object
+          required: [city, region]
+          description: Generalized location without exact address
+          properties:
+            city:
+              type: string
+            region:
+              type: string
+        averageRating:
+          type: number
+          format: float
+        totalRatings:
+          type: integer
+        successfulUnlocks:
+          type: integer
+        isPremium:
+          type: boolean
+          description: Premium subscription status
+        memberSince:
+          $ref: '#/components/schemas/DateTime'
+    Manager:
+      allOf:
+        - $ref: '#/components/schemas/BaseUser'
+        - type: object
+          required: [managerRole]
+          description: Manager user profile with administrative permissions
+          properties:
+            managerRole:
+              $ref: '#/components/schemas/ManagerRole'
+    # ========== Update Requests ==========
+    BuyerUpdateRequest:
+      type: object
+      description: Buyer profile update payload
+      properties:
+        name:
+          type: string
+        email:
+          $ref: '#/components/schemas/EmailAddress'
+        location:
+          $ref: '#/components/schemas/Location'
+    SellerUpdateRequest:
+      type: object
+      description: Seller profile update payload
+      properties:
+        name:
+          type: string
+        email:
+          $ref: '#/components/schemas/EmailAddress'
+        garageName:
+          type: string
+        location:
+          $ref: '#/components/schemas/Location'
+    ManagerUpdateRequest:
+      type: object
+      description: Manager profile update payload
+      properties:
+        name:
+          type: string
+        email:
+          $ref: '#/components/schemas/EmailAddress'
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        managerRole:
+          $ref: '#/components/schemas/ManagerRole'
+    # ========== Part Schema ==========
+    Part:
+      type: object
+      required: [partName, carBrand, carModel, partCategory]
+      description: Automotive part specification
+      properties:
+        partName:
+          type: string
+          description: Specific part name or designation
+          example: "Brake Pads Front"
+        carBrand:
+          type: string
+          description: Vehicle manufacturer
+          example: "Toyota"
+        carModel:
+          type: string
+          description: Vehicle model name
+          example: "Corolla"
+        carYear:
+          type: integer
+          minimum: 1900
+          maximum: 2100
+          description: Vehicle model year
+          example: 2018
+        partCategory:
+          $ref: '#/components/schemas/PartCategory'
+    # ========== Demand Schemas ==========
+    Demand:
+      type: object
+      required: [id, buyerId, part, status, createdAt]
+      description: Buyer request for automotive part
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        buyerId:
+          $ref: '#/components/schemas/UUID'
+        buyerInfo:
+          type: object
+          description: Buyer information with conditional disclosure based on user role
+          properties:
+            name:
+              type: string
+              nullable: true
+            location:
+              type: object
+              properties:
+                city:
+                  type: string
+                region:
+                  type: string
+        part:
+          $ref: '#/components/schemas/Part'
+        description:
+          type: string
+          description: Additional part requirements or specifications
+        imageUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: Reference photographs uploaded by buyer
+          maxItems: 5
+        status:
+          $ref: '#/components/schemas/DemandStatus'
+        offerCount:
+          type: integer
+          description: Number of submitted offers
+        createdAt:
+          $ref: '#/components/schemas/DateTime'
+        updatedAt:
+          $ref: '#/components/schemas/DateTime'
+        expiresAt:
+          $ref: '#/components/schemas/DateTime'
+          description: Automatic expiration timestamp
+    DemandCreateRequest:
+      type: object
+      required: [part]
+      description: Demand creation payload
+      properties:
+        part:
+          $ref: '#/components/schemas/Part'
+        description:
+          type: string
+          maxLength: 1000
+        imageUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+          maxItems: 5
+          description: S3 URLs from image upload endpoint
+    DemandUpdateRequest:
+      type: object
+      description: Demand modification payload
+      properties:
+        description:
+          type: string
+          maxLength: 1000
+        imageUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+          maxItems: 5
+        status:
+          $ref: '#/components/schemas/DemandStatus'
+    # ========== Offer Schemas ==========
+    Offer:
+      type: object
+      required: [id, demandId, sellerId, part, price, condition, status, createdAt]
+      description: Seller response to buyer demand
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        demandId:
+          $ref: '#/components/schemas/UUID'
+        sellerId:
+          $ref: '#/components/schemas/UUID'
+        sellerInfo:
+          oneOf:
+            - $ref: '#/components/schemas/AnonymousSellerProfile'
+            - $ref: '#/components/schemas/Seller'
+          description: Seller information with conditional disclosure based on unlock status
+        part:
+          $ref: '#/components/schemas/Part'
+        price:
+          type: number
+          format: double
+          description: Offered price in Malagasy Ariary
+        condition:
+          $ref: '#/components/schemas/PartCondition'
+        description:
+          type: string
+          description: Part condition details and additional information
+          maxLength: 1000
+        imageUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: Photographs of the actual part
+          maxItems: 5
+        status:
+          $ref: '#/components/schemas/OfferStatus'
+        isUnlockedByBuyer:
+          type: boolean
+          description: Whether buyer has paid to unlock this seller's contact
+        createdAt:
+          $ref: '#/components/schemas/DateTime'
+        updatedAt:
+          $ref: '#/components/schemas/DateTime'
+    OfferCreateRequest:
+      type: object
+      required: [demandId, part, price, condition]
+      description: Offer creation payload
+      properties:
+        demandId:
+          $ref: '#/components/schemas/UUID'
+        part:
+          $ref: '#/components/schemas/Part'
+        price:
+          type: number
+          format: double
+          minimum: 0
+        condition:
+          $ref: '#/components/schemas/PartCondition'
+        description:
+          type: string
+          maxLength: 1000
+        imageUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+          maxItems: 5
+    OfferUpdateRequest:
+      type: object
+      description: Offer modification payload
+      properties:
+        price:
+          type: number
+          format: double
+        condition:
+          $ref: '#/components/schemas/PartCondition'
+        description:
+          type: string
+          maxLength: 1000
+        imageUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+          maxItems: 5
+    # ========== Contact Unlock Schemas ==========
+    ContactUnlock:
+      type: object
+      required: [id, demandId, offerId, buyerId, sellerId, status, contactFee, createdAt]
+      description: Contact information unlock transaction
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        demandId:
+          $ref: '#/components/schemas/UUID'
+        offerId:
+          $ref: '#/components/schemas/UUID'
+        buyerId:
+          $ref: '#/components/schemas/UUID'
+        sellerId:
+          $ref: '#/components/schemas/UUID'
+        buyerContact:
+          type: object
+          description: Buyer contact details (revealed to seller after payment)
+          nullable: true
+          properties:
+            name:
+              type: string
+            phoneNumber:
+              $ref: '#/components/schemas/PhoneNumber'
+            email:
+              $ref: '#/components/schemas/EmailAddress'
+            profilePhotoUrl:
+              type: string
+              format: uri
+            location:
+              $ref: '#/components/schemas/Location'
+        sellerContact:
+          type: object
+          description: Seller contact details (revealed to buyer after payment)
+          nullable: true
+          properties:
+            name:
+              type: string
+            phoneNumber:
+              $ref: '#/components/schemas/PhoneNumber'
+            email:
+              $ref: '#/components/schemas/EmailAddress'
+            profilePhotoUrl:
+              type: string
+              format: uri
+            garageName:
+              type: string
+            location:
+              $ref: '#/components/schemas/Location'
+        status:
+          $ref: '#/components/schemas/ContactUnlockStatus'
+        contactFee:
+          type: number
+          format: double
+          description: Unlock fee in Malagasy Ariary
+        paymentReference:
+          type: string
+          description: Payment Service reference identifier
+        transactionId:
+          type: string
+          description: Mobile money transaction reference
+          nullable: true
+        paidAt:
+          $ref: '#/components/schemas/DateTime'
+          nullable: true
+        confirmedAt:
+          $ref: '#/components/schemas/DateTime'
+          nullable: true
+        confirmationDeadline:
+          $ref: '#/components/schemas/DateTime'
+          description: Buyer confirmation deadline (48 hours from payment)
+          nullable: true
+        createdAt:
+          $ref: '#/components/schemas/DateTime'
+        updatedAt:
+          $ref: '#/components/schemas/DateTime'
+    # ========== Premium Subscription ==========
+    PremiumSubscription:
+      type: object
+      description: Seller premium subscription details
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        sellerId:
+          $ref: '#/components/schemas/UUID'
+        plan:
+          $ref: '#/components/schemas/PremiumPlan'
+        status:
+          type: string
+          enum: [ACTIVE, EXPIRED, CANCELLED]
+        paymentReference:
+          type: string
+          description: Payment Service reference identifier
+        features:
+          type: object
+          description: Enabled premium features
+          properties:
+            priorityNotifications:
+              type: boolean
+              default: true
+            additionalChannels:
+              type: array
+              items:
+                $ref: '#/components/schemas/NotificationChannel'
+            premiumBadge:
+              type: boolean
+              default: true
+        activatedAt:
+          $ref: '#/components/schemas/DateTime'
+        expiresAt:
+          $ref: '#/components/schemas/DateTime'
+        autoRenew:
+          type: boolean
+          default: true
+    # ========== Rating Schema ==========
+    Rating:
+      type: object
+      required: [id, sellerId, buyerId, unlockId, rating, createdAt]
+      description: Seller performance rating
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        sellerId:
+          $ref: '#/components/schemas/UUID'
+        buyerId:
+          $ref: '#/components/schemas/UUID'
+        unlockId:
+          $ref: '#/components/schemas/UUID'
+          description: Associated contact unlock transaction
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Numeric rating score
+        comment:
+          type: string
+          maxLength: 500
+          description: Optional written feedback
+        buyerName:
+          type: string
+          description: Public buyer name for verification
+        createdAt:
+          $ref: '#/components/schemas/DateTime'
+    RatingCreateRequest:
+      type: object
+      required: [unlockId, rating]
+      description: Rating creation payload
+      properties:
+        unlockId:
+          $ref: '#/components/schemas/UUID'
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+          maxLength: 500
+    # ========== Notification Schemas ==========
+    NotificationPreferences:
+      type: object
+      description: User notification configuration
+      properties:
+        newOfferNotification:
+          type: boolean
+          default: true
+          description: Notify buyer when offer is received
+        demandMatchNotification:
+          type: boolean
+          default: true
+          description: Notify seller when matching demand is created
+        paymentNotification:
+          type: boolean
+          default: true
+        unlockConfirmationNotification:
+          type: boolean
+          default: true
+        ratingNotification:
+          type: boolean
+          default: true
+          description: Notify seller when rated
+        premiumExpiryNotification:
+          type: boolean
+          default: true
+          description: Notify seller before subscription expiry
+        channels:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationChannel'
+          description: Enabled notification delivery channels (premium sellers have extended access)
+          default: [IN_APP, PUSH]
+    Notification:
+      type: object
+      required: [id, userId, type, title, message, createdAt, isRead]
+      description: User notification record
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        userId:
+          $ref: '#/components/schemas/UUID'
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        title:
+          type: string
+          description: Notification headline
+        message:
+          type: string
+          description: Notification body text
+        relatedEntityId:
+          $ref: '#/components/schemas/UUID'
+          description: Associated entity identifier
+        relatedEntityType:
+          type: string
+          enum: [DEMAND, OFFER, UNLOCK, RATING]
+        isRead:
+          type: boolean
+          default: false
+        createdAt:
+          $ref: '#/components/schemas/DateTime'
+    # ========== Statistics Schemas ==========
+    SellerPublicStatistics:
+      type: object
+      description: Public seller performance metrics
+      properties:
+        totalOffers:
+          type: integer
+        successfulUnlocks:
+          type: integer
+        averageRating:
+          type: number
+          format: float
+        totalRatings:
+          type: integer
+        responseTime:
+          type: object
+          properties:
+            averageHours:
+              type: number
+              description: Mean response time to demands
+        joinedDate:
+          $ref: '#/components/schemas/DateTime'
+    PlatformStatistics:
+      type: object
+      description: Platform-wide aggregate metrics
+      properties:
+        totalUsers:
+          type: integer
+        totalBuyers:
+          type: integer
+        totalSellers:
+          type: integer
+        totalDemands:
+          type: integer
+        activeDemands:
+          type: integer
+        totalOffers:
+          type: integer
+        totalContactUnlocks:
+          type: integer
+        paidUnlocks:
+          type: integer
+        popularCategories:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                $ref: '#/components/schemas/PartCategory'
+              demandCount:
+                type: integer
+        topSellers:
+          type: array
+          items:
+            type: object
+            properties:
+              sellerId:
+                $ref: '#/components/schemas/UUID'
+              garageName:
+                type: string
+              successfulUnlocks:
+                type: integer
+              averageRating:
+                type: number
+    BuyerDashboard:
+      type: object
+      description: Buyer-specific dashboard metrics
+      properties:
+        totalDemands:
+          type: integer
+        activeDemands:
+          type: integer
+        totalOffersReceived:
+          type: integer
+        completedUnlocks:
+          type: integer
+        pendingConfirmations:
+          type: integer
+          description: Unlocks awaiting buyer confirmation
+        recentDemands:
+          type: array
+          items:
+            $ref: '#/components/schemas/Demand'
+          maxItems: 5
+    SellerDashboard:
+      type: object
+      description: Seller-specific dashboard metrics
+      properties:
+        totalOffers:
+          type: integer
+        pendingOffers:
+          type: integer
+        selectedOffers:
+          type: integer
+        completedUnlocks:
+          type: integer
+        averageRating:
+          type: number
+        premiumStatus:
+          type: object
+          properties:
+            isActive:
+              type: boolean
+            expiresAt:
+              $ref: '#/components/schemas/DateTime'
+              nullable: true
+        recentOffers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Offer'
+          maxItems: 5
+    ManagerDashboard:
+      type: object
+      description: Manager-specific dashboard overview
+      properties:
+        platformStats:
+          $ref: '#/components/schemas/PlatformStatistics'
+        recentActivity:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: [NEW_DEMAND, NEW_OFFER, UNLOCK_PAID, RATING_CREATED]
+              description:
+                type: string
+              timestamp:
+                $ref: '#/components/schemas/DateTime'
+          maxItems: 20
+    # ========== Pagination ==========
+    PageResponse:
+      type: object
+      required: [content, page, size, totalElements, totalPages]
+      description: Generic paginated response wrapper
+      properties:
+        content:
+          type: array
+          items: {}
+        page:
+          type: integer
+          description: Current page number (zero-indexed)
+        size:
+          type: integer
+          description: Items per page
+        totalElements:
+          type: integer
+          description: Total item count across all pages
+        totalPages:
+          type: integer
+          description: Total page count
+    BuyerPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/Buyer'
+    AnonymousSellerPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/AnonymousSellerProfile'
+    ManagerPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/Manager'
+    DemandPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/Demand'
+    OfferPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/Offer'
+    ContactUnlockPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/ContactUnlock'
+    RatingPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            averageRating:
+              type: number
+              format: float
+            totalRatings:
+              type: integer
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/Rating'
+    NotificationPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            unreadCount:
+              type: integer
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/Notification'
+    # ========== Error Schemas ==========
     ErrorResponse:
       type: object
+      required: [timestamp, status, error, message, path]
+      description: Standard error response format
       properties:
         timestamp:
           $ref: '#/components/schemas/DateTime'
-          description: When the error occurred
         status:
           type: integer
           description: HTTP status code
-          example: 400
         error:
           type: string
           description: HTTP status reason phrase
-          example: Bad Request
         message:
           type: string
-          description: Detailed error message
-          example: Validation failed
+          description: Human-readable error description
         path:
           type: string
-          description: Request path where error occurred
-          example: /path/of/the/endpoint
+          description: Request path that generated the error
         errorCode:
           type: string
           description: Application-specific error code
@@ -226,7 +2781,7 @@ components:
             - AUTHORIZATION_DENIED
             - ENTITY_NOT_FOUND
             - CONSTRAINT_VIOLATION_ON_FIELDS
-            - TOKEN_UNIQUENESS_CONFLICT
+            - DUPLICATE_ENTITY
             - BAD_FORM
             - MISSING_AUTHORIZATION
             - INVALID_AUTHORIZATION_FORMAT
@@ -239,29 +2794,43 @@ components:
             - INVALID_PARAMETER
             - MALFORMED_JSON
             - METHOD_NOT_ALLOWED
-      required:
-        - timestamp
-        - status
-        - error
-        - message
-        - path
-    DateTime:
-      type: string
-      format: date-time
-      description: Date and time in ISO 8601 format (RFC 3339)
-      example: '2025-12-06T11:23:45Z'
-    UUID:
-      type: string
-      pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
-      format: uuid
-      example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
-    Dummy:
-      type: object
-      required:
-        - id
-        - description
-      properties:
-        id:
-          $ref: '#/components/schemas/UUID'
-        description:
-          type: string
+            - ALREADY_UNLOCKED
+            - UNLOCK_NOT_PAID
+            - REFUND_NOT_ELIGIBLE
+            - ONLY_BUYERS_ALLOWED
+            - ONLY_SELLERS_ALLOWED
+            - ONLY_MANAGERS_ALLOWED
+        details:
+          type: object
+          description: Additional error context
+  responses:
+    BadRequest:
+      description: Invalid request parameters or payload
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid authentication credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Insufficient permissions for requested operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Requested resource does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Resource conflict or duplicate entity
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
