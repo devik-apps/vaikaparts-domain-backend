@@ -137,7 +137,6 @@ tags:
   - name: Storage
     description: File upload operations
 paths:
-  # ==================== HEALTH ENDPOINTS ====================
   /:
     get:
       operationId: rootRedirect
@@ -268,7 +267,6 @@ paths:
           description: Database is operational
         '500':
           description: Database connection error
-  # ==================== WEBHOOKS ====================
   /webhooks/supabase/buyer-created:
     post:
       operationId: supabaseBuyerCreatedWebhook
@@ -467,7 +465,6 @@ paths:
           description: Premium subscription activated successfully
         '401':
           description: Invalid webhook signature
-  # ==================== USER PROFILE ====================
   /users/me:
     get:
       operationId: getCurrentUser
@@ -532,7 +529,6 @@ paths:
       responses:
         '204':
           description: Profile photograph deleted successfully
-  # ==================== BUYERS ====================
   /buyers:
     get:
       operationId: getAllBuyers
@@ -620,7 +616,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '403':
           $ref: '#/components/responses/Forbidden'
-  # ==================== SELLERS ====================
   /sellers:
     get:
       operationId: getAllSellers
@@ -750,7 +745,6 @@ paths:
                 $ref: '#/components/schemas/SellerPublicStatistics'
         '404':
           $ref: '#/components/responses/NotFound'
-  # ==================== MANAGERS ====================
   /managers:
     get:
       operationId: getAllManagers
@@ -802,7 +796,6 @@ paths:
                 $ref: '#/components/schemas/Manager'
         '403':
           $ref: '#/components/responses/Forbidden'
-  # ==================== DEMANDS ====================
   /demands:
     get:
       operationId: getAllDemands
@@ -1046,7 +1039,6 @@ paths:
                 $ref: '#/components/schemas/OfferPageResponse'
         '404':
           $ref: '#/components/responses/NotFound'
-  # ==================== OFFERS ====================
   /offers:
     post:
       operationId: createOffer
@@ -1221,7 +1213,6 @@ paths:
           description: Offer withdrawn successfully
         '403':
           $ref: '#/components/responses/Forbidden'
-  # ==================== CONTACT UNLOCKS ====================
   /contact-unlocks/initiate:
     post:
       operationId: initiateContactUnlock
@@ -1391,7 +1382,6 @@ paths:
           description: Refund request deadline expired or invalid state
         '403':
           $ref: '#/components/responses/Forbidden'
-  # ==================== PREMIUM SUBSCRIPTION ====================
   /premium/initiate-subscription:
     post:
       operationId: initiatePremiumSubscription
@@ -1459,7 +1449,6 @@ paths:
           description: No active subscription found
         '403':
           $ref: '#/components/responses/Forbidden'
-  # ==================== RATINGS ====================
   /ratings:
     post:
       operationId: createRating
@@ -1514,7 +1503,6 @@ paths:
                 $ref: '#/components/schemas/RatingPageResponse'
         '404':
           $ref: '#/components/responses/NotFound'
-  # ==================== NOTIFICATIONS ====================
   /notifications/preferences:
     get:
       operationId: getNotificationPreferences
@@ -1599,7 +1587,6 @@ paths:
       responses:
         '204':
           description: All notifications marked as read
-  # ==================== STATISTICS ====================
   /statistics/platform:
     get:
       operationId: getPlatformStatistics
@@ -1649,7 +1636,6 @@ paths:
                   - $ref: '#/components/schemas/BuyerDashboard'
                   - $ref: '#/components/schemas/SellerDashboard'
                   - $ref: '#/components/schemas/ManagerDashboard'
-# ==================== COMPONENTS ====================
 components:
   securitySchemes:
     supabaseAuth:
@@ -1686,7 +1672,6 @@ components:
         maximum: 100
         default: 10
   schemas:
-    # ========== Base Types ==========
     UUID:
       type: string
       format: uuid
@@ -1725,8 +1710,6 @@ components:
         address:
           type: string
           description: Detailed street address
-        latLon:
-          $ref: '#/components/schemas/LatLon'
     LatLon:
       type: object
       required: [latitude, longitude]
@@ -1744,7 +1727,6 @@ components:
           minimum: -180
           maximum: 180
           example: 47.5079
-    # ========== Enums ==========
     UserType:
       type: string
       enum: [BUYER, SELLER, MANAGER]
@@ -1804,7 +1786,6 @@ components:
       type: string
       enum: [IN_APP, EMAIL, SMS, PUSH]
       description: Notification delivery channel
-    # ========== Webhook Payloads ==========
     SupabaseBuyerWebhookPayload:
       type: object
       required: [userId, email, profileData]
@@ -1953,7 +1934,6 @@ components:
           $ref: '#/components/schemas/DateTime'
         expiresAt:
           $ref: '#/components/schemas/DateTime'
-    # ========== User Schemas ==========
     BaseUser:
       type: object
       required: [id, supabaseUserId, name, phoneNumber, userType, status, createdAt]
@@ -2014,24 +1994,8 @@ components:
               description: Business or garage name
             location:
               $ref: '#/components/schemas/Location'
-            averageRating:
-              type: number
-              format: float
-              minimum: 0
-              maximum: 5
-              description: Average customer rating
-            totalRatings:
-              type: integer
-              description: Total number of ratings received
-            totalOffers:
-              type: integer
-              description: Lifetime offer count
-            successfulUnlocks:
-              type: integer
-              description: Number of completed contact unlock transactions
-            premiumSubscription:
-              $ref: '#/components/schemas/PremiumSubscription'
-              description: Current premium subscription status (null if not subscribed)
+            latLon:
+              $ref: '#/components/schemas/LatLon'
     AnonymousSellerProfile:
       type: object
       required: [id, location, averageRating, memberSince]
@@ -2077,7 +2041,6 @@ components:
           properties:
             managerRole:
               $ref: '#/components/schemas/ManagerRole'
-    # ========== Update Requests ==========
     BuyerUpdateRequest:
       type: object
       description: Buyer profile update payload
@@ -2112,7 +2075,6 @@ components:
           $ref: '#/components/schemas/UserStatus'
         managerRole:
           $ref: '#/components/schemas/ManagerRole'
-    # ========== Part Schema ==========
     Part:
       type: object
       required: [partName, carBrand, carModel, partCategory]
@@ -2138,7 +2100,6 @@ components:
           example: 2018
         partCategory:
           $ref: '#/components/schemas/PartCategory'
-    # ========== Demand Schemas ==========
     Demand:
       type: object
       required: [id, buyerId, part, status, createdAt]
@@ -2218,7 +2179,6 @@ components:
           maxItems: 5
         status:
           $ref: '#/components/schemas/DemandStatus'
-    # ========== Offer Schemas ==========
     Offer:
       type: object
       required: [id, demandId, sellerId, part, price, condition, status, createdAt]
@@ -2305,7 +2265,6 @@ components:
             type: string
             format: uri
           maxItems: 5
-    # ========== Contact Unlock Schemas ==========
     ContactUnlock:
       type: object
       required: [id, demandId, offerId, buyerId, sellerId, status, contactFee, createdAt]
@@ -2382,7 +2341,6 @@ components:
           $ref: '#/components/schemas/DateTime'
         updatedAt:
           $ref: '#/components/schemas/DateTime'
-    # ========== Premium Subscription ==========
     PremiumSubscription:
       type: object
       description: Seller premium subscription details
@@ -2420,7 +2378,6 @@ components:
         autoRenew:
           type: boolean
           default: true
-    # ========== Rating Schema ==========
     Rating:
       type: object
       required: [id, sellerId, buyerId, unlockId, rating, createdAt]
@@ -2463,7 +2420,6 @@ components:
         comment:
           type: string
           maxLength: 500
-    # ========== Notification Schemas ==========
     NotificationPreferences:
       type: object
       description: User notification configuration
@@ -2524,7 +2480,6 @@ components:
           default: false
         createdAt:
           $ref: '#/components/schemas/DateTime'
-    # ========== Statistics Schemas ==========
     SellerPublicStatistics:
       type: object
       description: Public seller performance metrics
@@ -2654,7 +2609,6 @@ components:
               timestamp:
                 $ref: '#/components/schemas/DateTime'
           maxItems: 20
-    # ========== Pagination ==========
     PageResponse:
       type: object
       required: [content, page, size, totalElements, totalPages]
@@ -2754,7 +2708,6 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/Notification'
-    # ========== Error Schemas ==========
     ErrorResponse:
       type: object
       required: [timestamp, status, error, message, path]
