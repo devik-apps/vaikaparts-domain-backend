@@ -77,6 +77,9 @@ dependencies {
     testImplementation 'com.icegreen:greenmail:2.1.8'
     testImplementation 'com.icegreen:greenmail-junit5:2.1.8'
 
+    implementation 'com.auth0:java-jwt:4.5.0'
+    implementation 'com.auth0:jwks-rsa:0.23.0'
+
 }
 
 tasks.named('test') {

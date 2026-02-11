@@ -95,6 +95,10 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 @TestConfiguration
 public class EnvConf {
 
+  public static final String SUPABASE_URL = "https://test.supabase.co";
+  public static final String SUPABASE_JWT_SECRET = "test-secret-key-for-testing-purposes";
+  public static final String SUPABASE_WEBHOOK_SECRET = "test-webhook-secret";
+
   /**
    * Configures application-specific environment variables and properties for integration testing.
    *
@@ -147,5 +151,8 @@ public class EnvConf {
    */
   public void configureProperties(DynamicPropertyRegistry registry) {
     registry.add("spring.profiles.active", () -> "test");
+    registry.add("supabase.url", () -> SUPABASE_URL);
+    registry.add("supabase.jwt-secret", () -> SUPABASE_JWT_SECRET);
+    registry.add("supabase.webhook-secret", () -> SUPABASE_WEBHOOK_SECRET);
   }
 }
