@@ -20,13 +20,13 @@ info:
     The core domain encompasses the following primary entities:
 
     ### Users
-    - **Buyers**: End users searching for automotive parts
+    - **Researchers**: End users searching for automotive parts
     - **Sellers**: Vendors offering automotive parts for sale
     - **Managers**: Administrative users with platform oversight capabilities
 
     ### Business Entities
-    - **Demands**: Buyer requests for specific automotive parts
-    - **Offers**: Seller responses to buyer demands with pricing and availability
+    - **Demands**: Researcher requests for specific automotive parts
+    - **Offers**: Seller responses to Researcher demands with pricing and availability
     - **Parts**: Structured automotive part specifications
     - **Contact Unlocks**: Paid contact information exchange transactions
     - **Ratings**: Seller performance and reliability feedback
@@ -47,7 +47,7 @@ info:
     ### Contact Information Disclosure
 
     Full contact details are revealed exclusively under the following conditions:
-    - A buyer has completed payment for a specific contact unlock transaction
+    - A Researcher has completed payment for a specific contact unlock transaction
     - The unlock status has been confirmed by the Payment Service
     - The requesting user is authorized to access the information
     - Administrative users with appropriate permissions
@@ -58,15 +58,15 @@ info:
 
     ### Standard Transaction Flow
 
-    1. **Demand Creation**: Buyer creates a demand specifying part requirements
+    1. **Demand Creation**: Researcher creates a demand specifying part requirements
     2. **Seller Notification**: System notifies relevant sellers based on matching criteria
     3. **Offer Submission**: Sellers respond with offers including pricing and conditions
-    4. **Offer Review**: Buyer reviews anonymous offers with masked seller information
-    5. **Contact Unlock Initiation**: Buyer selects an offer and initiates unlock request
+    4. **Offer Review**: Researcher reviews anonymous offers with masked seller information
+    5. **Contact Unlock Initiation**: Researcher selects an offer and initiates unlock request
     6. **Payment Processing**: External Payment Service handles transaction
     7. **Contact Revelation**: Upon payment confirmation, full contact details are revealed
-    8. **Transaction Confirmation**: Buyer confirms receipt and satisfaction within 48 hours
-    9. **Rating Submission**: Buyer rates seller performance
+    8. **Transaction Confirmation**: Researcher confirms receipt and satisfaction within 48 hours
+    9. **Rating Submission**: Researcher rates seller performance
 
     ### Premium Seller Features
 
@@ -114,8 +114,8 @@ tags:
     description: External service integration webhooks
   - name: Users
     description: User profile management operations
-  - name: Buyers
-    description: Buyer-specific operations
+  - name: Researchers
+    description: Researcher-specific operations
   - name: Sellers
     description: Seller-specific operations
   - name: Managers
@@ -267,13 +267,13 @@ paths:
           description: Database is operational
         '500':
           description: Database connection error
-  /webhooks/supabase/buyer-created:
+  /webhooks/supabase/Researcher-created:
     post:
-      operationId: supabaseBuyerCreatedWebhook
+      operationId: supabaseResearcherCreatedWebhook
       tags: [Webhooks]
-      summary: Supabase buyer account creation webhook
+      summary: Supabase Researcher account creation webhook
       description: |
-        Receives notifications from Supabase when a new buyer account is created. Initializes the corresponding VaikaParts buyer profile in the database.
+        Receives notifications from Supabase when a new Researcher account is created. Initializes the corresponding VaikaParts Researcher profile in the database.
 
         **Authentication**: Requests must include a valid Supabase webhook signature in the X-Supabase-Signature header.
       security:
@@ -283,14 +283,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SupabaseBuyerWebhookPayload'
+              $ref: '#/components/schemas/SupabaseResearcherWebhookPayload'
       responses:
         '200':
-          description: Buyer profile created successfully
+          description: Researcher profile created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Buyer'
+                $ref: '#/components/schemas/Researcher'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -381,7 +381,7 @@ paths:
             application/json:
               schema:
                 oneOf:
-                  - $ref: '#/components/schemas/Buyer'
+                  - $ref: '#/components/schemas/Researcher'
                   - $ref: '#/components/schemas/Seller'
                   - $ref: '#/components/schemas/Manager'
         '404':
@@ -424,7 +424,7 @@ paths:
       tags: [Webhooks]
       summary: Contact unlock payment confirmation webhook
       description: |
-        Receives payment confirmation from the Payment Service when a buyer successfully completes payment for a contact unlock transaction. Updates the unlock status and reveals seller contact information to the buyer.
+        Receives payment confirmation from the Payment Service when a Researcher successfully completes payment for a contact unlock transaction. Updates the unlock status and reveals seller contact information to the Researcher.
 
         **Authentication**: Requests must include a valid payment service signature in the X-Payment-Signature header.
       security:
@@ -478,7 +478,7 @@ paths:
             application/json:
               schema:
                 oneOf:
-                  - $ref: '#/components/schemas/Buyer'
+                  - $ref: '#/components/schemas/Researcher'
                   - $ref: '#/components/schemas/Seller'
                   - $ref: '#/components/schemas/Manager'
         '401':
@@ -529,13 +529,13 @@ paths:
       responses:
         '204':
           description: Profile photograph deleted successfully
-  /buyers:
+  /Researchers:
     get:
-      operationId: getAllBuyers
-      tags: [Buyers]
-      summary: List all buyer profiles
+      operationId: getAllResearchers
+      tags: [Researchers]
+      summary: List all Researcher profiles
       description: |
-        Retrieves a paginated list of all buyer profiles in the system. This endpoint is restricted to users with manager-level permissions.
+        Retrieves a paginated list of all Researcher profiles in the system. This endpoint is restricted to users with manager-level permissions.
 
         **Authorization**: Manager role required
       parameters:
@@ -548,70 +548,70 @@ paths:
             $ref: '#/components/schemas/UserStatus'
       responses:
         '200':
-          description: Buyer list retrieved successfully
+          description: Researcher list retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BuyerPageResponse'
+                $ref: '#/components/schemas/ResearcherPageResponse'
         '403':
           $ref: '#/components/responses/Forbidden'
-  /buyers/me:
+  /Researchers/me:
     get:
-      operationId: getMyBuyerProfile
-      tags: [Buyers]
-      summary: Retrieve current buyer profile
-      description: Returns the complete profile of the currently authenticated buyer.
+      operationId: getMyResearcherProfile
+      tags: [Researchers]
+      summary: Retrieve current Researcher profile
+      description: Returns the complete profile of the currently authenticated Researcher.
       responses:
         '200':
-          description: Buyer profile retrieved successfully
+          description: Researcher profile retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Buyer'
+                $ref: '#/components/schemas/Researcher'
         '403':
-          description: Authenticated user is not a buyer
+          description: Authenticated user is not a Researcher
     patch:
-      operationId: updateMyBuyerProfile
-      tags: [Buyers]
-      summary: Update current buyer profile
-      description: Modifies editable fields of the currently authenticated buyer's profile.
+      operationId: updateMyResearcherProfile
+      tags: [Researchers]
+      summary: Update current Researcher profile
+      description: Modifies editable fields of the currently authenticated Researcher's profile.
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BuyerUpdateRequest'
+              $ref: '#/components/schemas/ResearcherUpdateRequest'
       responses:
         '200':
-          description: Buyer profile updated successfully
+          description: Researcher profile updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Buyer'
+                $ref: '#/components/schemas/Researcher'
         '400':
           $ref: '#/components/responses/BadRequest'
-  /buyers/{buyerId}:
+  /Researchers/{ResearcherId}:
     get:
-      operationId: getBuyerById
-      tags: [Buyers]
-      summary: Retrieve buyer profile by ID
+      operationId: getResearcherById
+      tags: [Researchers]
+      summary: Retrieve Researcher profile by ID
       description: |
-        Returns the complete profile of a specific buyer identified by UUID.
+        Returns the complete profile of a specific Researcher identified by UUID.
 
         **Authorization**: Manager role required
       parameters:
-        - name: buyerId
+        - name: ResearcherId
           in: path
           required: true
-          description: Unique identifier of the buyer
+          description: Unique identifier of the Researcher
           schema:
             $ref: '#/components/schemas/UUID'
       responses:
         '200':
-          description: Buyer profile retrieved successfully
+          description: Researcher profile retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Buyer'
+                $ref: '#/components/schemas/Researcher'
         '404':
           $ref: '#/components/responses/NotFound'
         '403':
@@ -803,8 +803,8 @@ paths:
       summary: List demands with role-based filtering
       description: |
         Retrieves a paginated list of demands based on the authenticated user's role:
-        - **Buyers**: Returns only their own demands with full details
-        - **Sellers**: Returns active demands with anonymized buyer information
+        - **Researchers**: Returns only their own demands with full details
+        - **Sellers**: Returns active demands with anonymized Researcher information
         - **Managers**: Returns all demands with complete details
       parameters:
         - $ref: '#/components/parameters/PageParam'
@@ -843,7 +843,7 @@ paths:
       description: |
         Creates a new demand for automotive parts. Upon creation, the system notifies relevant sellers based on matching criteria such as part category and location proximity.
 
-        **Authorization**: Buyer role required
+        **Authorization**: Researcher role required
       requestBody:
         required: true
         content:
@@ -860,7 +860,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '403':
-          description: Only buyers may create demands
+          description: Only Researchers may create demands
   /demands/upload-images:
     post:
       operationId: uploadDemandImages
@@ -907,11 +907,11 @@ paths:
     get:
       operationId: getMyDemands
       tags: [Demands]
-      summary: Retrieve current buyer's demands
+      summary: Retrieve current Researcher's demands
       description: |
-        Returns a paginated list of demands created by the currently authenticated buyer.
+        Returns a paginated list of demands created by the currently authenticated Researcher.
 
-        **Authorization**: Buyer role required
+        **Authorization**: Researcher role required
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
@@ -928,7 +928,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/DemandPageResponse'
         '403':
-          description: Authenticated user is not a buyer
+          description: Authenticated user is not a Researcher
   /demands/{demandId}:
     get:
       operationId: getDemandById
@@ -936,9 +936,9 @@ paths:
       summary: Retrieve demand details
       description: |
         Returns detailed information for a specific demand. The level of detail varies by user role:
-        - **Demand owner**: Full details including buyer information
-        - **Sellers**: Demand details with anonymized buyer information
-        - **Managers**: Complete details including all buyer information
+        - **Demand owner**: Full details including Researcher information
+        - **Sellers**: Demand details with anonymized Researcher information
+        - **Managers**: Complete details including all Researcher information
       parameters:
         - name: demandId
           in: path
@@ -1011,7 +1011,7 @@ paths:
       summary: Retrieve offers for a demand
       description: |
         Returns all offers submitted for a specific demand. The level of detail varies by user role:
-        - **Buyer (demand owner)**: All offers with anonymized seller information
+        - **Researcher (demand owner)**: All offers with anonymized seller information
         - **Seller**: Only their own offer with full details
         - **Manager**: All offers with complete seller details
       parameters:
@@ -1045,7 +1045,7 @@ paths:
       tags: [Offers]
       summary: Submit offer for demand
       description: |
-        Creates a new offer in response to a buyer's demand. The buyer receives a notification and can view the offer with anonymized seller information until they complete a contact unlock transaction.
+        Creates a new offer in response to a Researcher's demand. The Researcher receives a notification and can view the offer with anonymized seller information until they complete a contact unlock transaction.
 
         **Authorization**: Seller role required
       requestBody:
@@ -1144,8 +1144,8 @@ paths:
       summary: Retrieve offer details
       description: |
         Returns detailed information for a specific offer. The level of seller information disclosure depends on the requesting user's role and whether a contact unlock transaction has been completed:
-        - **Buyer (without unlock)**: Offer details with anonymized seller information
-        - **Buyer (with unlock)**: Offer details with complete seller contact information
+        - **Researcher (without unlock)**: Offer details with anonymized seller information
+        - **Researcher (with unlock)**: Offer details with complete seller contact information
         - **Seller (offer owner)**: Full offer and seller details
         - **Manager**: Complete details including all seller information
       parameters:
@@ -1198,7 +1198,7 @@ paths:
       tags: [Offers]
       summary: Withdraw offer
       description: |
-        Withdraws an existing offer and notifies the buyer if the offer was still under consideration.
+        Withdraws an existing offer and notifies the Researcher if the offer was still under consideration.
 
         **Authorization**: Offer owner or manager role required
       parameters:
@@ -1219,11 +1219,11 @@ paths:
       tags: [Contact Unlocks]
       summary: Initiate contact information unlock
       description: |
-        Creates a contact unlock request for a specific offer. Returns a payment reference to be used with the Payment Service. Upon successful payment confirmation via webhook, the seller's contact information will be revealed to the buyer.
+        Creates a contact unlock request for a specific offer. Returns a payment reference to be used with the Payment Service. Upon successful payment confirmation via webhook, the seller's contact information will be revealed to the Researcher.
 
         Each unlock transaction is scoped to a single offer. Multiple unlocks require separate payment transactions.
 
-        **Authorization**: Buyer role required
+        **Authorization**: Researcher role required
       requestBody:
         required: true
         content:
@@ -1244,14 +1244,14 @@ paths:
         '400':
           description: Invalid offer or unlock already exists for this offer
         '403':
-          description: Only buyers may initiate contact unlocks
+          description: Only Researchers may initiate contact unlocks
   /contact-unlocks/my-unlocks:
     get:
       operationId: getMyContactUnlocks
       tags: [Contact Unlocks]
       summary: Retrieve current user's contact unlocks
       description: |
-        Returns a paginated list of contact unlock transactions where the current user is either the buyer or seller. Full contact information is included only for unlocks with PAID status.
+        Returns a paginated list of contact unlock transactions where the current user is either the Researcher or seller. Full contact information is included only for unlocks with PAID status.
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
@@ -1275,7 +1275,7 @@ paths:
       description: |
         Returns detailed information for a specific contact unlock transaction. Contact information disclosure depends on payment status:
         - **PENDING_PAYMENT**: Both parties see anonymized information
-        - **PAID**: Buyer sees full seller contact, seller sees full buyer contact
+        - **PAID**: Researcher sees full seller contact, seller sees full Researcher contact
         - **Manager**: Always sees complete information for both parties
       parameters:
         - name: unlockId
@@ -1301,9 +1301,9 @@ paths:
       tags: [Contact Unlocks]
       summary: Confirm successful transaction
       description: |
-        Buyer confirms that they have received the automotive part and are satisfied with the transaction. Must be completed within 48 hours of contact unlock payment. This action triggers the seller rating workflow.
+        Researcher confirms that they have received the automotive part and are satisfied with the transaction. Must be completed within 48 hours of contact unlock payment. This action triggers the seller rating workflow.
 
-        **Authorization**: Buyer (unlock owner) required
+        **Authorization**: Researcher (unlock owner) required
       parameters:
         - name: unlockId
           in: path
@@ -1344,7 +1344,7 @@ paths:
       description: |
         Initiates a refund request if the automotive part was misrepresented or transaction was unsatisfactory. The request is forwarded to the Payment Service for processing and creates a dispute record requiring manager review.
 
-        **Authorization**: Buyer (unlock owner) required
+        **Authorization**: Researcher (unlock owner) required
       parameters:
         - name: unlockId
           in: path
@@ -1455,9 +1455,9 @@ paths:
       tags: [Ratings]
       summary: Submit seller rating
       description: |
-        Creates a rating for a seller following a completed contact unlock transaction. Ratings can only be submitted once per contact unlock and must be submitted after the buyer confirms receipt of the automotive part.
+        Creates a rating for a seller following a completed contact unlock transaction. Ratings can only be submitted once per contact unlock and must be submitted after the Researcher confirms receipt of the automotive part.
 
-        **Authorization**: Buyer role required
+        **Authorization**: Researcher role required
       requestBody:
         required: true
         content:
@@ -1623,7 +1623,7 @@ paths:
       summary: Retrieve role-specific dashboard
       description: |
         Returns dashboard data tailored to the current user's role:
-        - **Buyers**: Demand statistics and offer summaries
+        - **Researchers**: Demand statistics and offer summaries
         - **Sellers**: Offer performance and unlock metrics
         - **Managers**: Platform overview and recent activity
       responses:
@@ -1633,7 +1633,7 @@ paths:
             application/json:
               schema:
                 oneOf:
-                  - $ref: '#/components/schemas/BuyerDashboard'
+                  - $ref: '#/components/schemas/ResearcherDashboard'
                   - $ref: '#/components/schemas/SellerDashboard'
                   - $ref: '#/components/schemas/ManagerDashboard'
 components:
@@ -1729,7 +1729,7 @@ components:
           example: 47.5079
     UserType:
       type: string
-      enum: [BUYER, SELLER, MANAGER]
+      enum: [Researcher, SELLER, MANAGER]
       description: User account type
     UserStatus:
       type: string
@@ -1786,10 +1786,10 @@ components:
       type: string
       enum: [IN_APP, EMAIL, SMS, PUSH]
       description: Notification delivery channel
-    SupabaseBuyerWebhookPayload:
+    SupabaseResearcherWebhookPayload:
       type: object
       required: [userId, email, profileData]
-      description: Payload structure for Supabase buyer account creation webhook
+      description: Payload structure for Supabase Researcher account creation webhook
       properties:
         userId:
           type: string
@@ -1802,7 +1802,7 @@ components:
         profileData:
           type: object
           required: [name]
-          description: Buyer-specific profile information
+          description: Researcher-specific profile information
           properties:
             name:
               type: string
@@ -1964,12 +1964,12 @@ components:
           $ref: '#/components/schemas/DateTime'
         updatedAt:
           $ref: '#/components/schemas/DateTime'
-    Buyer:
+    Researcher:
       allOf:
         - $ref: '#/components/schemas/BaseUser'
         - type: object
           required: [location]
-          description: Buyer user profile with demand statistics
+          description: Researcher user profile with demand statistics
           properties:
             location:
               $ref: '#/components/schemas/Location'
@@ -2041,9 +2041,9 @@ components:
           properties:
             managerRole:
               $ref: '#/components/schemas/ManagerRole'
-    BuyerUpdateRequest:
+    ResearcherUpdateRequest:
       type: object
-      description: Buyer profile update payload
+      description: Researcher profile update payload
       properties:
         name:
           type: string
@@ -2102,16 +2102,16 @@ components:
           $ref: '#/components/schemas/PartCategory'
     Demand:
       type: object
-      required: [id, buyerId, part, status, createdAt]
-      description: Buyer request for automotive part
+      required: [id, ResearcherId, part, status, createdAt]
+      description: Researcher request for automotive part
       properties:
         id:
           $ref: '#/components/schemas/UUID'
-        buyerId:
+        ResearcherId:
           $ref: '#/components/schemas/UUID'
-        buyerInfo:
+        ResearcherInfo:
           type: object
-          description: Buyer information with conditional disclosure based on user role
+          description: Researcher information with conditional disclosure based on user role
           properties:
             name:
               type: string
@@ -2133,7 +2133,7 @@ components:
           items:
             type: string
             format: uri
-          description: Reference photographs uploaded by buyer
+          description: Reference photographs uploaded by Researcher
           maxItems: 5
         status:
           $ref: '#/components/schemas/DemandStatus'
@@ -2182,7 +2182,7 @@ components:
     Offer:
       type: object
       required: [id, demandId, sellerId, part, price, condition, status, createdAt]
-      description: Seller response to buyer demand
+      description: Seller response to Researcher demand
       properties:
         id:
           $ref: '#/components/schemas/UUID'
@@ -2216,9 +2216,9 @@ components:
           maxItems: 5
         status:
           $ref: '#/components/schemas/OfferStatus'
-        isUnlockedByBuyer:
+        isUnlockedByResearcher:
           type: boolean
-          description: Whether buyer has paid to unlock this seller's contact
+          description: Whether Researcher has paid to unlock this seller's contact
         createdAt:
           $ref: '#/components/schemas/DateTime'
         updatedAt:
@@ -2267,7 +2267,7 @@ components:
           maxItems: 5
     ContactUnlock:
       type: object
-      required: [id, demandId, offerId, buyerId, sellerId, status, contactFee, createdAt]
+      required: [id, demandId, offerId, ResearcherId, sellerId, status, contactFee, createdAt]
       description: Contact information unlock transaction
       properties:
         id:
@@ -2276,13 +2276,13 @@ components:
           $ref: '#/components/schemas/UUID'
         offerId:
           $ref: '#/components/schemas/UUID'
-        buyerId:
+        ResearcherId:
           $ref: '#/components/schemas/UUID'
         sellerId:
           $ref: '#/components/schemas/UUID'
-        buyerContact:
+        ResearcherContact:
           type: object
-          description: Buyer contact details (revealed to seller after payment)
+          description: Researcher contact details (revealed to seller after payment)
           nullable: true
           properties:
             name:
@@ -2298,7 +2298,7 @@ components:
               $ref: '#/components/schemas/Location'
         sellerContact:
           type: object
-          description: Seller contact details (revealed to buyer after payment)
+          description: Seller contact details (revealed to Researcher after payment)
           nullable: true
           properties:
             name:
@@ -2335,7 +2335,7 @@ components:
           nullable: true
         confirmationDeadline:
           $ref: '#/components/schemas/DateTime'
-          description: Buyer confirmation deadline (48 hours from payment)
+          description: Researcher confirmation deadline (48 hours from payment)
           nullable: true
         createdAt:
           $ref: '#/components/schemas/DateTime'
@@ -2380,14 +2380,14 @@ components:
           default: true
     Rating:
       type: object
-      required: [id, sellerId, buyerId, unlockId, rating, createdAt]
+      required: [id, sellerId, ResearcherId, unlockId, rating, createdAt]
       description: Seller performance rating
       properties:
         id:
           $ref: '#/components/schemas/UUID'
         sellerId:
           $ref: '#/components/schemas/UUID'
-        buyerId:
+        ResearcherId:
           $ref: '#/components/schemas/UUID'
         unlockId:
           $ref: '#/components/schemas/UUID'
@@ -2401,9 +2401,9 @@ components:
           type: string
           maxLength: 500
           description: Optional written feedback
-        buyerName:
+        ResearcherName:
           type: string
-          description: Public buyer name for verification
+          description: Public Researcher name for verification
         createdAt:
           $ref: '#/components/schemas/DateTime'
     RatingCreateRequest:
@@ -2427,7 +2427,7 @@ components:
         newOfferNotification:
           type: boolean
           default: true
-          description: Notify buyer when offer is received
+          description: Notify Researcher when offer is received
         demandMatchNotification:
           type: boolean
           default: true
@@ -2507,7 +2507,7 @@ components:
       properties:
         totalUsers:
           type: integer
-        totalBuyers:
+        totalResearchers:
           type: integer
         totalSellers:
           type: integer
@@ -2543,9 +2543,9 @@ components:
                 type: integer
               averageRating:
                 type: number
-    BuyerDashboard:
+    ResearcherDashboard:
       type: object
-      description: Buyer-specific dashboard metrics
+      description: Researcher-specific dashboard metrics
       properties:
         totalDemands:
           type: integer
@@ -2557,7 +2557,7 @@ components:
           type: integer
         pendingConfirmations:
           type: integer
-          description: Unlocks awaiting buyer confirmation
+          description: Unlocks awaiting Researcher confirmation
         recentDemands:
           type: array
           items:
@@ -2629,7 +2629,7 @@ components:
         totalPages:
           type: integer
           description: Total page count
-    BuyerPageResponse:
+    ResearcherPageResponse:
       allOf:
         - $ref: '#/components/schemas/PageResponse'
         - type: object
@@ -2637,7 +2637,7 @@ components:
             content:
               type: array
               items:
-                $ref: '#/components/schemas/Buyer'
+                $ref: '#/components/schemas/Researcher'
     AnonymousSellerPageResponse:
       allOf:
         - $ref: '#/components/schemas/PageResponse'
@@ -2750,7 +2750,7 @@ components:
             - ALREADY_UNLOCKED
             - UNLOCK_NOT_PAID
             - REFUND_NOT_ELIGIBLE
-            - ONLY_BUYERS_ALLOWED
+            - ONLY_ResearcherS_ALLOWED
             - ONLY_SELLERS_ALLOWED
             - ONLY_MANAGERS_ALLOWED
         details:

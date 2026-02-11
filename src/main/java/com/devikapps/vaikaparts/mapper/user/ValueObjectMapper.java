@@ -6,7 +6,7 @@ import com.devikapps.vaikaparts.repository.model.JLatLon;
 import com.devikapps.vaikaparts.repository.model.JLocation;
 import org.mapstruct.Mapper;
 
-@Mapper
+@Mapper(componentModel = "spring")
 public interface ValueObjectMapper {
 
   default Location map(JLocation jLocation) {

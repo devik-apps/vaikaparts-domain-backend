@@ -1,0 +1,12 @@
+spring:
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+logging:
+  level:
+    com.devikapps: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.testcontainers: INFO

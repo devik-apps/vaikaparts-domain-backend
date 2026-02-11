@@ -146,6 +146,6 @@ public class EnvConf {
    * @param registry the Spring DynamicPropertyRegistry to add properties to
    */
   public void configureProperties(DynamicPropertyRegistry registry) {
-    // Add your application-specific test properties here
+    registry.add("spring.profiles.active", () -> "test");
   }
 }
