@@ -1,4 +1,4 @@
-package com.devikapps.vaikaparts.config;
+package com.devikapps.vaikaparts.config.sec;
 
 import static org.springframework.http.HttpMethod.DELETE;
 import static org.springframework.http.HttpMethod.GET;
@@ -8,6 +8,7 @@ import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.http.HttpMethod.PUT;
 
 import com.devikapps.vaikaparts.InfraGenerated;
+import com.devikapps.vaikaparts.config.JwtAuthenticationFilter;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import org.springframework.context.annotation.Bean;

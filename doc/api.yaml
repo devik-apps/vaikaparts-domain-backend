@@ -267,15 +267,23 @@ paths:
           description: Database is operational
         '500':
           description: Database connection error
-  /webhooks/supabase/Researcher-created:
+  /webhooks/spb/auth:
     post:
-      operationId: supabaseResearcherCreatedWebhook
+      operationId: supabaseAuthWebhook
       tags: [Webhooks]
-      summary: Supabase Researcher account creation webhook
+      summary: Supabase Auth webhook handler
       description: |
-        Receives notifications from Supabase when a new Researcher account is created. Initializes the corresponding VaikaParts Researcher profile in the database.
+        Receives authentication lifecycle events from Supabase Auth and synchronizes user data with the VaikaParts domain model.
 
-        **Authentication**: Requests must include a valid Supabase webhook signature in the X-Supabase-Signature header.
+        This endpoint handles all Supabase Auth webhook events:
+        - **user.created**: Creates a new Researcher, Seller, or Manager profile based on user_metadata
+        - **user.updated**: Synchronizes metadata changes to the existing user profile
+        - **user.deleted**: Soft-deletes the user profile by setting status to DISABLED
+
+        The user type (RESEARCHER, SELLER, MANAGER) is determined from the user_metadata.user_type field.
+        If not specified, defaults to RESEARCHER.
+
+        **Authentication**: Requests must include a valid Supabase webhook signature in the X-Webhook-Signature header.
       security:
         - supabaseWebhookSignature: []
       requestBody:
@@ -283,169 +291,28 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SupabaseResearcherWebhookPayload'
+              $ref: '#/components/schemas/SupabaseAuthWebhook'
       responses:
         '200':
-          description: Researcher profile created successfully
+          description: Webhook processed successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Researcher'
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Webhook processed successfully
+                  userId:
+                    type: string
+                    format: uuid
+                    description: The VaikaParts user ID (not Supabase ID)
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           description: Invalid webhook signature
-        '409':
-          $ref: '#/components/responses/Conflict'
-  /webhooks/supabase/seller-created:
-    post:
-      operationId: supabaseSellerCreatedWebhook
-      tags: [Webhooks]
-      summary: Supabase seller account creation webhook
-      description: |
-        Receives notifications from Supabase when a new seller account is created. Initializes the corresponding VaikaParts seller profile in the database.
-
-        **Authentication**: Requests must include a valid Supabase webhook signature in the X-Supabase-Signature header.
-      security:
-        - supabaseWebhookSignature: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SupabaseSellerWebhookPayload'
-      responses:
-        '200':
-          description: Seller profile created successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Seller'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          description: Invalid webhook signature
-        '409':
-          $ref: '#/components/responses/Conflict'
-  /webhooks/supabase/manager-created:
-    post:
-      operationId: supabaseManagerCreatedWebhook
-      tags: [Webhooks]
-      summary: Supabase manager account creation webhook
-      description: |
-        Receives notifications from Supabase when a new manager account is created. Initializes the corresponding VaikaParts manager profile in the database.
-
-        **Authentication**: Requests must include a valid Supabase webhook signature in the X-Supabase-Signature header.
-      security:
-        - supabaseWebhookSignature: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SupabaseManagerWebhookPayload'
-      responses:
-        '200':
-          description: Manager profile created successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Manager'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          description: Invalid webhook signature
-        '409':
-          $ref: '#/components/responses/Conflict'
-  /webhooks/supabase/user-updated:
-    post:
-      operationId: supabaseUserUpdatedWebhook
-      tags: [Webhooks]
-      summary: Supabase user profile update webhook
-      description: |
-        Synchronizes user metadata changes from Supabase to the VaikaParts user profile. Handles updates for all user types since the userId uniquely identifies the existing entity.
-
-        **Authentication**: Requests must include a valid Supabase webhook signature in the X-Supabase-Signature header.
-      security:
-        - supabaseWebhookSignature: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SupabaseUserUpdateWebhookPayload'
-      responses:
-        '200':
-          description: User profile synchronized successfully
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: '#/components/schemas/Researcher'
-                  - $ref: '#/components/schemas/Seller'
-                  - $ref: '#/components/schemas/Manager'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '401':
-          description: Invalid webhook signature
-  /webhooks/supabase/user-deleted:
-    post:
-      operationId: supabaseUserDeletedWebhook
-      tags: [Webhooks]
-      summary: Supabase user account deletion webhook
-      description: |
-        Marks the corresponding VaikaParts user profile as deleted or deactivated when a Supabase account is removed. Handles deletion for all user types since the userId uniquely identifies the existing entity.
-
-        **Authentication**: Requests must include a valid Supabase webhook signature in the X-Supabase-Signature header.
-      security:
-        - supabaseWebhookSignature: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [userId]
-              properties:
-                userId:
-                  type: string
-                  format: uuid
-                  description: Supabase user UUID
-      responses:
-        '200':
-          description: User profile deactivated successfully
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '401':
-          description: Invalid webhook signature
-  /webhooks/payment/contact-unlock-paid:
-    post:
-      operationId: paymentContactUnlockWebhook
-      tags: [Webhooks]
-      summary: Contact unlock payment confirmation webhook
-      description: |
-        Receives payment confirmation from the Payment Service when a Researcher successfully completes payment for a contact unlock transaction. Updates the unlock status and reveals seller contact information to the Researcher.
-
-        **Authentication**: Requests must include a valid payment service signature in the X-Payment-Signature header.
-      security:
-        - paymentWebhookSignature: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PaymentWebhookPayload'
-      responses:
-        '200':
-          description: Contact unlock processed successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContactUnlock'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '401':
-          description: Invalid webhook signature
+        '500':
+          description: Internal server error during webhook processing
   /webhooks/payment/premium-subscription-paid:
     post:
       operationId: paymentPremiumSubscriptionWebhook
@@ -1786,106 +1653,77 @@ components:
       type: string
       enum: [IN_APP, EMAIL, SMS, PUSH]
       description: Notification delivery channel
-    SupabaseResearcherWebhookPayload:
+    SupabaseAuthWebhook:
       type: object
-      required: [userId, email, profileData]
-      description: Payload structure for Supabase Researcher account creation webhook
+      required: [event, user, created_at]
+      description: Webhook payload from Supabase Auth
       properties:
-        userId:
+        event:
+          type: string
+          enum: [user.created, user.updated, user.deleted]
+          description: The type of authentication event
+        user:
+          $ref: '#/components/schemas/SupabaseUserData'
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the event occurred
+    SupabaseUserData:
+      type: object
+      required: [id, created_at, updated_at]
+      description: User data from Supabase Auth
+      properties:
+        id:
           type: string
           format: uuid
           description: Supabase user UUID
         email:
-          $ref: '#/components/schemas/EmailAddress'
-        phoneNumber:
-          $ref: '#/components/schemas/PhoneNumber'
-        profileData:
-          type: object
-          required: [name]
-          description: Researcher-specific profile information
-          properties:
-            name:
-              type: string
-              minLength: 2
-              maxLength: 100
-            location:
-              $ref: '#/components/schemas/Location'
-    SupabaseSellerWebhookPayload:
-      type: object
-      required: [userId, email, profileData]
-      description: Payload structure for Supabase seller account creation webhook
-      properties:
-        userId:
           type: string
-          format: uuid
-          description: Supabase user UUID
-        email:
-          $ref: '#/components/schemas/EmailAddress'
-        phoneNumber:
-          $ref: '#/components/schemas/PhoneNumber'
-        profileData:
-          type: object
-          required: [name]
-          description: Seller-specific profile information
-          properties:
-            name:
-              type: string
-              minLength: 2
-              maxLength: 100
-            garageName:
-              type: string
-              maxLength: 200
-            location:
-              $ref: '#/components/schemas/Location'
-    SupabaseManagerWebhookPayload:
-      type: object
-      required: [userId, email, profileData]
-      description: Payload structure for Supabase manager account creation webhook
-      properties:
-        userId:
+          format: email
+          nullable: true
+        phone:
           type: string
-          format: uuid
-          description: Supabase user UUID
-        email:
-          $ref: '#/components/schemas/EmailAddress'
-        phoneNumber:
-          $ref: '#/components/schemas/PhoneNumber'
-        profileData:
+          nullable: true
+        user_metadata:
           type: object
-          required: [name, managerRole]
-          description: Manager-specific profile information
+          description: Custom user metadata
           properties:
+            user_type:
+              type: string
+              enum: [RESEARCHER, SELLER, MANAGER]
+              description: Determines which user entity type to create
+            full_name:
+              type: string
             name:
               type: string
-              minLength: 2
-              maxLength: 100
-            managerRole:
-              $ref: '#/components/schemas/ManagerRole'
-    SupabaseUserUpdateWebhookPayload:
-      type: object
-      required: [userId]
-      description: Payload structure for Supabase user profile update webhook
-      properties:
-        userId:
+            phone:
+              type: string
+            avatar_url:
+              type: string
+              format: uri
+            profile_img_url:
+              type: string
+              format: uri
+            garage_name:
+              type: string
+              description: Required for SELLER type
+            manager_role:
+              type: string
+              enum: [ADMIN, SUPPORT, MODERATOR]
+              description: Optional for MANAGER type
+        app_metadata:
+          type: object
+          nullable: true
+        created_at:
           type: string
-          format: uuid
-          description: Supabase user UUID
-        email:
-          $ref: '#/components/schemas/EmailAddress'
-        phoneNumber:
-          $ref: '#/components/schemas/PhoneNumber'
-        profileData:
-          type: object
-          description: Updated profile metadata
-          properties:
-            name:
-              type: string
-            location:
-              $ref: '#/components/schemas/Location'
-            garageName:
-              type: string
-            managerRole:
-              $ref: '#/components/schemas/ManagerRole'
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
     PaymentWebhookPayload:
       type: object
       required: [unlockId, paymentId, transactionId, amount, status]

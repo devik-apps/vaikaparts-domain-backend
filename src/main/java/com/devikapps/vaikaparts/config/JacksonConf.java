@@ -71,7 +71,7 @@ import org.springframework.context.annotation.Primary;
 @Slf4j
 @Configuration
 @InfraGenerated
-public class JacksonConfiguration {
+public class JacksonConf {
 
   private static final String APPLICATION_BASE_PACKAGE = "com.example";
 

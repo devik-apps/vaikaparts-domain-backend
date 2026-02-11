@@ -5,7 +5,7 @@ import static java.lang.String.format;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.InfraGenerated;
-import com.devikapps.vaikaparts.config.JacksonConfiguration.PolymorphicTypeRegistrar;
+import com.devikapps.vaikaparts.config.JacksonConf.PolymorphicTypeRegistrar;
 import com.devikapps.vaikaparts.event.model.InfraEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.NamedType;

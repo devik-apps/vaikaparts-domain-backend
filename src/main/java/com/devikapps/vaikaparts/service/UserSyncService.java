@@ -178,6 +178,7 @@ public class UserSyncService {
         .supabaseUserId(supabaseUserId)
         .phoneNumber("")
         .profileImgUrl("")
+        .garageName("")
         .userType(UserType.SELLER)
         .status(UserStatus.ENABLED)
         .location(vom.map(Location.getDefault()))

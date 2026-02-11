@@ -68,6 +68,35 @@ public class ApiExceptionHandler {
     return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
   }
 
+  @ExceptionHandler(SecurityException.class)
+  public ResponseEntity<ErrorResponse> handleSecurityException(
+      SecurityException ex, WebRequest req) {
+    log.error(
+        "SecurityException error at path {}, message: {}",
+        forJava(getRequestPath(req)),
+        forJava(ex.getMessage()));
+
+    var errorResponse =
+        ErrorResponse.of(
+            HttpStatus.UNAUTHORIZED, ex.getMessage(), getRequestPath(req), "SECURITY_EXCEPTION");
+
+    return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
+  }
+
+  @ExceptionHandler(IllegalArgumentException.class)
+  public ResponseEntity<ErrorResponse> handleIllegalArgumentException(
+      IllegalArgumentException ex, WebRequest req) {
+    log.error("Payload not as expected: {}", forJava(ex.getMessage()));
+    var err =
+        ErrorResponse.of(
+            HttpStatus.BAD_REQUEST,
+            ex.getMessage(),
+            getRequestPath(req),
+            "PAYLOAD_NOT_AS_EXPECTED");
+
+    return new ResponseEntity<>(err, HttpStatus.BAD_REQUEST);
+  }
+
   @ExceptionHandler(BucketHealthCheckException.class)
   public ResponseEntity<ErrorResponse> handleBucketHealthCheckException(
       BucketHealthCheckException ex, WebRequest request) {
