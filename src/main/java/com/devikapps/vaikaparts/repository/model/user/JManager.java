@@ -26,7 +26,7 @@ import org.hibernate.type.SqlTypes;
 @EqualsAndHashCode(callSuper = true)
 @ToString(callSuper = true)
 public class JManager extends JUser {
-  @Column(name = "manager_role")
+  @Column(name = "manager_role", nullable = false)
   @Enumerated(EnumType.STRING)
   @JdbcTypeCode(SqlTypes.NAMED_ENUM)
   private ManagerRole managerRole;

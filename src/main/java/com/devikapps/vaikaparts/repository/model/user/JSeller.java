@@ -24,7 +24,7 @@ import lombok.experimental.SuperBuilder;
 @EqualsAndHashCode(callSuper = true)
 @ToString(callSuper = true)
 public class JSeller extends JUser {
-  @Column(name = "garage_name")
+  @Column(name = "garage_name", nullable = false)
   private String garageName;
 
   @Embedded private JLocation location;

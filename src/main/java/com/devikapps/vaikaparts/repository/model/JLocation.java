@@ -19,16 +19,16 @@ import org.hibernate.type.SqlTypes;
 @Getter
 @Setter
 public class JLocation {
-  @Column(name = "city")
+  @Column(name = "city", nullable = false)
   @Enumerated(EnumType.STRING)
   @JdbcTypeCode(SqlTypes.NAMED_ENUM)
   private City city;
 
-  @Column(name = "region")
+  @Column(name = "region", nullable = false)
   @Enumerated(EnumType.STRING)
   @JdbcTypeCode(SqlTypes.NAMED_ENUM)
   private Region region;
 
-  @Column(name = "address")
+  @Column(name = "address", nullable = false)
   private String address;
 }

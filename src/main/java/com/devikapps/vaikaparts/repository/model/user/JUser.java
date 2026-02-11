@@ -39,25 +39,25 @@ public class JUser {
 
   private String name;
 
-  @Column(name = "phone_number")
+  @Column(name = "phone_number", nullable = false)
   private String phoneNumber;
 
-  @Column(name = "profile_img_url")
+  @Column(name = "profile_img_url", nullable = false)
   private String profileImgUrl;
 
-  @Column(name = "user_type")
+  @Column(name = "user_type", nullable = false)
   @Enumerated(EnumType.STRING)
   @JdbcTypeCode(SqlTypes.NAMED_ENUM)
   private UserType userType;
 
-  @Column(name = "status")
+  @Column(name = "status", nullable = false)
   @Enumerated(EnumType.STRING)
   @JdbcTypeCode(SqlTypes.NAMED_ENUM)
   private UserStatus status;
 
-  @Column(name = "created_at")
+  @Column(name = "created_at", nullable = false)
   private LocalDateTime createdAt;
 
-  @Column(name = "updated_at")
+  @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt;
 }
