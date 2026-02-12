@@ -42,7 +42,7 @@ public class JUser {
   @Column(name = "phone_number", nullable = false)
   private String phoneNumber;
 
-  @Column(name = "profile_img_url", nullable = false)
+  @Column(name = "profile_img_url")
   private String profileImgUrl;
 
   @Column(name = "user_type", nullable = false)

@@ -4,7 +4,7 @@ CREATE TABLE users
     supabase_user_id VARCHAR(255) NOT NULL,
     name             VARCHAR(255) NOT NULL,
     phone_number     VARCHAR(50)  NOT NULL,
-    profile_img_url  TEXT         NOT NULL,
+    profile_img_url  TEXT,
     user_type        user_type    NOT NULL,
     status           user_status  NOT NULL,
     created_at       TIMESTAMP WITHOUT TIME ZONE,
