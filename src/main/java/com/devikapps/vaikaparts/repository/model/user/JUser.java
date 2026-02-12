@@ -1,5 +1,7 @@
 package com.devikapps.vaikaparts.repository.model.user;
 
+import static java.lang.String.format;
+
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import jakarta.persistence.Column;
@@ -16,7 +18,6 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -29,7 +30,6 @@ import org.hibernate.type.SqlTypes;
 @Getter
 @Setter
 @EqualsAndHashCode
-@ToString
 @SuperBuilder(toBuilder = true)
 public class JUser {
   @Id private String id;
@@ -60,4 +60,31 @@ public class JUser {
 
   @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt;
+
+  @Override
+  public String toString() {
+    return format(
+        """
+        JUser={
+        \tid=%s,
+        \tsupabaseUserId=%s,
+        \tname=%s,
+        \tphoneNumber=%s,
+        \tprofileImgUrl=%s,
+        \tuserType=%s,
+        \tstatus=%s,
+        \tcreatedAt=%s,
+        \tupdatedAt=%s
+        }\
+        """,
+        id,
+        supabaseUserId,
+        name,
+        phoneNumber,
+        profileImgUrl,
+        userType,
+        status,
+        createdAt,
+        updatedAt);
+  }
 }

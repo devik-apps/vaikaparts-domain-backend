@@ -1,5 +1,7 @@
 package com.devikapps.vaikaparts.repository.model.user;
 
+import static java.lang.String.format;
+
 import com.devikapps.vaikaparts.repository.model.JLatLon;
 import com.devikapps.vaikaparts.repository.model.JLocation;
 import jakarta.persistence.Column;
@@ -11,7 +13,6 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import lombok.ToString;
 import lombok.experimental.SuperBuilder;
 
 @Entity
@@ -22,7 +23,6 @@ import lombok.experimental.SuperBuilder;
 @Setter
 @SuperBuilder(toBuilder = true)
 @EqualsAndHashCode(callSuper = true)
-@ToString(callSuper = true)
 public class JSeller extends JUser {
   @Column(name = "garage_name", nullable = false)
   private String garageName;
@@ -30,4 +30,37 @@ public class JSeller extends JUser {
   @Embedded private JLocation location;
 
   @Embedded private JLatLon latLon;
+
+  @Override
+  public String toString() {
+    return format(
+        """
+        JSeller={
+         \tid=%s,
+         \tsupabaseUserId=%s,
+         \tname=%s,
+         \tphoneNumber=%s,
+         \tprofileImgUrl=%s,
+         \tuserType=%s,
+         \tstatus=%s,
+         \tcreatedAt=%s,
+         \tupdatedAt=%s,
+         \tgarageName=%s,
+         \tlocation=%s,
+         \tlatLon=%s
+        }\
+        """,
+        getId(),
+        getSupabaseUserId(),
+        getName(),
+        getPhoneNumber(),
+        getProfileImgUrl(),
+        getUserType(),
+        getStatus(),
+        getCreatedAt(),
+        getUpdatedAt(),
+        garageName,
+        location,
+        latLon);
+  }
 }

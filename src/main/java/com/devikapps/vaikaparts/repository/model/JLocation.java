@@ -1,5 +1,7 @@
 package com.devikapps.vaikaparts.repository.model;
 
+import static java.lang.String.format;
+
 import com.devikapps.vaikaparts.model.classifier.City;
 import com.devikapps.vaikaparts.model.classifier.Region;
 import jakarta.persistence.Column;
@@ -31,4 +33,9 @@ public class JLocation {
 
   @Column(name = "address", nullable = false)
   private String address;
+
+  @Override
+  public String toString() {
+    return format("{ city=%s, region=%s, address=%s }", city, region, address);
+  }
 }
