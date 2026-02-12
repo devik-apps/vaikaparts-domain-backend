@@ -1,0 +1,88 @@
+version: 2
+updates:
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "09:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 15
+    reviewers:
+      - "Abega1642"
+      - "devik-apps/vaikaparts-backend"
+    assignees:
+      - "Abega1642"
+    labels:
+      - "dependencies"
+      - "gradle"
+      - "security"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    rebase-strategy: "auto"
+    groups:
+      production-dependencies:
+        patterns:
+          - "org.springframework.boot*"
+          - "org.springframework.security*"
+          - "org.postgresql*"
+          - "com.auth0*"
+        update-types:
+          - "minor"
+          - "patch"
+      development-dependencies:
+        patterns:
+          - "*testcontainers*"
+          - "*wiremock*"
+          - "*greenmail*"
+        update-types:
+          - "minor"
+          - "patch"
+      other-dependencies:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "org.springframework.boot*"
+          - "org.springframework.security*"
+          - "org.postgresql*"
+          - "com.auth0*"
+          - "*testcontainers*"
+          - "*wiremock*"
+          - "*greenmail*"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "Abega1642"
+      - "devik-apps/vaikaparts-backend"
+    assignees:
+      - "Abega1642"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "security"
+      - "ci/cd"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    rebase-strategy: "auto"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
