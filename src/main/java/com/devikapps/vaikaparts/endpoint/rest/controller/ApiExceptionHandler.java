@@ -6,6 +6,7 @@ import static org.owasp.encoder.Encode.forJava;
 import com.devikapps.vaikaparts.InfraGenerated;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ErrorResponse;
 import com.devikapps.vaikaparts.exception.MissingAuthorizationException;
+import com.devikapps.vaikaparts.exception.UserNotFoundException;
 import com.devikapps.vaikaparts.exception.bucket.BucketHealthCheckException;
 import com.devikapps.vaikaparts.exception.bucket.BucketOperationException;
 import com.devikapps.vaikaparts.exception.bucket.DirectoryUploadException;
@@ -66,6 +67,47 @@ public class ApiExceptionHandler {
             "MISSING_REQUIRED_PARAMETER");
 
     return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+  }
+
+  @ExceptionHandler(SecurityException.class)
+  public ResponseEntity<ErrorResponse> handleSecurityException(
+      SecurityException ex, WebRequest req) {
+    log.error(
+        "SecurityException error at path {}, message: {}",
+        forJava(getRequestPath(req)),
+        forJava(ex.getMessage()));
+
+    var errorResponse =
+        ErrorResponse.of(
+            HttpStatus.UNAUTHORIZED, ex.getMessage(), getRequestPath(req), "SECURITY_EXCEPTION");
+
+    return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
+  }
+
+  @ExceptionHandler(UserNotFoundException.class)
+  public ResponseEntity<ErrorResponse> handleUserNotFoundException(
+      UserNotFoundException ex, WebRequest request) {
+    log.error("User not found excpetion at path : {}", forJava(getRequestPath(request)));
+
+    var err =
+        ErrorResponse.of(
+            HttpStatus.NOT_FOUND, ex.getMessage(), getRequestPath(request), "USER_NOT_FOUND");
+
+    return new ResponseEntity<>(err, HttpStatus.NOT_FOUND);
+  }
+
+  @ExceptionHandler(IllegalArgumentException.class)
+  public ResponseEntity<ErrorResponse> handleIllegalArgumentException(
+      IllegalArgumentException ex, WebRequest req) {
+    log.error("Payload not as expected: {}", forJava(ex.getMessage()));
+    var err =
+        ErrorResponse.of(
+            HttpStatus.BAD_REQUEST,
+            ex.getMessage(),
+            getRequestPath(req),
+            "PAYLOAD_NOT_AS_EXPECTED");
+
+    return new ResponseEntity<>(err, HttpStatus.BAD_REQUEST);
   }
 
   @ExceptionHandler(BucketHealthCheckException.class)

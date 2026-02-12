@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @InfraGenerated
 @RequiredArgsConstructor
-public class MultipartConfigurationInitializer {
+public class MultipartConfInitializer {
 
   private final MultipartProperties multipartProperties;
   private final MultipartPropertiesValidator multipartPropertiesValidator;
