@@ -20,7 +20,7 @@ jobs:
         continue-on-error: false
       
       - name: Upload Semgrep results as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: semgrep-results
