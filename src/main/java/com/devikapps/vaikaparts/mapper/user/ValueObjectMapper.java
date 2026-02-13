@@ -26,6 +26,6 @@ public interface ValueObjectMapper {
 
   default JLatLon map(LatLon latLon) {
     if (latLon == null) return null;
-    return new JLatLon(latLon.latitude(), latLon.longitude());
+    return new JLatLon(latLon.lat(), latLon.lon());
   }
 }

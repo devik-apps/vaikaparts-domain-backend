@@ -4,7 +4,7 @@ import static java.lang.String.format;
 
 import org.jetbrains.annotations.NotNull;
 
-public record LatLon(double latitude, double longitude) {
+public record LatLon(double lat, double lon) {
   private static final double TANA_LAT = -18.9137;
   private static final double TANA_LON = 47.5361;
 
@@ -15,6 +15,6 @@ public record LatLon(double latitude, double longitude) {
   @NotNull
   @Override
   public String toString() {
-    return format("{ lat=%f, lon=%f }", latitude, longitude);
+    return format("{ lat=%f, lon=%f }", lat, lon);
   }
 }

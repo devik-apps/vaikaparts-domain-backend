@@ -269,21 +269,21 @@ paths:
           description: Database connection error
   /webhooks/spb/auth:
     post:
-      operationId: supabaseAuthWebhook
+      operationId: supabaseProfileWebhook
       tags: [Webhooks]
-      summary: Supabase Auth webhook handler
+      summary: Supabase Database webhook handler for profiles table
       description: |
-        Receives authentication lifecycle events from Supabase Auth and synchronizes user data with the VaikaParts domain model.
+        Receives database lifecycle events from Supabase Database Webhooks and synchronizes user profile data with the VaikaParts domain model.
 
-        This endpoint handles all Supabase Auth webhook events:
-        - **user.created**: Creates a new Researcher, Seller, or Manager profile based on user_metadata
-        - **user.updated**: Synchronizes metadata changes to the existing user profile
-        - **user.deleted**: Soft-deletes the user profile by setting status to DISABLED
+        This endpoint handles all Supabase Database webhook events for the public.profiles table:
+        - **INSERT**: Creates a new Researcher, Seller, or Manager profile based on user_metadata.user_type
+        - **UPDATE**: Synchronizes metadata changes to the existing user profile
+        - **DELETE**: Soft-deletes the user profile by setting status to DISABLED
 
-        The user type (RESEARCHER, SELLER, MANAGER) is determined from the user_metadata.user_type field.
+        The user type (RESEARCHER, SELLER, MANAGER) is determined from the record.user_metadata.user_type field.
         If not specified, defaults to RESEARCHER.
 
-        **Authentication**: Requests must include a valid Supabase webhook signature in the X-Webhook-Signature header.
+        **Authentication**: Requests must include a valid Supabase webhook signature or secret token in the Authorization header.
       security:
         - supabaseWebhookSignature: []
       requestBody:
@@ -291,7 +291,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SupabaseAuthWebhook'
+              $ref: '#/components/schemas/SupabaseDatabaseWebhook'
       responses:
         '200':
           description: Webhook processed successfully
@@ -306,11 +306,14 @@ paths:
                   userId:
                     type: string
                     format: uuid
-                    description: The VaikaParts user ID (not Supabase ID)
+                    description: The VaikaParts user ID (same as Supabase profile ID)
+                  eventType:
+                    type: string
+                    enum: [INSERT, UPDATE, DELETE]
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
-          description: Invalid webhook signature
+          description: Invalid webhook signature or authorization token
         '500':
           description: Internal server error during webhook processing
   /webhooks/payment/premium-subscription-paid:
@@ -1653,77 +1656,116 @@ components:
       type: string
       enum: [IN_APP, EMAIL, SMS, PUSH]
       description: Notification delivery channel
-    SupabaseAuthWebhook:
+    SupabaseDatabaseWebhook:
       type: object
-      required: [event, user, created_at]
-      description: Webhook payload from Supabase Auth
+      required: [type, table, schema, record, old_record]
+      description: Webhook payload from Supabase Database Webhooks
       properties:
-        event:
+        type:
           type: string
-          enum: [user.created, user.updated, user.deleted]
-          description: The type of authentication event
-        user:
-          $ref: '#/components/schemas/SupabaseUserData'
-        created_at:
+          enum: [INSERT, UPDATE, DELETE]
+          description: The type of database operation that triggered the webhook
+        table:
           type: string
-          format: date-time
-          description: Timestamp when the event occurred
-    SupabaseUserData:
+          example: profiles
+          description: The table name (always 'profiles' for this webhook)
+        schema:
+          type: string
+          example: public
+          description: The schema name (always 'public' for this webhook)
+        record:
+          nullable: true
+          description: The new/current record data (null for DELETE operations)
+          allOf:
+            - $ref: '#/components/schemas/SupabaseProfileRecord'
+        old_record:
+          nullable: true
+          description: The previous record data (null for INSERT operations, present for UPDATE and DELETE)
+          allOf:
+            - $ref: '#/components/schemas/SupabaseProfileRecord'
+    SupabaseProfileRecord:
       type: object
-      required: [id, created_at, updated_at]
-      description: User data from Supabase Auth
+      required: [id, email, user_metadata, created_at, updated_at]
+      description: Profile record from public.profiles table
       properties:
         id:
           type: string
           format: uuid
-          description: Supabase user UUID
+          description: Profile UUID (references auth.users.id)
         email:
           type: string
           format: email
-          nullable: true
-        phone:
+          description: User email address
+        phone_number:
           type: string
           nullable: true
+          description: User phone number
+        name:
+          type: string
+          nullable: true
+          description: User display name
+        profile_img_url:
+          type: string
+          format: uri
+          nullable: true
+          description: URL to user's profile image
         user_metadata:
           type: object
-          description: Custom user metadata
+          description: Custom user metadata containing user-type-specific fields
+          required: [user_type]
           properties:
             user_type:
               type: string
               enum: [RESEARCHER, SELLER, MANAGER]
               description: Determines which user entity type to create
-            full_name:
-              type: string
-            name:
-              type: string
-            phone:
-              type: string
-            avatar_url:
-              type: string
-              format: uri
-            profile_img_url:
-              type: string
-              format: uri
+            location:
+              type: object
+              nullable: true
+              description: User location (for RESEARCHER and SELLER)
+              properties:
+                city:
+                  type: string
+                region:
+                  type: string
+                address:
+                  type: string
+            lat_lon:
+              type: object
+              nullable: true
+              description: Geographic coordinates (for SELLER only)
+              properties:
+                lat:
+                  type: number
+                  format: double
+                lon:
+                  type: number
+                  format: double
             garage_name:
               type: string
-              description: Required for SELLER type
+              nullable: true
+              description: Garage name (for SELLER only)
             manager_role:
               type: string
-              enum: [ADMIN, SUPPORT, MODERATOR]
-              description: Optional for MANAGER type
+              enum: [ADMIN, SUPERVISOR, STAFF]
+              nullable: true
+              description: Manager role (for MANAGER only)
         app_metadata:
           type: object
-          nullable: true
+          description: Application metadata
+          default: {}
         created_at:
           type: string
           format: date-time
+          description: Profile creation timestamp
         updated_at:
           type: string
           format: date-time
+          description: Profile last update timestamp
         deleted_at:
           type: string
           format: date-time
           nullable: true
+          description: Soft delete timestamp (null if not deleted)
     PaymentWebhookPayload:
       type: object
       required: [unlockId, paymentId, transactionId, amount, status]

@@ -7,9 +7,9 @@ import lombok.Getter;
 
 @Getter
 public enum SupabaseEventType {
-  USER_CREATED("user.created"),
-  USER_UPDATED("user.updated"),
-  USER_DELETED("user.deleted");
+  USER_CREATED("INSERT"),
+  USER_UPDATED("UPDATE"),
+  USER_DELETED("DELETE");
 
   private final String value;
 

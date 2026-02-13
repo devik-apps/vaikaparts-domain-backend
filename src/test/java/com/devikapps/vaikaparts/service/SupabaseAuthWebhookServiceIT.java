@@ -33,7 +33,8 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
   private static final String TEST_EMAIL = "test@example.com";
   private static final String TEST_PHONE = "+1234567890";
   private static final String TEST_NAME = "John Doe";
-  @Autowired ValueObjectMapper vom;
+
+  @Autowired private ValueObjectMapper vom;
   @Autowired private SupabaseAuthWebhookService supabaseAuthWebhookService;
   @Autowired private ObjectMapper om;
   @Autowired private SupabaseConf supabaseConf;
@@ -53,6 +54,7 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
 
     assertEquals("Webhook processed successfully", response.get("message"));
     assertEquals(TEST_SUPABASE_USER_ID, response.get("userId"));
+    assertEquals("INSERT", response.get("eventType"));
 
     var savedUser = userRepository.findBySupabaseUserId(TEST_SUPABASE_USER_ID);
     assertTrue(savedUser.isPresent());
@@ -163,7 +165,7 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
 
   @Test
   void should_throw_exception_when_event_type_is_unknown() {
-    var payload = buildWebhookPayload("user.unknown_event", buildUserMetadata("RESEARCHER"));
+    var payload = buildWebhookPayload("UNKNOWN_EVENT", buildUserMetadata("RESEARCHER"), TEST_NAME);
     var signature = computeSignature(payload);
 
     assertThrows(
@@ -187,46 +189,65 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
 
   @SneakyThrows
   private String buildUserCreatedPayload(String userType) {
-    return buildWebhookPayload("user.created", buildUserMetadata(userType));
+    return buildWebhookPayload("INSERT", buildUserMetadata(userType), TEST_NAME);
   }
 
   @SneakyThrows
   private String buildUserUpdatedPayload(String updatedName) {
-    var metadata = buildUserMetadata("RESEARCHER");
-    metadata.put("full_name", updatedName);
-    return buildWebhookPayload("user.updated", metadata);
+    return buildWebhookPayload("UPDATE", buildUserMetadata("RESEARCHER"), updatedName);
   }
 
   @SneakyThrows
   private String buildUserDeletedPayload() {
-    return buildWebhookPayload("user.deleted", buildUserMetadata("RESEARCHER"));
+    var webhook = new HashMap<String, Object>();
+    webhook.put("type", "DELETE");
+    webhook.put("table", "profiles");
+    webhook.put("schema", "public");
+    webhook.put("record", null);
+
+    var oldRecord = buildProfileRecord(buildUserMetadata("RESEARCHER"), TEST_NAME);
+    webhook.put("old_record", oldRecord);
+
+    return om.writeValueAsString(webhook);
   }
 
   @SneakyThrows
-  private String buildWebhookPayload(String event, Map<String, Object> metadata) {
+  private String buildWebhookPayload(String eventType, Map<String, Object> metadata, String name) {
     var webhook = new HashMap<String, Object>();
-    webhook.put("event", event);
-    webhook.put("created_at", "2024-01-01T00:00:00Z");
+    webhook.put("type", eventType);
+    webhook.put("table", "profiles");
+    webhook.put("schema", "public");
 
-    var user = new HashMap<String, Object>();
-    user.put("id", TEST_SUPABASE_USER_ID);
-    user.put("email", TEST_EMAIL);
-    user.put("phone", TEST_PHONE);
-    user.put("user_metadata", metadata);
-    user.put("app_metadata", null);
-    user.put("created_at", "2024-01-01T00:00:00Z");
-    user.put("updated_at", "2024-01-02T00:00:00Z");
-    user.put("deleted_at", null);
-
-    webhook.put("user", user);
+    var record = buildProfileRecord(metadata, name);
+    webhook.put("record", record);
+    webhook.put("old_record", null);
 
     return om.writeValueAsString(webhook);
+  }
+
+  private Map<String, Object> buildProfileRecord(Map<String, Object> metadata, String name) {
+    var record = new HashMap<String, Object>();
+    record.put("id", TEST_SUPABASE_USER_ID);
+    record.put("email", TEST_EMAIL);
+    record.put("phone_number", TEST_PHONE);
+    record.put("name", name);
+    record.put("profile_img_url", "");
+    record.put("user_metadata", metadata);
+    record.put("app_metadata", Map.of());
+    record.put("created_at", "2024-01-01T00:00:00Z");
+    record.put("updated_at", "2024-01-02T00:00:00Z");
+    record.put("deleted_at", null);
+    return record;
   }
 
   private Map<String, Object> buildUserMetadata(String userType) {
     var metadata = new HashMap<String, Object>();
     metadata.put("user_type", userType);
-    metadata.put("full_name", TEST_NAME);
+    if ("SELLER".equals(userType)) {
+      metadata.put("garage_name", "Test Garage");
+    } else if ("MANAGER".equals(userType)) {
+      metadata.put("manager_role", "ADMIN");
+    }
     return metadata;
   }
 
@@ -246,7 +267,7 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
         JResearcher.builder()
             .id("test-user-id")
             .supabaseUserId(TEST_SUPABASE_USER_ID)
-            .phoneNumber("+261 33 22 555 55")
+            .phoneNumber(TEST_PHONE)
             .profileImgUrl("")
             .location(vom.map(Location.getDefault()))
             .name(TEST_NAME)

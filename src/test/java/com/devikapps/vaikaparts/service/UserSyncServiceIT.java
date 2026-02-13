@@ -8,8 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.devikapps.vaikaparts.conf.FacadeIT;
-import com.devikapps.vaikaparts.endpoint.rest.controller.model.SupabaseAuthWebhook;
-import com.devikapps.vaikaparts.endpoint.rest.controller.model.UserData;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.ProfileRecord;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.SupabaseWebhook;
 import com.devikapps.vaikaparts.model.classifier.ManagerRole;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
@@ -32,7 +32,7 @@ class UserSyncServiceIT extends FacadeIT {
   private static final String TEST_EMAIL = "test@example.com";
   private static final String TEST_PHONE = "+1234567890";
   private static final String TEST_NAME = "John Doe";
-  private static final String TEST_AVATAR_URL = "https://example.com/avatar.jpg";
+  private static final String TEST_PROFILE_IMG_URL = "https://example.com/profile.jpg";
   private static final String TEST_GARAGE_NAME = "Joe's Garage";
   private static final Instant TEST_CREATED_AT = Instant.parse("2024-01-01T00:00:00Z");
   private static final Instant TEST_UPDATED_AT = Instant.parse("2024-01-02T00:00:00Z");
@@ -51,7 +51,7 @@ class UserSyncServiceIT extends FacadeIT {
 
     userSyncService.handleUserCreated(webhook);
 
-    var savedUser = findUserBySupabaseId(TEST_SUPABASE_USER_ID);
+    var savedUser = findUserBySupabaseId();
     assertNotNull(savedUser);
     assertInstanceOf(JResearcher.class, savedUser);
     assertEquals(UserType.RESEARCHER, savedUser.getUserType());
@@ -59,7 +59,20 @@ class UserSyncServiceIT extends FacadeIT {
     assertEquals(TEST_SUPABASE_USER_ID, savedUser.getSupabaseUserId());
     assertEquals(TEST_NAME, savedUser.getName());
     assertEquals(TEST_PHONE, savedUser.getPhoneNumber());
-    assertEquals(TEST_AVATAR_URL, savedUser.getProfileImgUrl());
+    assertEquals(TEST_PROFILE_IMG_URL, savedUser.getProfileImgUrl());
+  }
+
+  @Test
+  void should_create_researcher_with_location_from_metadata() {
+    var metadata = buildResearcherMetadata();
+    metadata.put("location", buildLocationMap());
+    var webhook = buildWebhook(TEST_SUPABASE_USER_ID, metadata);
+
+    userSyncService.handleUserCreated(webhook);
+
+    var savedUser = (JResearcher) findUserBySupabaseId();
+    assertNotNull(savedUser.getLocation());
+    assertEquals("Test Address", savedUser.getLocation().getAddress());
   }
 
   @Test
@@ -68,11 +81,28 @@ class UserSyncServiceIT extends FacadeIT {
 
     userSyncService.handleUserCreated(webhook);
 
-    var savedUser = findUserBySupabaseId(TEST_SUPABASE_USER_ID);
+    var savedUser = findUserBySupabaseId();
     assertNotNull(savedUser);
     assertInstanceOf(JSeller.class, savedUser);
     assertEquals(UserType.SELLER, savedUser.getUserType());
     assertEquals(TEST_GARAGE_NAME, ((JSeller) savedUser).getGarageName());
+  }
+
+  @Test
+  void should_create_seller_with_location_and_latlon_from_metadata() {
+    var metadata = buildSellerMetadata();
+    metadata.put("location", buildLocationMap());
+    metadata.put("lat_lon", buildLatLonMap());
+    var webhook = buildWebhook(TEST_SUPABASE_USER_ID, metadata);
+
+    userSyncService.handleUserCreated(webhook);
+
+    var savedUser = (JSeller) findUserBySupabaseId();
+    assertNotNull(savedUser.getLocation());
+    assertNotNull(savedUser.getLatLon());
+    assertEquals(-18.8792, savedUser.getLatLon().getLatitude());
+    assertEquals(47.5079, savedUser.getLatLon().getLongitude());
+    assertEquals(TEST_GARAGE_NAME, savedUser.getGarageName());
   }
 
   @Test
@@ -81,7 +111,7 @@ class UserSyncServiceIT extends FacadeIT {
 
     userSyncService.handleUserCreated(webhook);
 
-    var savedUser = findUserBySupabaseId(TEST_SUPABASE_USER_ID);
+    var savedUser = findUserBySupabaseId();
     assertNotNull(savedUser);
     assertInstanceOf(JManager.class, savedUser);
     assertEquals(UserType.MANAGER, savedUser.getUserType());
@@ -91,15 +121,15 @@ class UserSyncServiceIT extends FacadeIT {
   @Test
   void should_default_to_researcher_when_user_type_not_specified() {
     var metadata = new HashMap<String, Object>();
-    metadata.put("full_name", TEST_NAME);
     var webhook = buildWebhook(TEST_SUPABASE_USER_ID, metadata);
 
     userSyncService.handleUserCreated(webhook);
 
-    var savedUser = findUserBySupabaseId(TEST_SUPABASE_USER_ID);
+    var savedUser = findUserBySupabaseId();
     assertNotNull(savedUser);
     assertInstanceOf(JResearcher.class, savedUser);
     assertEquals(UserType.RESEARCHER, savedUser.getUserType());
+    assertEquals(TEST_SUPABASE_USER_ID, savedUser.getSupabaseUserId());
   }
 
   @Test
@@ -110,7 +140,7 @@ class UserSyncServiceIT extends FacadeIT {
 
     userSyncService.handleUserCreated(webhook);
 
-    var savedUser = findUserBySupabaseId(TEST_SUPABASE_USER_ID);
+    var savedUser = findUserBySupabaseId();
     assertNotNull(savedUser);
     assertInstanceOf(JResearcher.class, savedUser);
   }
@@ -119,11 +149,11 @@ class UserSyncServiceIT extends FacadeIT {
   void should_use_email_username_when_name_not_provided() {
     var metadata = new HashMap<String, Object>();
     metadata.put("user_type", "RESEARCHER");
-    var webhook = buildWebhook(TEST_SUPABASE_USER_ID, metadata);
+    var webhook = buildWebhookWithCustomName(metadata, null);
 
     userSyncService.handleUserCreated(webhook);
 
-    var savedUser = findUserBySupabaseId(TEST_SUPABASE_USER_ID);
+    var savedUser = findUserBySupabaseId();
     assertNotNull(savedUser);
     assertEquals("test", savedUser.getName());
   }
@@ -133,7 +163,7 @@ class UserSyncServiceIT extends FacadeIT {
     var webhook = buildWebhook(TEST_SUPABASE_USER_ID, buildResearcherMetadata());
     userSyncService.handleUserCreated(webhook);
 
-    var initialUser = findUserBySupabaseId(TEST_SUPABASE_USER_ID);
+    var initialUser = findUserBySupabaseId();
     var initialUserId = initialUser.getId();
 
     userSyncService.handleUserCreated(webhook);
@@ -141,7 +171,7 @@ class UserSyncServiceIT extends FacadeIT {
     var userCount = userRepository.count();
     assertEquals(1, userCount);
 
-    var finalUser = findUserBySupabaseId(TEST_SUPABASE_USER_ID);
+    var finalUser = findUserBySupabaseId();
     assertEquals(initialUserId, finalUser.getId());
   }
 
@@ -151,13 +181,11 @@ class UserSyncServiceIT extends FacadeIT {
     userSyncService.handleUserCreated(createWebhook);
 
     var updatedName = "Jane Doe Updated";
-    var updatedMetadata = buildResearcherMetadata();
-    updatedMetadata.put("full_name", updatedName);
-    var updateWebhook = buildWebhook(TEST_SUPABASE_USER_ID, updatedMetadata);
+    var updateWebhook = buildWebhookWithCustomName(buildResearcherMetadata(), updatedName);
 
     userSyncService.handleUserUpdated(updateWebhook);
 
-    var updatedUser = findUserBySupabaseId(TEST_SUPABASE_USER_ID);
+    var updatedUser = findUserBySupabaseId();
     assertEquals(updatedName, updatedUser.getName());
   }
 
@@ -173,7 +201,7 @@ class UserSyncServiceIT extends FacadeIT {
 
     userSyncService.handleUserUpdated(updateWebhook);
 
-    var updatedUser = (JSeller) findUserBySupabaseId(TEST_SUPABASE_USER_ID);
+    var updatedUser = (JSeller) findUserBySupabaseId();
     assertEquals(updatedGarageName, updatedUser.getGarageName());
   }
 
@@ -189,18 +217,18 @@ class UserSyncServiceIT extends FacadeIT {
     var createWebhook = buildWebhook(TEST_SUPABASE_USER_ID, buildResearcherMetadata());
     userSyncService.handleUserCreated(createWebhook);
 
-    var deleteWebhook = buildWebhook(TEST_SUPABASE_USER_ID, buildResearcherMetadata());
+    var deleteWebhook = buildDeleteWebhook(TEST_SUPABASE_USER_ID, buildResearcherMetadata());
 
     userSyncService.handleUserDeleted(deleteWebhook);
 
-    var deletedUser = findUserBySupabaseId(TEST_SUPABASE_USER_ID);
+    var deletedUser = findUserBySupabaseId();
     assertEquals(UserStatus.DISABLED, deletedUser.getStatus());
     assertNotNull(deletedUser.getUpdatedAt());
   }
 
   @Test
   void should_throw_exception_when_deleting_non_existent_user() {
-    var webhook = buildWebhook("non-existent-id", buildResearcherMetadata());
+    var webhook = buildDeleteWebhook("non-existent-id", buildResearcherMetadata());
 
     assertThrows(IllegalStateException.class, () -> userSyncService.handleUserDeleted(webhook));
   }
@@ -211,79 +239,62 @@ class UserSyncServiceIT extends FacadeIT {
 
     userSyncService.handleUserCreated(webhook);
 
-    var savedUser = findUserBySupabaseId(TEST_SUPABASE_USER_ID);
+    var savedUser = findUserBySupabaseId();
     assertNotNull(savedUser);
-    assertEquals("test", savedUser.getName());
+    assertEquals(TEST_NAME, savedUser.getName());
   }
 
   @Test
-  void should_prefer_full_name_over_name_field() {
+  void should_prefer_name_field_over_metadata_name() {
     var metadata = new HashMap<String, Object>();
     metadata.put("user_type", "RESEARCHER");
-    metadata.put("name", "Short Name");
-    metadata.put("full_name", "Full Name Version");
-    var webhook = buildWebhook(TEST_SUPABASE_USER_ID, metadata);
+    metadata.put("name", "Metadata Name");
+    var webhook = buildWebhookWithCustomName(metadata, "Profile Name");
 
     userSyncService.handleUserCreated(webhook);
 
-    var savedUser = findUserBySupabaseId(TEST_SUPABASE_USER_ID);
-    assertEquals("Full Name Version", savedUser.getName());
+    var savedUser = findUserBySupabaseId();
+    assertEquals("Profile Name", savedUser.getName());
+    assertEquals(UserType.RESEARCHER, savedUser.getUserType());
   }
 
   @Test
-  void should_prefer_phone_field_over_metadata_phone() {
-    var metadata = buildResearcherMetadata();
-    metadata.put("phone", "+9999999999");
-    var webhook = buildWebhookWithCustomPhone(TEST_SUPABASE_USER_ID, metadata, TEST_PHONE);
+  void should_use_metadata_name_when_profile_name_is_blank() {
+    var metadata = new HashMap<String, Object>();
+    metadata.put("user_type", "RESEARCHER");
+    metadata.put("name", "Metadata Name");
+    var webhook = buildWebhookWithCustomName(metadata, "");
 
     userSyncService.handleUserCreated(webhook);
 
-    var savedUser = findUserBySupabaseId(TEST_SUPABASE_USER_ID);
+    var savedUser = findUserBySupabaseId();
+    assertEquals("Metadata Name", savedUser.getName());
+  }
+
+  @Test
+  void should_use_profile_phone_number() {
+    var webhook = buildWebhookWithCustomPhone(buildResearcherMetadata());
+
+    userSyncService.handleUserCreated(webhook);
+
+    var savedUser = findUserBySupabaseId();
     assertEquals(TEST_PHONE, savedUser.getPhoneNumber());
   }
 
   @Test
-  void should_use_metadata_phone_when_phone_field_is_blank() {
-    var metadataPhone = "+9999999999";
+  void should_use_profile_img_url() {
     var metadata = buildResearcherMetadata();
-    metadata.put("phone", metadataPhone);
-    var webhook = buildWebhookWithCustomPhone(TEST_SUPABASE_USER_ID, metadata, "");
+    var webhook = buildWebhookWithCustomProfileImg(metadata);
 
     userSyncService.handleUserCreated(webhook);
 
-    var savedUser = findUserBySupabaseId(TEST_SUPABASE_USER_ID);
-    assertEquals(metadataPhone, savedUser.getPhoneNumber());
-  }
-
-  @Test
-  void should_support_both_avatar_url_and_profile_img_url() {
-    var metadata1 = new HashMap<String, Object>();
-    metadata1.put("user_type", "RESEARCHER");
-    metadata1.put("avatar_url", TEST_AVATAR_URL);
-    var webhook1 = buildWebhook("user-1", metadata1);
-
-    userSyncService.handleUserCreated(webhook1);
-
-    var user1 = findUserBySupabaseId("user-1");
-    assertEquals(TEST_AVATAR_URL, user1.getProfileImgUrl());
-
-    var profileImgUrl = "https://example.com/profile.jpg";
-    var metadata2 = new HashMap<String, Object>();
-    metadata2.put("user_type", "RESEARCHER");
-    metadata2.put("profile_img_url", profileImgUrl);
-    var webhook2 = buildWebhook("user-2", metadata2);
-
-    userSyncService.handleUserCreated(webhook2);
-
-    var user2 = findUserBySupabaseId("user-2");
-    assertEquals(profileImgUrl, user2.getProfileImgUrl());
+    var savedUser = findUserBySupabaseId();
+    assertEquals(TEST_PROFILE_IMG_URL, savedUser.getProfileImgUrl());
   }
 
   private Map<String, Object> buildResearcherMetadata() {
     var metadata = new HashMap<String, Object>();
     metadata.put("user_type", "RESEARCHER");
-    metadata.put("name", TEST_NAME);
-    metadata.put("avatar_url", TEST_AVATAR_URL);
     return metadata;
   }
 
@@ -301,29 +312,76 @@ class UserSyncServiceIT extends FacadeIT {
     return metadata;
   }
 
-  private SupabaseAuthWebhook buildWebhook(String supabaseUserId, Map<String, Object> metadata) {
-    return buildWebhookWithCustomPhone(supabaseUserId, metadata, TEST_PHONE);
+  private Map<String, Object> buildLocationMap() {
+    var location = new HashMap<String, Object>();
+    location.put("city", "ANTANANARIVO");
+    location.put("region", "ANALAMANGA");
+    location.put("address", "Test Address");
+    return location;
   }
 
-  private SupabaseAuthWebhook buildWebhookWithCustomPhone(
-      String supabaseUserId, Map<String, Object> metadata, String phone) {
-    var userData =
-        new UserData(
-            supabaseUserId,
+  private Map<String, Object> buildLatLonMap() {
+    var latLon = new HashMap<String, Object>();
+    latLon.put("lat", -18.8792);
+    latLon.put("lon", 47.5079);
+    return latLon;
+  }
+
+  private SupabaseWebhook buildWebhook(String profileId, Map<String, Object> metadata) {
+    return buildWebhookWithAllFields(profileId, metadata, TEST_NAME);
+  }
+
+  private SupabaseWebhook buildWebhookWithCustomName(Map<String, Object> metadata, String name) {
+    return buildWebhookWithAllFields(UserSyncServiceIT.TEST_SUPABASE_USER_ID, metadata, name);
+  }
+
+  private SupabaseWebhook buildWebhookWithCustomPhone(Map<String, Object> metadata) {
+    return buildWebhookWithAllFields(UserSyncServiceIT.TEST_SUPABASE_USER_ID, metadata, TEST_NAME);
+  }
+
+  private SupabaseWebhook buildWebhookWithCustomProfileImg(Map<String, Object> metadata) {
+    return buildWebhookWithAllFields(UserSyncServiceIT.TEST_SUPABASE_USER_ID, metadata, TEST_NAME);
+  }
+
+  private SupabaseWebhook buildWebhookWithAllFields(
+      String profileId, Map<String, Object> metadata, String name) {
+    var profileRecord =
+        new ProfileRecord(
+            profileId,
             TEST_EMAIL,
-            phone,
-            metadata,
-            null,
+            UserSyncServiceIT.TEST_PHONE,
+            name,
+            UserSyncServiceIT.TEST_PROFILE_IMG_URL,
+            metadata != null ? metadata : Map.of(),
+            Map.of(),
             TEST_CREATED_AT,
             TEST_UPDATED_AT,
             null);
-    return new SupabaseAuthWebhook("user.created", userData, TEST_CREATED_AT);
+    return new SupabaseWebhook("INSERT", "profiles", "public", profileRecord, null);
   }
 
-  private JUser findUserBySupabaseId(String supabaseUserId) {
-    Optional<JUser> userOpt = userRepository.findBySupabaseUserId(supabaseUserId);
+  private SupabaseWebhook buildDeleteWebhook(String profileId, Map<String, Object> metadata) {
+    var profileRecord =
+        new ProfileRecord(
+            profileId,
+            TEST_EMAIL,
+            TEST_PHONE,
+            TEST_NAME,
+            TEST_PROFILE_IMG_URL,
+            metadata != null ? metadata : Map.of(),
+            Map.of(),
+            TEST_CREATED_AT,
+            TEST_UPDATED_AT,
+            null);
+    return new SupabaseWebhook("DELETE", "profiles", "public", null, profileRecord);
+  }
+
+  private JUser findUserBySupabaseId() {
+    Optional<JUser> userOpt =
+        userRepository.findBySupabaseUserId(UserSyncServiceIT.TEST_SUPABASE_USER_ID);
     assertTrue(
-        userOpt.isPresent(), format("User should exist with supabaseUserId: %s", supabaseUserId));
+        userOpt.isPresent(),
+        format("User should exist with profileId: %s", UserSyncServiceIT.TEST_SUPABASE_USER_ID));
     return userOpt.get();
   }
 }
