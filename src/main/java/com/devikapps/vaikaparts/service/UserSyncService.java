@@ -165,11 +165,24 @@ public class UserSyncService {
     var metadata = profile.userMetadata();
 
     return switch (userType) {
-      case RESEARCHER ->
-          buildResearcher(profileId, name, phoneNumber, userId, createdAt, updatedAt);
+      case RESEARCHER -> {
+        var location = extractLocation(metadata).orElse(null);
+        yield buildResearcher(profileId, name, phoneNumber, userId, location, createdAt, updatedAt);
+      }
       case SELLER -> {
         var garageName = extractMetadataValue(metadata, GARAGE_NAME_KEY).orElse("");
-        yield buildSeller(profileId, name, phoneNumber, garageName, userId, createdAt, updatedAt);
+        var location = extractLocation(metadata).orElse(null);
+        var latLon = extractLatLon(metadata).orElse(null);
+        yield buildSeller(
+            profileId,
+            name,
+            phoneNumber,
+            garageName,
+            userId,
+            location,
+            latLon,
+            createdAt,
+            updatedAt);
       }
       case MANAGER -> {
         var managerRole =
@@ -186,15 +199,17 @@ public class UserSyncService {
       String name,
       String phoneNumber,
       String userId,
+      Location location,
       LocalDateTime createdAt,
       LocalDateTime updatedAt) {
+    var finalLocation = (location == null) ? Location.getDefault() : location;
     return JResearcher.builder()
         .id(userId)
         .supabaseUserId(profileId)
         .name(name)
         .phoneNumber(phoneNumber)
         .profileImgUrl("")
-        .location(vom.map(Location.getDefault()))
+        .location(vom.map(finalLocation))
         .userType(UserType.RESEARCHER)
         .status(UserStatus.ENABLED)
         .createdAt(createdAt)
@@ -208,8 +223,12 @@ public class UserSyncService {
       String phoneNumber,
       String garageName,
       String userId,
+      Location location,
+      LatLon latLon,
       LocalDateTime createdAt,
       LocalDateTime updatedAt) {
+    var finalLocation = (location == null) ? Location.getDefault() : location;
+    var finalLatLon = (latLon == null) ? LatLon.getDefault() : latLon;
     return JSeller.builder()
         .id(userId)
         .supabaseUserId(profileId)
@@ -219,8 +238,8 @@ public class UserSyncService {
         .garageName(garageName)
         .userType(UserType.SELLER)
         .status(UserStatus.ENABLED)
-        .location(vom.map(Location.getDefault()))
-        .latLon(vom.map(LatLon.getDefault()))
+        .location(vom.map(finalLocation))
+        .latLon(vom.map(finalLatLon))
         .createdAt(createdAt)
         .updatedAt(updatedAt)
         .build();
@@ -324,9 +343,7 @@ public class UserSyncService {
     var regionStr = (String) locationMap.get(REGION_KEY);
     var address = (String) locationMap.get(ADDRESS_KEY);
 
-    if (cityStr == null || regionStr == null || address == null) {
-      return Optional.empty();
-    }
+    if (cityStr == null || regionStr == null || address == null) return Optional.empty();
 
     return parseCity(cityStr)
         .flatMap(city -> parseRegion(regionStr).map(region -> new Location(city, region, address)));

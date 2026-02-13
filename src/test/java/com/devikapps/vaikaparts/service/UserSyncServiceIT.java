@@ -63,6 +63,19 @@ class UserSyncServiceIT extends FacadeIT {
   }
 
   @Test
+  void should_create_researcher_with_location_from_metadata() {
+    var metadata = buildResearcherMetadata();
+    metadata.put("location", buildLocationMap());
+    var webhook = buildWebhook(TEST_SUPABASE_USER_ID, metadata);
+
+    userSyncService.handleUserCreated(webhook);
+
+    var savedUser = (JResearcher) findUserBySupabaseId();
+    assertNotNull(savedUser.getLocation());
+    assertEquals("Test Address", savedUser.getLocation().getAddress());
+  }
+
+  @Test
   void should_create_seller_when_user_created_event_with_seller_type() {
     var webhook = buildWebhook(TEST_SUPABASE_USER_ID, buildSellerMetadata());
 
@@ -73,6 +86,23 @@ class UserSyncServiceIT extends FacadeIT {
     assertInstanceOf(JSeller.class, savedUser);
     assertEquals(UserType.SELLER, savedUser.getUserType());
     assertEquals(TEST_GARAGE_NAME, ((JSeller) savedUser).getGarageName());
+  }
+
+  @Test
+  void should_create_seller_with_location_and_latlon_from_metadata() {
+    var metadata = buildSellerMetadata();
+    metadata.put("location", buildLocationMap());
+    metadata.put("lat_lon", buildLatLonMap());
+    var webhook = buildWebhook(TEST_SUPABASE_USER_ID, metadata);
+
+    userSyncService.handleUserCreated(webhook);
+
+    var savedUser = (JSeller) findUserBySupabaseId();
+    assertNotNull(savedUser.getLocation());
+    assertNotNull(savedUser.getLatLon());
+    assertEquals(-18.8792, savedUser.getLatLon().getLatitude());
+    assertEquals(47.5079, savedUser.getLatLon().getLongitude());
+    assertEquals(TEST_GARAGE_NAME, savedUser.getGarageName());
   }
 
   @Test
@@ -99,6 +129,7 @@ class UserSyncServiceIT extends FacadeIT {
     assertNotNull(savedUser);
     assertInstanceOf(JResearcher.class, savedUser);
     assertEquals(UserType.RESEARCHER, savedUser.getUserType());
+    assertEquals(TEST_SUPABASE_USER_ID, savedUser.getSupabaseUserId());
   }
 
   @Test
@@ -224,6 +255,7 @@ class UserSyncServiceIT extends FacadeIT {
 
     var savedUser = findUserBySupabaseId();
     assertEquals("Profile Name", savedUser.getName());
+    assertEquals(UserType.RESEARCHER, savedUser.getUserType());
   }
 
   @Test
@@ -278,6 +310,21 @@ class UserSyncServiceIT extends FacadeIT {
     metadata.put("user_type", "MANAGER");
     metadata.put("manager_role", "ADMIN");
     return metadata;
+  }
+
+  private Map<String, Object> buildLocationMap() {
+    var location = new HashMap<String, Object>();
+    location.put("city", "ANTANANARIVO");
+    location.put("region", "ANALAMANGA");
+    location.put("address", "Test Address");
+    return location;
+  }
+
+  private Map<String, Object> buildLatLonMap() {
+    var latLon = new HashMap<String, Object>();
+    latLon.put("lat", -18.8792);
+    latLon.put("lon", 47.5079);
+    return latLon;
   }
 
   private SupabaseWebhook buildWebhook(String profileId, Map<String, Object> metadata) {
