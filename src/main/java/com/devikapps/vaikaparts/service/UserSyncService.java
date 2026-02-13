@@ -5,11 +5,14 @@ import static java.time.LocalDateTime.ofInstant;
 import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
-import com.devikapps.vaikaparts.endpoint.rest.controller.model.SupabaseAuthWebhook;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.ProfileRecord;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.SupabaseWebhook;
 import com.devikapps.vaikaparts.mapper.user.ValueObjectMapper;
 import com.devikapps.vaikaparts.model.LatLon;
 import com.devikapps.vaikaparts.model.Location;
+import com.devikapps.vaikaparts.model.classifier.City;
 import com.devikapps.vaikaparts.model.classifier.ManagerRole;
+import com.devikapps.vaikaparts.model.classifier.Region;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.repository.UserRepository;
@@ -33,79 +36,84 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserSyncService {
 
   private static final String USER_TYPE_KEY = "user_type";
-  private static final String FULL_NAME_KEY = "full_name";
   private static final String NAME_KEY = "name";
-  private static final String PHONE_KEY = "phone";
-  private static final String AVATAR_URL_KEY = "avatar_url";
-  private static final String PROFILE_IMG_URL_KEY = "profile_img_url";
+  private static final String LOCATION_KEY = "location";
+  private static final String LAT_LON_KEY = "lat_lon";
   private static final String GARAGE_NAME_KEY = "garage_name";
   private static final String MANAGER_ROLE_KEY = "manager_role";
+  private static final String CITY_KEY = "city";
+  private static final String REGION_KEY = "region";
+  private static final String ADDRESS_KEY = "address";
+  private static final String LAT_KEY = "lat";
+  private static final String LON_KEY = "lon";
 
   private final UserRepository userRepository;
   private final ValueObjectMapper vom;
 
   @Transactional
-  public void handleUserCreated(SupabaseAuthWebhook webhook) {
-    var supabaseUserId = webhook.user().id();
-    log.info("Processing user.created event for Supabase user ID: {}", forJava(supabaseUserId));
+  public void handleUserCreated(SupabaseWebhook webhook) {
+    var profile = webhook.record();
+    var profileId = profile.id();
 
-    if (userRepository.existsBySupabaseUserId(supabaseUserId)) {
-      log.warn(
-          "User with Supabase ID {} already exists, skipping creation", forJava(supabaseUserId));
+    log.info("Processing INSERT event for profile ID: {}", forJava(profileId));
+
+    if (userRepository.existsBySupabaseUserId(profileId)) {
+      log.warn("User with profile ID {} already exists, skipping creation", forJava(profileId));
       return;
     }
 
-    var userType = extractUserType(webhook.user().userMetadata());
-    var newUser = createUserByType(webhook, userType);
+    var userType = extractUserType(profile.userMetadata());
+    var newUser = createUserByType(profile, userType);
 
     userRepository.save(newUser);
     log.info(
-        "Successfully created {} with ID {} for Supabase user {}",
+        "Successfully created {} with ID {} for profile {}",
         userType,
         forJava(newUser.getId()),
-        forJava(supabaseUserId));
+        forJava(profileId));
   }
 
   @Transactional
-  public void handleUserUpdated(SupabaseAuthWebhook webhook) {
-    var supabaseUserId = webhook.user().id();
-    log.info("Processing user.updated event for Supabase user ID: {}", forJava(supabaseUserId));
+  public void handleUserUpdated(SupabaseWebhook webhook) {
+    var profile = webhook.record();
+    var profileId = profile.id();
 
-    var user = findUserBySupabaseId(supabaseUserId);
-    updateUserFields(user, webhook);
-    user.setUpdatedAt(convertToLocalDateTime(webhook.user().updatedAt()));
+    log.info("Processing UPDATE event for profile ID: {}", forJava(profileId));
+
+    var user = findUserBySupabaseId(profileId);
+    updateUserFields(user, profile);
+    user.setUpdatedAt(convertToLocalDateTime(profile.updatedAt()));
 
     userRepository.save(user);
     log.info(
-        "Successfully updated user {} for Supabase user {}",
-        forJava(user.getId()),
-        forJava(supabaseUserId));
+        "Successfully updated user {} for profile {}", forJava(user.getId()), forJava(profileId));
   }
 
   @Transactional
-  public void handleUserDeleted(SupabaseAuthWebhook webhook) {
-    var supabaseUserId = webhook.user().id();
-    log.info("Processing user.deleted event for Supabase user ID: {}", forJava(supabaseUserId));
+  public void handleUserDeleted(SupabaseWebhook webhook) {
+    var profile = webhook.oldRecord();
+    var profileId = profile.id();
 
-    var user = findUserBySupabaseId(supabaseUserId);
+    log.info("Processing DELETE event for profile ID: {}", forJava(profileId));
+
+    var user = findUserBySupabaseId(profileId);
     user.setStatus(UserStatus.DISABLED);
     user.setUpdatedAt(now());
 
     userRepository.save(user);
     log.info(
-        "Successfully soft-deleted user {} for Supabase user {}",
+        "Successfully soft-deleted user {} for profile {}",
         forJava(user.getId()),
-        forJava(supabaseUserId));
+        forJava(profileId));
   }
 
-  private JUser findUserBySupabaseId(String supabaseUserId) {
+  private JUser findUserBySupabaseId(String profileId) {
     return userRepository
-        .findBySupabaseUserId(supabaseUserId)
+        .findBySupabaseUserId(profileId)
         .orElseThrow(
             () -> {
-              log.error("User not found for Supabase ID: {}", forJava(supabaseUserId));
-              return new IllegalStateException(
-                  "Cannot process non-existent user: " + supabaseUserId);
+              log.error("User not found for profile ID: {}", forJava(profileId));
+              return new IllegalStateException("Cannot process non-existent user: " + profileId);
             });
   }
 
@@ -131,37 +139,60 @@ public class UserSyncService {
     }
   }
 
-  private JUser createUserByType(SupabaseAuthWebhook webhook, UserType userType) {
+  private JUser createUserByType(ProfileRecord profile, UserType userType) {
     var userId = randomUUID().toString();
-    var createdAt = convertToLocalDateTime(webhook.user().createdAt());
-    var updatedAt = convertToLocalDateTime(webhook.user().updatedAt());
+    var createdAt = convertToLocalDateTime(profile.createdAt());
+    var updatedAt = convertToLocalDateTime(profile.updatedAt());
+    var name = extractName(profile);
+    var phoneNumber = extractPhoneNumber(profile);
 
-    var user = buildUserEntity(webhook.user().id(), userId, userType, createdAt, updatedAt);
-    updateUserFields(user, webhook);
+    var user = buildUserEntity(profile, userType, userId, name, phoneNumber, createdAt, updatedAt);
+    updateUserFields(user, profile);
 
     return user;
   }
 
   private JUser buildUserEntity(
-      String supabaseUserId,
-      String userId,
+      ProfileRecord profile,
       UserType userType,
+      String userId,
+      String name,
+      String phoneNumber,
       LocalDateTime createdAt,
       LocalDateTime updatedAt) {
 
+    var profileId = profile.id();
+    var metadata = profile.userMetadata();
+
     return switch (userType) {
-      case RESEARCHER -> buildResearcher(supabaseUserId, userId, createdAt, updatedAt);
-      case SELLER -> buildSeller(supabaseUserId, userId, createdAt, updatedAt);
-      case MANAGER -> buildManager(supabaseUserId, userId, createdAt, updatedAt);
+      case RESEARCHER ->
+          buildResearcher(profileId, name, phoneNumber, userId, createdAt, updatedAt);
+      case SELLER -> {
+        var garageName = extractMetadataValue(metadata, GARAGE_NAME_KEY).orElse("");
+        yield buildSeller(profileId, name, phoneNumber, garageName, userId, createdAt, updatedAt);
+      }
+      case MANAGER -> {
+        var managerRole =
+            extractMetadataValue(metadata, MANAGER_ROLE_KEY)
+                .flatMap(this::parseManagerRole)
+                .orElse(ManagerRole.ADMIN);
+        yield buildManager(profileId, userId, name, phoneNumber, managerRole, createdAt, updatedAt);
+      }
     };
   }
 
   private JResearcher buildResearcher(
-      String supabaseUserId, String userId, LocalDateTime createdAt, LocalDateTime updatedAt) {
+      String profileId,
+      String name,
+      String phoneNumber,
+      String userId,
+      LocalDateTime createdAt,
+      LocalDateTime updatedAt) {
     return JResearcher.builder()
         .id(userId)
-        .supabaseUserId(supabaseUserId)
-        .phoneNumber("")
+        .supabaseUserId(profileId)
+        .name(name)
+        .phoneNumber(phoneNumber)
         .profileImgUrl("")
         .location(vom.map(Location.getDefault()))
         .userType(UserType.RESEARCHER)
@@ -172,13 +203,20 @@ public class UserSyncService {
   }
 
   private JSeller buildSeller(
-      String supabaseUserId, String userId, LocalDateTime createdAt, LocalDateTime updatedAt) {
+      String profileId,
+      String name,
+      String phoneNumber,
+      String garageName,
+      String userId,
+      LocalDateTime createdAt,
+      LocalDateTime updatedAt) {
     return JSeller.builder()
         .id(userId)
-        .supabaseUserId(supabaseUserId)
-        .phoneNumber("")
+        .supabaseUserId(profileId)
+        .name(name)
+        .phoneNumber(phoneNumber)
         .profileImgUrl("")
-        .garageName("")
+        .garageName(garageName)
         .userType(UserType.SELLER)
         .status(UserStatus.ENABLED)
         .location(vom.map(Location.getDefault()))
@@ -189,54 +227,78 @@ public class UserSyncService {
   }
 
   private JManager buildManager(
-      String supabaseUserId, String userId, LocalDateTime createdAt, LocalDateTime updatedAt) {
+      String profileId,
+      String userId,
+      String name,
+      String phoneNumber,
+      ManagerRole managerRole,
+      LocalDateTime createdAt,
+      LocalDateTime updatedAt) {
     return JManager.builder()
         .id(userId)
-        .supabaseUserId(supabaseUserId)
-        .phoneNumber("")
+        .supabaseUserId(profileId)
+        .name(name)
+        .phoneNumber(phoneNumber)
         .profileImgUrl("")
         .userType(UserType.MANAGER)
         .status(UserStatus.ENABLED)
-        .managerRole(ManagerRole.ADMIN)
+        .managerRole(managerRole)
         .createdAt(createdAt)
         .updatedAt(updatedAt)
         .build();
   }
 
-  private void updateUserFields(JUser user, SupabaseAuthWebhook webhook) {
-    var userData = webhook.user();
-    Map<String, Object> metadata = userData.userMetadata();
+  private void updateUserFields(JUser user, ProfileRecord profile) {
+    Map<String, Object> metadata = profile.userMetadata();
 
-    updateName(user, metadata, userData.email());
-    updatePhoneNumber(user, metadata, userData.phone());
-    updateProfileImage(user, metadata);
+    updateName(user, profile.name());
+    updatePhoneNumber(user, profile.phoneNumber());
+    updateProfileImage(user, profile.profileImgUrl());
+    updateLocationFields(user, metadata);
     updateSellerFields(user, metadata);
     updateManagerFields(user, metadata);
   }
 
-  private void updateName(JUser user, Map<String, Object> metadata, String email) {
-    extractMetadataValue(metadata, FULL_NAME_KEY)
-        .or(() -> extractMetadataValue(metadata, NAME_KEY))
-        .or(() -> extractEmailUsername(email))
-        .ifPresent(user::setName);
+  private void updateName(JUser user, String profileName) {
+    Optional.ofNullable(profileName).filter(n -> !n.isBlank()).ifPresent(user::setName);
   }
 
-  private void updatePhoneNumber(JUser user, Map<String, Object> metadata, String phone) {
-    Optional.ofNullable(phone)
-        .filter(p -> !p.isBlank())
-        .or(() -> extractMetadataValue(metadata, PHONE_KEY))
-        .ifPresent(user::setPhoneNumber);
+  private void updatePhoneNumber(JUser user, String phoneNumber) {
+    Optional.ofNullable(phoneNumber).filter(p -> !p.isBlank()).ifPresent(user::setPhoneNumber);
   }
 
-  private void updateProfileImage(JUser user, Map<String, Object> metadata) {
-    extractMetadataValue(metadata, AVATAR_URL_KEY)
-        .or(() -> extractMetadataValue(metadata, PROFILE_IMG_URL_KEY))
+  private void updateProfileImage(JUser user, String profileImgUrl) {
+    Optional.ofNullable(profileImgUrl)
+        .filter(url -> !url.isBlank())
         .ifPresent(user::setProfileImgUrl);
+  }
+
+  private void updateLocationFields(JUser user, Map<String, Object> metadata) {
+    switch (user.getUserType()) {
+      case RESEARCHER -> updateResearcherLocation(user, metadata);
+      case SELLER -> updateSellerLocationAndLatLon(user, metadata);
+      case MANAGER -> {} // No location for managers
+    }
+  }
+
+  private void updateResearcherLocation(JUser user, Map<String, Object> metadata) {
+    if (user instanceof JResearcher researcher) {
+      extractLocation(metadata).ifPresent(location -> researcher.setLocation(vom.map(location)));
+    }
+  }
+
+  private void updateSellerLocationAndLatLon(JUser user, Map<String, Object> metadata) {
+    if (user instanceof JSeller seller) {
+      extractLocation(metadata).ifPresent(location -> seller.setLocation(vom.map(location)));
+      extractLatLon(metadata).ifPresent(latLon -> seller.setLatLon(vom.map(latLon)));
+    }
   }
 
   private void updateSellerFields(JUser user, Map<String, Object> metadata) {
     if (user instanceof JSeller seller) {
-      extractMetadataValue(metadata, GARAGE_NAME_KEY).ifPresent(seller::setGarageName);
+      extractMetadataValue(metadata, GARAGE_NAME_KEY)
+          .filter(name -> !name.isBlank())
+          .ifPresent(seller::setGarageName);
     }
   }
 
@@ -248,13 +310,87 @@ public class UserSyncService {
     }
   }
 
+  @SuppressWarnings("unchecked")
+  private Optional<Location> extractLocation(Map<String, Object> metadata) {
+    return Optional.ofNullable(metadata)
+        .map(m -> m.get(LOCATION_KEY))
+        .filter(obj -> obj instanceof Map)
+        .map(obj -> (Map<String, Object>) obj)
+        .flatMap(this::parseLocation);
+  }
+
+  private Optional<Location> parseLocation(Map<String, Object> locationMap) {
+    var cityStr = (String) locationMap.get(CITY_KEY);
+    var regionStr = (String) locationMap.get(REGION_KEY);
+    var address = (String) locationMap.get(ADDRESS_KEY);
+
+    if (cityStr == null || regionStr == null || address == null) {
+      return Optional.empty();
+    }
+
+    return parseCity(cityStr)
+        .flatMap(city -> parseRegion(regionStr).map(region -> new Location(city, region, address)));
+  }
+
+  private Optional<City> parseCity(String cityStr) {
+    try {
+      return Optional.of(City.valueOf(cityStr.toUpperCase()));
+    } catch (IllegalArgumentException e) {
+      log.warn("Invalid city '{}' in metadata", forJava(cityStr));
+      return Optional.empty();
+    }
+  }
+
+  private Optional<Region> parseRegion(String regionStr) {
+    try {
+      return Optional.of(Region.valueOf(regionStr.toUpperCase()));
+    } catch (IllegalArgumentException e) {
+      log.warn("Invalid region '{}' in metadata", forJava(regionStr));
+      return Optional.empty();
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  private Optional<LatLon> extractLatLon(Map<String, Object> metadata) {
+    return Optional.ofNullable(metadata)
+        .map(m -> m.get(LAT_LON_KEY))
+        .filter(obj -> obj instanceof Map)
+        .map(obj -> (Map<String, Object>) obj)
+        .flatMap(this::parseLatLon);
+  }
+
+  private Optional<LatLon> parseLatLon(Map<String, Object> latLonMap) {
+    var latObj = latLonMap.get(LAT_KEY);
+    var lonObj = latLonMap.get(LON_KEY);
+
+    if (latObj == null || lonObj == null) {
+      return Optional.empty();
+    }
+
+    var lat = ((Number) latObj).doubleValue();
+    var lon = ((Number) lonObj).doubleValue();
+    return Optional.of(new LatLon(lat, lon));
+  }
+
   private Optional<ManagerRole> parseManagerRole(String roleStr) {
     try {
       return Optional.of(ManagerRole.valueOf(roleStr.toUpperCase()));
     } catch (IllegalArgumentException e) {
-      log.warn("Invalid manager_role '{}' in metadata, keeping default", roleStr);
+      log.warn("Invalid manager_role '{}' in metadata, keeping default", forJava(roleStr));
       return Optional.empty();
     }
+  }
+
+  private String extractName(ProfileRecord profile) {
+    return Optional.ofNullable(profile.name())
+        .filter(n -> !n.isBlank())
+        .or(() -> extractMetadataValue(profile.userMetadata(), NAME_KEY))
+        .or(() -> extractEmailUsername(profile.email()))
+        .orElse("");
+  }
+
+  private String extractPhoneNumber(ProfileRecord profile) {
+    return Optional.ofNullable(profile.phoneNumber()).filter(p -> !p.isBlank()).orElse("");
   }
 
   private Optional<String> extractMetadataValue(Map<String, Object> metadata, String key) {

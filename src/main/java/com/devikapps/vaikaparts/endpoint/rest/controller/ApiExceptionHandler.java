@@ -24,6 +24,7 @@ import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -94,6 +95,20 @@ public class ApiExceptionHandler {
             HttpStatus.NOT_FOUND, ex.getMessage(), getRequestPath(request), "USER_NOT_FOUND");
 
     return new ResponseEntity<>(err, HttpStatus.NOT_FOUND);
+  }
+
+  @ExceptionHandler(MissingRequestHeaderException.class)
+  public ResponseEntity<ErrorResponse> handleMissingRequestHeaderException(
+      MissingRequestHeaderException ex, WebRequest req) {
+    log.error("Missing request header at: {}", forJava(getRequestPath(req)));
+    var err =
+        ErrorResponse.of(
+            HttpStatus.UNAUTHORIZED,
+            ex.getMessage(),
+            getRequestPath(req),
+            "MISSING_REQUEST_HEADER");
+
+    return new ResponseEntity<>(err, HttpStatus.UNAUTHORIZED);
   }
 
   @ExceptionHandler(IllegalArgumentException.class)

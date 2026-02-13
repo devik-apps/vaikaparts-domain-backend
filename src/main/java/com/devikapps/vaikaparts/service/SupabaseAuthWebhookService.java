@@ -2,8 +2,8 @@ package com.devikapps.vaikaparts.service;
 
 import static org.owasp.encoder.Encode.forJava;
 
-import com.devikapps.vaikaparts.endpoint.rest.controller.model.SupabaseAuthWebhook;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.SupabaseEventType;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.SupabaseWebhook;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.WebhookSignaturePayload;
 import com.devikapps.vaikaparts.validator.WebhookSignatureValidator;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -25,15 +25,15 @@ public class SupabaseAuthWebhookService {
   private final ObjectMapper om;
 
   public Map<String, String> handleAuthWebhook(String rawPayload, String signature) {
-    log.info("Processing Supabase Auth webhook");
+    log.info("Processing Supabase Database webhook");
 
     validateWebhookSignature(rawPayload, signature);
-    SupabaseAuthWebhook webhook = parseWebhookPayload(rawPayload);
+    SupabaseWebhook webhook = parseWebhookPayload(rawPayload);
     String userId = processWebhookEvent(webhook);
 
     log.info(
-        "Successfully processed {} event for user {}", forJava(webhook.event()), forJava(userId));
-    return buildSuccessResponse(userId);
+        "Successfully processed {} event for user {}", forJava(webhook.type()), forJava(userId));
+    return buildSuccessResponse(userId, webhook.type());
   }
 
   private void validateWebhookSignature(String payload, String signature) {
@@ -45,10 +45,10 @@ public class SupabaseAuthWebhookService {
     }
   }
 
-  private SupabaseAuthWebhook parseWebhookPayload(String rawPayload) {
+  private SupabaseWebhook parseWebhookPayload(String rawPayload) {
     try {
-      SupabaseAuthWebhook webhook = om.readValue(rawPayload, SupabaseAuthWebhook.class);
-      log.debug("Parsed webhook event: {}", webhook.event());
+      SupabaseWebhook webhook = om.readValue(rawPayload, SupabaseWebhook.class);
+      log.debug("Parsed webhook event type: {}", webhook.type());
       return webhook;
     } catch (JsonProcessingException e) {
       log.error("Failed to parse webhook payload: {}", e.getMessage());
@@ -56,31 +56,36 @@ public class SupabaseAuthWebhookService {
     }
   }
 
-  private String processWebhookEvent(SupabaseAuthWebhook webhook) {
-    var eventType = SupabaseEventType.fromValue(webhook.event());
-    var supabaseUserId = webhook.user().id();
+  private String processWebhookEvent(SupabaseWebhook webhook) {
+    var eventType = SupabaseEventType.fromValue(webhook.type());
+
+    var profileId =
+        eventType == SupabaseEventType.USER_DELETED
+            ? webhook.oldRecord().id()
+            : webhook.record().id();
 
     switch (eventType) {
       case USER_CREATED -> {
-        log.info("Processing USER_CREATED event for user: {}", forJava(supabaseUserId));
+        log.info("Processing INSERT event for profile: {}", forJava(profileId));
         userSyncService.handleUserCreated(webhook);
       }
       case USER_UPDATED -> {
-        log.info("Processing USER_UPDATED event for user: {}", forJava(supabaseUserId));
+        log.info("Processing UPDATE event for profile: {}", forJava(profileId));
         userSyncService.handleUserUpdated(webhook);
       }
       case USER_DELETED -> {
-        log.info("Processing USER_DELETED event for user: {}", forJava(supabaseUserId));
+        log.info("Processing DELETE event for profile: {}", forJava(profileId));
         userSyncService.handleUserDeleted(webhook);
       }
     }
 
-    return supabaseUserId;
+    return profileId;
   }
 
-  private Map<String, String> buildSuccessResponse(String userId) {
+  private Map<String, String> buildSuccessResponse(String userId, String eventType) {
     return Map.of(
         "message", WEBHOOK_PROCESSED_MESSAGE,
-        "userId", userId);
+        "userId", userId,
+        "eventType", eventType);
   }
 }

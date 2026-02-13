@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.Map;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import lombok.SneakyThrows;
@@ -53,7 +54,8 @@ class SupabaseAuthWebhookControllerIT extends FacadeIT {
                 .content(payload))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.message").value("Webhook processed successfully"))
-        .andExpect(jsonPath("$.userId").value(TEST_SUPABASE_USER_ID));
+        .andExpect(jsonPath("$.userId").value(TEST_SUPABASE_USER_ID))
+        .andExpect(jsonPath("$.eventType").value("INSERT"));
   }
 
   @Test
@@ -96,25 +98,37 @@ class SupabaseAuthWebhookControllerIT extends FacadeIT {
   @SneakyThrows
   private String buildUserCreatedPayload() {
     val webhook = new HashMap<String, Object>();
-    webhook.put("event", "user.created");
-    webhook.put("created_at", "2024-01-01T00:00:00Z");
+    webhook.put("type", "INSERT");
+    webhook.put("table", "profiles");
+    webhook.put("schema", "public");
 
-    val user = new HashMap<String, Object>();
-    user.put("id", TEST_SUPABASE_USER_ID);
-    user.put("email", TEST_EMAIL);
-    user.put("phone", TEST_PHONE);
+    val record = new HashMap<String, Object>();
+    record.put("id", TEST_SUPABASE_USER_ID);
+    record.put("email", TEST_EMAIL);
+    record.put("phone_number", TEST_PHONE);
+    record.put("name", TEST_NAME);
+    record.put("profile_img_url", "");
 
     val metadata = new HashMap<String, Object>();
+    var location =
+        """
+        {
+          "city": "Antananarivo",
+          "region": "Analamanga",
+          "address": "Anosy"
+        }\
+        """;
     metadata.put("user_type", "RESEARCHER");
-    metadata.put("full_name", TEST_NAME);
-    user.put("user_metadata", metadata);
+    metadata.put("location", location);
+    record.put("user_metadata", metadata);
 
-    user.put("app_metadata", null);
-    user.put("created_at", "2024-01-01T00:00:00Z");
-    user.put("updated_at", "2024-01-02T00:00:00Z");
-    user.put("deleted_at", null);
+    record.put("app_metadata", Map.of());
+    record.put("created_at", "2024-01-01T00:00:00Z");
+    record.put("updated_at", "2024-01-02T00:00:00Z");
+    record.put("deleted_at", null);
 
-    webhook.put("user", user);
+    webhook.put("record", record);
+    webhook.put("old_record", null);
 
     return objectMapper.writeValueAsString(webhook);
   }

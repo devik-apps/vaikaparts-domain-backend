@@ -21,8 +21,7 @@ public class SupabaseAuthWebhookController {
 
   @PostMapping("/auth")
   public ResponseEntity<Map<String, String>> handleAuthWebhook(
-      @RequestBody String rawPayload,
-      @RequestHeader(value = SIGNATURE_HEADER, required = false) String signature) {
+      @RequestBody String rawPayload, @RequestHeader(value = SIGNATURE_HEADER) String signature) {
 
     Map<String, String> response =
         supabaseAuthWebhookService.handleAuthWebhook(rawPayload, signature);
