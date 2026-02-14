@@ -16,12 +16,8 @@ import com.devikapps.vaikaparts.repository.model.user.JManager;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -48,9 +44,9 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
   @Test
   void should_process_user_created_event_and_return_success_response() {
     var payload = buildUserCreatedPayload("RESEARCHER");
-    var signature = computeSignature(payload);
 
-    var response = supabaseAuthWebhookService.handleAuthWebhook(payload, signature);
+    var response =
+        supabaseAuthWebhookService.handleAuthWebhook(payload, supabaseConf.getWebhookSecret());
 
     assertEquals("Webhook processed successfully", response.get("message"));
     assertEquals(TEST_SUPABASE_USER_ID, response.get("userId"));
@@ -64,9 +60,8 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
   @Test
   void should_create_researcher_when_user_created_event() {
     var payload = buildUserCreatedPayload("RESEARCHER");
-    var signature = computeSignature(payload);
 
-    supabaseAuthWebhookService.handleAuthWebhook(payload, signature);
+    supabaseAuthWebhookService.handleAuthWebhook(payload, supabaseConf.getWebhookSecret());
 
     var savedUser = userRepository.findBySupabaseUserId(TEST_SUPABASE_USER_ID);
     assertTrue(savedUser.isPresent());
@@ -77,9 +72,8 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
   @Test
   void should_create_seller_when_user_created_event_with_seller_type() {
     var payload = buildUserCreatedPayload("SELLER");
-    var signature = computeSignature(payload);
 
-    supabaseAuthWebhookService.handleAuthWebhook(payload, signature);
+    supabaseAuthWebhookService.handleAuthWebhook(payload, supabaseConf.getWebhookSecret());
 
     var savedUser = userRepository.findBySupabaseUserId(TEST_SUPABASE_USER_ID);
     assertTrue(savedUser.isPresent());
@@ -89,9 +83,8 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
   @Test
   void should_create_manager_when_user_created_event_with_manager_type() {
     var payload = buildUserCreatedPayload("MANAGER");
-    var signature = computeSignature(payload);
 
-    supabaseAuthWebhookService.handleAuthWebhook(payload, signature);
+    supabaseAuthWebhookService.handleAuthWebhook(payload, supabaseConf.getWebhookSecret());
 
     var savedUser = userRepository.findBySupabaseUserId(TEST_SUPABASE_USER_ID);
     assertTrue(savedUser.isPresent());
@@ -104,9 +97,8 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
 
     var updatedName = "Jane Doe Updated";
     var payload = buildUserUpdatedPayload(updatedName);
-    var signature = computeSignature(payload);
 
-    supabaseAuthWebhookService.handleAuthWebhook(payload, signature);
+    supabaseAuthWebhookService.handleAuthWebhook(payload, supabaseConf.getWebhookSecret());
 
     var updatedUser = userRepository.findBySupabaseUserId(TEST_SUPABASE_USER_ID);
     assertTrue(updatedUser.isPresent());
@@ -118,9 +110,8 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
     createTestUser();
 
     var payload = buildUserDeletedPayload();
-    var signature = computeSignature(payload);
 
-    supabaseAuthWebhookService.handleAuthWebhook(payload, signature);
+    supabaseAuthWebhookService.handleAuthWebhook(payload, supabaseConf.getWebhookSecret());
 
     var deletedUser = userRepository.findBySupabaseUserId(TEST_SUPABASE_USER_ID);
     assertTrue(deletedUser.isPresent());
@@ -156,33 +147,33 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
   @Test
   void should_throw_exception_when_payload_is_malformed() {
     var malformedPayload = "{invalid json";
-    var signature = computeSignature(malformedPayload);
 
     assertThrows(
         IllegalArgumentException.class,
-        () -> supabaseAuthWebhookService.handleAuthWebhook(malformedPayload, signature));
+        () ->
+            supabaseAuthWebhookService.handleAuthWebhook(
+                malformedPayload, supabaseConf.getWebhookSecret()));
   }
 
   @Test
   void should_throw_exception_when_event_type_is_unknown() {
     var payload = buildWebhookPayload("UNKNOWN_EVENT", buildUserMetadata("RESEARCHER"), TEST_NAME);
-    var signature = computeSignature(payload);
 
     assertThrows(
         IllegalArgumentException.class,
-        () -> supabaseAuthWebhookService.handleAuthWebhook(payload, signature));
+        () ->
+            supabaseAuthWebhookService.handleAuthWebhook(payload, supabaseConf.getWebhookSecret()));
   }
 
   @Test
   void should_handle_idempotent_webhook_calls() {
     var payload = buildUserCreatedPayload("RESEARCHER");
-    var signature = computeSignature(payload);
 
-    supabaseAuthWebhookService.handleAuthWebhook(payload, signature);
+    supabaseAuthWebhookService.handleAuthWebhook(payload, supabaseConf.getWebhookSecret());
     var userCountAfterFirst = userRepository.count();
     assertEquals(1, userCountAfterFirst);
 
-    supabaseAuthWebhookService.handleAuthWebhook(payload, signature);
+    supabaseAuthWebhookService.handleAuthWebhook(payload, supabaseConf.getWebhookSecret());
     var userCountAfterSecond = userRepository.count();
     assertEquals(1, userCountAfterSecond);
   }
@@ -249,17 +240,6 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
       metadata.put("manager_role", "ADMIN");
     }
     return metadata;
-  }
-
-  @SneakyThrows
-  private String computeSignature(String payload) {
-    Mac hmac = Mac.getInstance("HmacSHA256");
-    SecretKeySpec secretKey =
-        new SecretKeySpec(
-            supabaseConf.getWebhookSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-    hmac.init(secretKey);
-    byte[] hash = hmac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
-    return Base64.getEncoder().encodeToString(hash);
   }
 
   private void createTestUser() {

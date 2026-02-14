@@ -8,12 +8,8 @@ import com.devikapps.vaikaparts.conf.FacadeIT;
 import com.devikapps.vaikaparts.config.SupabaseConf;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.jupiter.api.AfterEach;
@@ -32,8 +28,8 @@ class SupabaseAuthWebhookControllerIT extends FacadeIT {
   private static final String TEST_NAME = "John Doe";
 
   @Autowired private MockMvc mockMvc;
-  @Autowired private ObjectMapper objectMapper;
-  @Autowired private SupabaseConf supabaseConf;
+  @Autowired private ObjectMapper om;
+  @Autowired private SupabaseConf spbConf;
   @Autowired private UserRepository userRepository;
 
   @AfterEach
@@ -44,12 +40,11 @@ class SupabaseAuthWebhookControllerIT extends FacadeIT {
   @Test
   void should_return_200_with_success_message_when_valid_webhook() throws Exception {
     val payload = buildUserCreatedPayload();
-    val signature = computeSignature(payload);
 
     mockMvc
         .perform(
             post(WEBHOOK_ENDPOINT)
-                .header(SIGNATURE_HEADER, signature)
+                .header(SIGNATURE_HEADER, spbConf.getWebhookSecret())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(payload))
         .andExpect(status().isOk())
@@ -84,12 +79,11 @@ class SupabaseAuthWebhookControllerIT extends FacadeIT {
   @Test
   void should_return_400_when_payload_is_malformed() throws Exception {
     val malformedPayload = "{invalid json";
-    val signature = computeSignature(malformedPayload);
 
     mockMvc
         .perform(
             post(WEBHOOK_ENDPOINT)
-                .header(SIGNATURE_HEADER, signature)
+                .header(SIGNATURE_HEADER, spbConf.getWebhookSecret())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(malformedPayload))
         .andExpect(status().isBadRequest());
@@ -130,17 +124,8 @@ class SupabaseAuthWebhookControllerIT extends FacadeIT {
     webhook.put("record", record);
     webhook.put("old_record", null);
 
-    return objectMapper.writeValueAsString(webhook);
-  }
+    System.out.printf("\n%s\n", om.writeValueAsString(webhook));
 
-  @SneakyThrows
-  private String computeSignature(String payload) {
-    Mac hmac = Mac.getInstance("HmacSHA256");
-    SecretKeySpec secretKey =
-        new SecretKeySpec(
-            supabaseConf.getWebhookSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-    hmac.init(secretKey);
-    byte[] hash = hmac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
-    return Base64.getEncoder().encodeToString(hash);
+    return om.writeValueAsString(webhook);
   }
 }
