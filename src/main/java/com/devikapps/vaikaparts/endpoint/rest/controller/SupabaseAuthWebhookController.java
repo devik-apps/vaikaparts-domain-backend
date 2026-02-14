@@ -3,6 +3,7 @@ package com.devikapps.vaikaparts.endpoint.rest.controller;
 import com.devikapps.vaikaparts.service.SupabaseAuthWebhookService;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/webhooks/spb")
 @RequiredArgsConstructor
+@Slf4j
 public class SupabaseAuthWebhookController {
 
   private static final String SIGNATURE_HEADER = "X-Webhook-Signature";

@@ -217,7 +217,7 @@ paths:
           description: Email service is operational
         '500':
           description: Email service error
-  /health/messaging:
+  /health/message:
     get:
       operationId: healthMessaging
       tags: [Health]
@@ -1516,7 +1516,7 @@ components:
     supabaseWebhookSignature:
       type: apiKey
       in: header
-      name: X-Supabase-Signature
+      name: X-Webhook-Signature
       description: HMAC signature for Supabase webhook verification
     paymentWebhookSignature:
       type: apiKey

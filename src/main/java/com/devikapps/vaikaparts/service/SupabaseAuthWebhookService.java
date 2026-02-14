@@ -2,10 +2,9 @@ package com.devikapps.vaikaparts.service;
 
 import static org.owasp.encoder.Encode.forJava;
 
+import com.devikapps.vaikaparts.config.SupabaseConf;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.SupabaseEventType;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.SupabaseWebhook;
-import com.devikapps.vaikaparts.endpoint.rest.controller.model.WebhookSignaturePayload;
-import com.devikapps.vaikaparts.validator.WebhookSignatureValidator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
@@ -21,13 +20,13 @@ public class SupabaseAuthWebhookService {
   private static final String WEBHOOK_PROCESSED_MESSAGE = "Webhook processed successfully";
 
   private final UserSyncService userSyncService;
-  private final WebhookSignatureValidator webhookSignatureValidator;
+  private final SupabaseConf conf;
   private final ObjectMapper om;
 
   public Map<String, String> handleAuthWebhook(String rawPayload, String signature) {
     log.info("Processing Supabase Database webhook");
 
-    validateWebhookSignature(rawPayload, signature);
+    validateWebhookSignature(signature);
     SupabaseWebhook webhook = parseWebhookPayload(rawPayload);
     String userId = processWebhookEvent(webhook);
 
@@ -36,13 +35,9 @@ public class SupabaseAuthWebhookService {
     return buildSuccessResponse(userId, webhook.type());
   }
 
-  private void validateWebhookSignature(String payload, String signature) {
-    try {
-      webhookSignatureValidator.validate(new WebhookSignaturePayload(payload, signature));
-    } catch (SecurityException e) {
-      log.error("Webhook signature validation failed: {}", e.getMessage());
-      throw e;
-    }
+  private void validateWebhookSignature(String signature) {
+    if (!conf.getWebhookSecret().equals(signature))
+      throw new SecurityException("Webhook Signature is invalid");
   }
 
   private SupabaseWebhook parseWebhookPayload(String rawPayload) {
