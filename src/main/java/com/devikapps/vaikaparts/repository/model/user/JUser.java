@@ -39,11 +39,11 @@ public class JUser {
 
   private String name;
 
-  @Column(name = "phone_number", nullable = false)
+  @Column(name = "phone_number")
   private String phoneNumber;
 
-  @Column(name = "profile_img_url")
-  private String profileImgUrl;
+  @Column(name = "profile_img_key")
+  private String profileImgKey;
 
   @Column(name = "user_type", nullable = false)
   @Enumerated(EnumType.STRING)
@@ -70,7 +70,7 @@ public class JUser {
         \tsupabaseUserId=%s,
         \tname=%s,
         \tphoneNumber=%s,
-        \tprofileImgUrl=%s,
+        \tprofileImgKey=%s,
         \tuserType=%s,
         \tstatus=%s,
         \tcreatedAt=%s,
@@ -81,7 +81,7 @@ public class JUser {
         supabaseUserId,
         name,
         phoneNumber,
-        profileImgUrl,
+        profileImgKey,
         userType,
         status,
         createdAt,

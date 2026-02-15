@@ -10,12 +10,14 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
 @EqualsAndHashCode
+@SuperBuilder
 public abstract sealed class User permits Researcher, Seller, Manager {
   private String id;
   private String supabaseUserId;

@@ -29,7 +29,7 @@ public class JResearcher extends JUser {
   public String toString() {
     return format(
         """
-        Researcher={
+        JResearcher={
          \tid=%s,
          \tsupabaseUserId=%s,
          \tname=%s,
@@ -46,7 +46,7 @@ public class JResearcher extends JUser {
         getSupabaseUserId(),
         getName(),
         getPhoneNumber(),
-        getProfileImgUrl(),
+        getProfileImgKey(),
         getUserType(),
         getStatus(),
         getCreatedAt(),

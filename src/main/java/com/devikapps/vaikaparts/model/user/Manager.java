@@ -4,17 +4,17 @@ import static java.lang.String.format;
 
 import com.devikapps.vaikaparts.model.classifier.ManagerRole;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Builder
+@SuperBuilder
 @EqualsAndHashCode(callSuper = true)
 public final class Manager extends User {
   private ManagerRole role;
