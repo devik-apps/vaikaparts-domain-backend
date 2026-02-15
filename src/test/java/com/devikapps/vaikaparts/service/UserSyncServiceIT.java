@@ -59,7 +59,7 @@ class UserSyncServiceIT extends FacadeIT {
     assertEquals(TEST_SUPABASE_USER_ID, savedUser.getSupabaseUserId());
     assertEquals(TEST_NAME, savedUser.getName());
     assertEquals(TEST_PHONE, savedUser.getPhoneNumber());
-    assertEquals(TEST_PROFILE_IMG_URL, savedUser.getProfileImgUrl());
+    assertEquals(TEST_PROFILE_IMG_URL, savedUser.getProfileImgKey());
   }
 
   @Test
@@ -289,7 +289,7 @@ class UserSyncServiceIT extends FacadeIT {
     userSyncService.handleUserCreated(webhook);
 
     var savedUser = findUserBySupabaseId();
-    assertEquals(TEST_PROFILE_IMG_URL, savedUser.getProfileImgUrl());
+    assertEquals(TEST_PROFILE_IMG_URL, savedUser.getProfileImgKey());
   }
 
   private Map<String, Object> buildResearcherMetadata() {

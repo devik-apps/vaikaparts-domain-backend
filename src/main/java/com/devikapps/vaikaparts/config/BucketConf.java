@@ -12,6 +12,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
@@ -55,6 +56,8 @@ public class BucketConf {
    */
   @Getter private final S3Presigner s3Presigner;
 
+  @Getter private final S3Client s3Client;
+
   /**
    * Constructs and configures the S3-compatible storage clients.
    *
@@ -83,6 +86,13 @@ public class BucketConf {
 
     AwsCredentialsProvider credentialsProvider =
         StaticCredentialsProvider.create(AwsBasicCredentials.create(keyId, applicationKey));
+
+    this.s3Client =
+        S3Client.builder()
+            .endpointOverride(endpoint)
+            .region(region)
+            .credentialsProvider(credentialsProvider)
+            .build();
 
     S3AsyncClient s3AsyncClient =
         S3AsyncClient.builder()
@@ -115,5 +125,7 @@ public class BucketConf {
     if (s3TransferManager != null) s3TransferManager.close();
 
     if (s3Presigner != null) s3Presigner.close();
+
+    if (s3Client != null) s3Client.close();
   }
 }

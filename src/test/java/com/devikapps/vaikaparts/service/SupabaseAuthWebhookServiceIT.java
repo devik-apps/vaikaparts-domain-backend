@@ -248,7 +248,7 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
             .id("test-user-id")
             .supabaseUserId(TEST_SUPABASE_USER_ID)
             .phoneNumber(TEST_PHONE)
-            .profileImgUrl("")
+            .profileImgKey("")
             .location(vom.map(Location.getDefault()))
             .name(TEST_NAME)
             .userType(UserType.RESEARCHER)

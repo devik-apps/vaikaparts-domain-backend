@@ -20,6 +20,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -107,6 +108,18 @@ public class ApiExceptionHandler {
             ex.getMessage(),
             getRequestPath(req),
             "MISSING_REQUEST_HEADER");
+
+    return new ResponseEntity<>(err, HttpStatus.UNAUTHORIZED);
+  }
+
+  @ExceptionHandler(AuthenticationCredentialsNotFoundException.class)
+  public ResponseEntity<ErrorResponse> handleAuthenticationCredentialsNotFoundException(
+      AuthenticationCredentialsNotFoundException ex, WebRequest req) {
+    log.error("No Auth cred found on the request endpoint {}", forJava(getRequestPath(req)));
+
+    var err =
+        ErrorResponse.of(
+            HttpStatus.UNAUTHORIZED, ex.getMessage(), getRequestPath(req), "MISSING_AUTH_CREDS");
 
     return new ResponseEntity<>(err, HttpStatus.UNAUTHORIZED);
   }

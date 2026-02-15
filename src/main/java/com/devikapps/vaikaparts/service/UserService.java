@@ -5,7 +5,9 @@ import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.config.sec.SecContextUtil;
 import com.devikapps.vaikaparts.exception.UserNotFoundException;
+import com.devikapps.vaikaparts.mapper.user.UserMapper;
 import com.devikapps.vaikaparts.model.classifier.UserType;
+import com.devikapps.vaikaparts.model.user.User;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.model.user.JManager;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
@@ -15,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @Service
@@ -22,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
 
   private final UserRepository userRepository;
+  private final ProfilePhotoService profilePhotoService;
+  private final UserMapper um;
 
   @Transactional(readOnly = true)
   public JUser getCurrentUser() {
@@ -39,8 +44,34 @@ public class UserService {
   }
 
   @Transactional(readOnly = true)
+  public User getCurrentUserResponse() {
+    var user = getCurrentUser();
+    log.info("Fetch user with id : {}", forJava(user.getId()));
+
+    return switch (user.getUserType()) {
+      case RESEARCHER -> um.toResearcher((JResearcher) user);
+      case SELLER -> um.toSeller((JSeller) user);
+      case MANAGER -> um.toManager((JManager) user);
+    };
+  }
+
+  @Transactional
+  public String uploadProfilePhoto(MultipartFile photo) {
+    var user = getCurrentUser();
+    log.info("Upload user profile image for user with id : {}", forJava(user.getId()));
+    return profilePhotoService.uploadPhoto(user, photo);
+  }
+
+  @Transactional
+  public void deleteProfilePhoto() {
+    var user = getCurrentUser();
+    log.info("Deleting user profile photo for user with id : {}", forJava(user.getId()));
+    profilePhotoService.deletePhoto(user);
+  }
+
+  @Transactional(readOnly = true)
   public JResearcher getCurrentResearcher() {
-    JUser user = getCurrentUser();
+    var user = getCurrentUser();
     validateUserType(user, UserType.RESEARCHER);
 
     log.debug("Current user is a Researcher: {}", forJava(user.getId()));
@@ -49,7 +80,7 @@ public class UserService {
 
   @Transactional(readOnly = true)
   public JSeller getCurrentSeller() {
-    JUser user = getCurrentUser();
+    var user = getCurrentUser();
     validateUserType(user, UserType.SELLER);
 
     log.debug("Current user is a Seller: {}", forJava(user.getId()));
@@ -58,7 +89,7 @@ public class UserService {
 
   @Transactional(readOnly = true)
   public JManager getCurrentManager() {
-    JUser user = getCurrentUser();
+    var user = getCurrentUser();
     validateUserType(user, UserType.MANAGER);
 
     log.debug("Current user is a Manager: {}", forJava(user.getId()));

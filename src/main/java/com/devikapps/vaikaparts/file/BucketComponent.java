@@ -4,6 +4,7 @@ import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.InfraGenerated;
 import com.devikapps.vaikaparts.config.BucketConf;
+import com.devikapps.vaikaparts.exception.bucket.BucketDeleteException;
 import com.devikapps.vaikaparts.exception.bucket.BucketDirectoryUploadException;
 import com.devikapps.vaikaparts.exception.bucket.BucketDownloadException;
 import com.devikapps.vaikaparts.exception.bucket.BucketUploadException;
@@ -17,6 +18,7 @@ import java.util.stream.Stream;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.transfer.s3.model.DownloadFileRequest;
@@ -149,6 +151,24 @@ public class BucketComponent {
                 .signatureDuration(expiration)
                 .build())
         .url();
+  }
+
+  public void delete(String bucketKey) {
+    log.info("Deleting file from bucket: key={}", forJava(bucketKey));
+
+    try {
+      var request =
+          DeleteObjectRequest.builder().bucket(bucketConf.getBucketName()).key(bucketKey).build();
+
+      bucketConf.getS3Client().deleteObject(request);
+      log.debug("Successfully deleted object: key={}", forJava(bucketKey));
+    } catch (Exception e) {
+      throw new BucketDeleteException("Delete failed for key: " + forJava(bucketKey), e);
+    }
+  }
+
+  public String getBucketName() {
+    return bucketConf.getBucketName();
   }
 
   private GetObjectRequest buildGetObjectRequest(String bucketKey) {
