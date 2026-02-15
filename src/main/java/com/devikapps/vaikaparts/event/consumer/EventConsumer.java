@@ -4,7 +4,6 @@ import com.devikapps.vaikaparts.InfraGenerated;
 import com.devikapps.vaikaparts.event.model.InfraEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
@@ -56,12 +55,9 @@ public class EventConsumer implements Consumer<String> {
    *
    * @param eventHandler the dispatcher responsible for routing events to appropriate handlers
    */
-  public EventConsumer(EventDispatcher eventHandler) {
+  public EventConsumer(EventDispatcher eventHandler, ObjectMapper om) {
     this.eventHandler = eventHandler;
-    this.objectMapper =
-        new ObjectMapper()
-            .activateDefaultTyping(
-                LaissezFaireSubTypeValidator.instance, ObjectMapper.DefaultTyping.NON_FINAL);
+    this.objectMapper = om;
     this.executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     Runtime.getRuntime()
         .addShutdownHook(

@@ -35,12 +35,12 @@ public class JManager extends JUser {
   public String toString() {
     return format(
         """
-        Manager={
+        JManager={
          \tid=%s,
          \tsupabaseUserId=%s,
          \tname=%s,
          \tphoneNumber=%s,
-         \tprofileImgUrl=%s,
+         \tprofileImgKey=%s,
          \tuserType=%s,
          \tstatus=%s,
          \tcreatedAt=%s,
@@ -52,7 +52,7 @@ public class JManager extends JUser {
         getSupabaseUserId(),
         getName(),
         getPhoneNumber(),
-        getProfileImgUrl(),
+        getProfileImgKey(),
         getUserType(),
         getStatus(),
         getCreatedAt(),

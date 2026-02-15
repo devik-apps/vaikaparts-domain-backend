@@ -32,7 +32,7 @@ public class JwtValidationService {
     Algorithm algorithm = Algorithm.HMAC256(supabaseConf.getJwtSecret());
     this.verifier = JWT.require(algorithm).withIssuer(issuer).build();
 
-    log.info("JWT verifier initialized successfully for Supabase authentication");
+    log.info("JWT verifier initialized successfully");
   }
 
   public Optional<DecodedJWT> validateToken(String token) {

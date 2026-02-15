@@ -140,133 +140,192 @@ paths:
   /:
     get:
       operationId: rootRedirect
-      tags: [Health]
-      summary: Redirect root path to API documentation
-      description: Redirects requests to the root path to the OpenAPI documentation interface
-      security: []
+      tags:
+        - Docs
+      summary: Redirect root path to Swagger UI
       responses:
-        '302':
-          description: Redirect to documentation
+        302:
+          description: Redirects to /doc
           headers:
             Location:
+              description: URL to redirect
               schema:
                 type: string
                 example: /doc
   /ping:
     get:
-      operationId: healthPing
-      tags: [Health]
-      summary: Basic health check
-      description: Returns server status and current timestamp. Used for uptime monitoring and basic connectivity verification.
-      security: []
+      operationId: pong
+      tags:
+        - Health
+      summary: Check if the server is alive
       responses:
-        '200':
-          description: Server is operational
+        200:
+          description: A message showing that the server is alive
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: ok
-                  message:
-                    type: string
-                    example: pong
-                  timestamp:
-                    $ref: '#/components/schemas/DateTime'
+                type: string
+                example: pong
   /health/bucket:
     get:
-      operationId: healthBucket
-      tags: [Health]
-      summary: S3 storage health check
-      description: Verifies connectivity and permissions for the S3-compatible object storage system by performing upload, download, and presigning operations.
-      security: []
+      operationId: healthBucketCheck
+      tags:
+        - Health
+      summary: Check bucket health by uploading, downloading, and presigning a file
+      description: >
+        This endpoint uploads a randomly generated text file to the storage bucket,  verifies its content by downloading it, and returns a presigned URL for the file.
+
       responses:
-        '200':
-          description: Storage system is operational
+        200:
+          description: Successfully uploaded, verified, and presigned file.
+          content:
+            application/json:
+              schema:
+                type: string
+                example: "https://unfaked-bucket.s3.amazonaws.com/health/uuid.txt?X-Amz-Signature=..."
+        500:
+          description: Uploaded and downloaded content mismatch or other error occurred.
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  status:
+                  error:
                     type: string
-                    example: healthy
-                  presignedUrl:
-                    type: string
-                    format: uri
-        '500':
-          description: Storage system error
+                    example: Uploaded and downloaded content mismatch
   /health/email:
     get:
-      operationId: healthEmail
-      tags: [Health]
-      summary: Email service health check
-      description: Sends a test email to verify email service configuration and connectivity.
+      operationId: sendHealthEmail
+      tags:
+        - Health
+      summary: Send health check email
+      description: Sends a test email to verify email service functionality
       security: []
       parameters:
         - name: to
           in: query
           required: true
-          description: Recipient email address for test message
+          description: Email address to send the health check email to
           schema:
-            $ref: '#/components/schemas/EmailAddress'
+            type: string
+            format: email
       responses:
-        '200':
-          description: Email service is operational
-        '500':
-          description: Email service error
+        "200":
+          description: Email sent successfully
+          content:
+            application/json:
+              schema:
+                type: string
+                example: "Email sent successfully"
+        "400":
+          description: Invalid email address format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                timestamp: "2025-11-04T10:30:00Z"
+                status: 400
+                error: "Bad Request"
+                message: "Invalid email address format"
+                path: "/health/email"
+                errorCode: "BAD_FORM"
   /health/message:
     get:
-      operationId: healthMessaging
-      tags: [Health]
-      summary: Message queue health check
-      description: Triggers test events through the message queue system to verify broker connectivity and event processing capability.
-      security: []
+      operationId: triggerDummyEvents
+      tags:
+        - Health
+      summary: Trigger dummy health check events
+      description: >
+        This endpoint triggers one or more dummy events through the event producer  for testing the messaging system (e.g., RabbitMQ or Kafka).
+
       parameters:
         - name: nbEvent
           in: query
-          description: Number of test events to trigger
+          required: false
+          description: Number of events to trigger (1–500)
           schema:
             type: integer
+            default: 1
             minimum: 1
             maximum: 500
-            default: 1
         - name: waitInSeconds
           in: query
-          description: Simulated processing delay in seconds
+          required: false
+          description: Duration (in seconds) to simulate event processing
           schema:
             type: integer
-            minimum: 1
             default: 2
+            minimum: 1
       responses:
-        '200':
-          description: Message queue is operational
+        200:
+          description: List of UUIDs corresponding to triggered dummy events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                example:
+                  - "c91f2c9b-9c8e-4e7f-84e2-09c95edff3e4"
+                  - "51af4d2b-745a-465d-b9a2-bf0b1c1ffb23"
+        400:
+          description: Invalid parameter values (e.g., nbEvent not in 1–500)
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  eventIds:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/UUID'
+                  error:
+                    type: string
+                    example: nbEvent must be between 1 and 500
   /health/db:
     get:
-      operationId: healthDatabase
-      tags: [Health]
-      summary: Database connectivity health check
-      description: Executes a simple query against the database to verify connectivity and basic query performance.
-      security: []
+      summary: Health check for the dummy database
+      description: Returns a paginated list of Dummy entities.
+      tags:
+        - Health
       parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/SizeParam'
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 0
+          description: Page number (0-based)
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 10
+          description: Page size
       responses:
-        '200':
-          description: Database is operational
-        '500':
-          description: Database connection error
+        "200":
+          description: Successful database health check
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Dummy"
+                  totalElements:
+                    type: integer
+                  totalPages:
+                    type: integer
+                  number:
+                    type: integer
+                  size:
+                    type: integer
+                example:
+                  content:
+                    - id: "550e8400-e29b-41d4-a716-446655440000"
+                      description: "First dummy description"
+                  totalElements: 5
+                  totalPages: 1
+                  number: 0
+                  size: 5
   /webhooks/spb/auth:
     post:
       operationId: supabaseProfileWebhook
@@ -399,7 +458,7 @@ paths:
       responses:
         '204':
           description: Profile photograph deleted successfully
-  /Researchers:
+  /researchers:
     get:
       operationId: getAllResearchers
       tags: [Researchers]
@@ -425,7 +484,7 @@ paths:
                 $ref: '#/components/schemas/ResearcherPageResponse'
         '403':
           $ref: '#/components/responses/Forbidden'
-  /Researchers/me:
+  /researchers/me:
     get:
       operationId: getMyResearcherProfile
       tags: [Researchers]
@@ -459,7 +518,7 @@ paths:
                 $ref: '#/components/schemas/Researcher'
         '400':
           $ref: '#/components/responses/BadRequest'
-  /Researchers/{ResearcherId}:
+  /researchers/{researcherId}:
     get:
       operationId: getResearcherById
       tags: [Researchers]
@@ -1542,6 +1601,14 @@ components:
         maximum: 100
         default: 10
   schemas:
+    Dummy:
+      type: object
+      required: [id, description]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        description:
+          type: string
     UUID:
       type: string
       format: uuid

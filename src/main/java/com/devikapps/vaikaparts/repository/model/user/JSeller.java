@@ -24,7 +24,7 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder(toBuilder = true)
 @EqualsAndHashCode(callSuper = true)
 public class JSeller extends JUser {
-  @Column(name = "garage_name", nullable = false)
+  @Column(name = "garage_name")
   private String garageName;
 
   @Embedded private JLocation location;
@@ -54,7 +54,7 @@ public class JSeller extends JUser {
         getSupabaseUserId(),
         getName(),
         getPhoneNumber(),
-        getProfileImgUrl(),
+        getProfileImgKey(),
         getUserType(),
         getStatus(),
         getCreatedAt(),

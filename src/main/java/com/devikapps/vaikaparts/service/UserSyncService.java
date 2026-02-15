@@ -170,7 +170,7 @@ public class UserSyncService {
         yield buildResearcher(profileId, name, phoneNumber, userId, location, createdAt, updatedAt);
       }
       case SELLER -> {
-        var garageName = extractMetadataValue(metadata, GARAGE_NAME_KEY).orElse("");
+        var garageName = extractMetadataValue(metadata, GARAGE_NAME_KEY).orElse(null);
         var location = extractLocation(metadata).orElse(null);
         var latLon = extractLatLon(metadata).orElse(null);
         yield buildSeller(
@@ -208,7 +208,7 @@ public class UserSyncService {
         .supabaseUserId(profileId)
         .name(name)
         .phoneNumber(phoneNumber)
-        .profileImgUrl("")
+        .profileImgKey("")
         .location(vom.map(finalLocation))
         .userType(UserType.RESEARCHER)
         .status(UserStatus.ENABLED)
@@ -234,7 +234,7 @@ public class UserSyncService {
         .supabaseUserId(profileId)
         .name(name)
         .phoneNumber(phoneNumber)
-        .profileImgUrl("")
+        .profileImgKey("")
         .garageName(garageName)
         .userType(UserType.SELLER)
         .status(UserStatus.ENABLED)
@@ -258,7 +258,7 @@ public class UserSyncService {
         .supabaseUserId(profileId)
         .name(name)
         .phoneNumber(phoneNumber)
-        .profileImgUrl("")
+        .profileImgKey("")
         .userType(UserType.MANAGER)
         .status(UserStatus.ENABLED)
         .managerRole(managerRole)
@@ -289,7 +289,7 @@ public class UserSyncService {
   private void updateProfileImage(JUser user, String profileImgUrl) {
     Optional.ofNullable(profileImgUrl)
         .filter(url -> !url.isBlank())
-        .ifPresent(user::setProfileImgUrl);
+        .ifPresent(user::setProfileImgKey);
   }
 
   private void updateLocationFields(JUser user, Map<String, Object> metadata) {

@@ -3,6 +3,7 @@ package com.devikapps.vaikaparts.config;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.InfraGenerated;
+import com.devikapps.vaikaparts.file.PackageUtils;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.json.JsonReadFeature;
@@ -73,7 +74,8 @@ import org.springframework.context.annotation.Primary;
 @InfraGenerated
 public class JacksonConf {
 
-  private static final String APPLICATION_BASE_PACKAGE = "com.example";
+  private static final String APPLICATION_BASE_PACKAGE =
+      PackageUtils.getGrandparentPackage(JacksonConf.class);
 
   /**
    * Creates the primary ObjectMapper bean with security hardening and feature configuration.
