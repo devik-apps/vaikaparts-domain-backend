@@ -7,7 +7,7 @@ import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ProfileRecord;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.SupabaseWebhook;
-import com.devikapps.vaikaparts.mapper.user.ValueObjectMapper;
+import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
 import com.devikapps.vaikaparts.model.LatLon;
 import com.devikapps.vaikaparts.model.Location;
 import com.devikapps.vaikaparts.model.classifier.City;

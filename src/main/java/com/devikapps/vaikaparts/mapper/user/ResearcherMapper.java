@@ -1,6 +1,7 @@
 package com.devikapps.vaikaparts.mapper.user;
 
 import com.devikapps.vaikaparts.mapper.ImageUrlMapper;
+import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
 import com.devikapps.vaikaparts.model.user.Researcher;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import org.mapstruct.Mapper;

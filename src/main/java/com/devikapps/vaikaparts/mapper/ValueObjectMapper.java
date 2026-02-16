@@ -1,9 +1,10 @@
-package com.devikapps.vaikaparts.mapper.user;
+package com.devikapps.vaikaparts.mapper;
 
 import com.devikapps.vaikaparts.model.LatLon;
 import com.devikapps.vaikaparts.model.Location;
 import com.devikapps.vaikaparts.repository.model.JLatLon;
 import com.devikapps.vaikaparts.repository.model.JLocation;
+import java.time.Year;
 import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring")
@@ -27,5 +28,13 @@ public interface ValueObjectMapper {
   default JLatLon map(LatLon latLon) {
     if (latLon == null) return null;
     return new JLatLon(latLon.lat(), latLon.lon());
+  }
+
+  default Year intToYear(int year) {
+    return year == 0 ? null : Year.of(year);
+  }
+
+  default int yearToInt(Year year) {
+    return year != null ? year.getValue() : 1900;
   }
 }
