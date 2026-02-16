@@ -5,6 +5,7 @@ import static java.lang.String.format;
 import com.devikapps.vaikaparts.model.classifier.PartCategory;
 import java.net.URL;
 import java.time.Year;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -26,7 +27,7 @@ public final class Part {
   private String carBrand;
   private String carModel;
   private Year carYear;
-  @Nullable private URL imageUrl;
+  @Nullable private List<URL> imageUrls;
   @NotNull private PartCategory partCategory;
 
   @Override
@@ -43,6 +44,6 @@ public final class Part {
         \tpartCategory=%s
         }\
         """,
-        id, name, carBrand, carModel, carYear, imageUrl, partCategory);
+        id, name, carBrand, carModel, carYear, imageUrls, partCategory);
   }
 }

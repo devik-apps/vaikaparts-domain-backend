@@ -12,11 +12,11 @@ import org.mapstruct.Mapping;
     uses = {ImageUrlMapper.class, ValueObjectMapper.class})
 public interface PartMapper {
 
-  @Mapping(source = "imageBucket", target = "imageUrl", qualifiedByName = "getPresignedUrl")
+  @Mapping(source = "imageBuckets", target = "imageUrls", qualifiedByName = "toUrlList")
   @Mapping(source = "partName", target = "name")
   Part toDomain(JPart jpart);
 
-  @Mapping(target = "imageBucket", ignore = true)
+  @Mapping(target = "imageBuckets", ignore = true)
   @Mapping(target = "demand", ignore = true)
   @Mapping(source = "name", target = "partName")
   JPart toPersistence(Part part);

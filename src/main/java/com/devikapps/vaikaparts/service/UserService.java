@@ -34,9 +34,9 @@ public class UserService {
 
   private final UserRepository userRepository;
   private final ProfilePhotoService profilePhotoService;
-  private final SellerMapper sm;
-  private final ResearcherMapper rm;
-  private final ManagerMapper mm;
+  private final SellerMapper sellerMapper;
+  private final ResearcherMapper researcherMapper;
+  private final ManagerMapper managerMapper;
   private final Paginator paginator;
 
   @Transactional(readOnly = true)
@@ -60,9 +60,9 @@ public class UserService {
     log.info("Fetch user with id : {}", forJava(user.getId()));
 
     return switch (user.getUserType()) {
-      case RESEARCHER -> rm.toResearcher((JResearcher) user);
-      case SELLER -> sm.toSeller((JSeller) user);
-      case MANAGER -> mm.toManager((JManager) user);
+      case RESEARCHER -> researcherMapper.toResearcher((JResearcher) user);
+      case SELLER -> sellerMapper.toSeller((JSeller) user);
+      case MANAGER -> managerMapper.toManager((JManager) user);
     };
   }
 

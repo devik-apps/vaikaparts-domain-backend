@@ -14,15 +14,17 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @RequiredArgsConstructor
 public class ResearcherService {
-  private final UserService us;
-  private final ResearcherMapper rm;
+  private final UserService userService;
+  private final ResearcherMapper researcherMapper;
 
   public Researcher getCurrentResearcher() {
     log.info("Retrieving current active researcher");
-    return rm.toResearcher(us.getCurrentResearcher());
+    return researcherMapper.toResearcher(userService.getCurrentResearcher());
   }
 
   public Page<Researcher> getResearchers(Integer page, Integer size) {
-    return us.getJUsers(page, size, RESEARCHER).map(u -> rm.toResearcher((JResearcher) u));
+    return userService
+        .getJUsers(page, size, RESEARCHER)
+        .map(u -> researcherMapper.toResearcher((JResearcher) u));
   }
 }

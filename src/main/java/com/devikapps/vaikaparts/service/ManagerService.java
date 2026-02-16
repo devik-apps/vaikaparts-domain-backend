@@ -13,15 +13,17 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class ManagerService {
-  private final UserService us;
-  private final ManagerMapper mm;
+  private final UserService userService;
+  private final ManagerMapper managerMapper;
 
   public Manager getCurrent() {
     log.info("Retrieving current active manager");
-    return mm.toManager(us.getCurrentManager());
+    return managerMapper.toManager(userService.getCurrentManager());
   }
 
   public Page<Manager> getManagers(Integer page, Integer size) {
-    return us.getJUsers(page, size, UserType.MANAGER).map(u -> mm.toManager((JManager) u));
+    return userService
+        .getJUsers(page, size, UserType.MANAGER)
+        .map(u -> managerMapper.toManager((JManager) u));
   }
 }

@@ -6,6 +6,7 @@ import static org.owasp.encoder.Encode.forJava;
 import com.devikapps.vaikaparts.InfraGenerated;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ErrorResponse;
 import com.devikapps.vaikaparts.exception.MissingAuthorizationException;
+import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.exception.UserNotFoundException;
 import com.devikapps.vaikaparts.exception.bucket.BucketHealthCheckException;
 import com.devikapps.vaikaparts.exception.bucket.BucketOperationException;
@@ -51,6 +52,18 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 @RequiredArgsConstructor
 @InfraGenerated
 public class ApiExceptionHandler {
+
+  @ExceptionHandler(ResourceNotFoundException.class)
+  public ResponseEntity<ErrorResponse> handleResourceNotFoundException(
+      ResourceNotFoundException ex, WebRequest req) {
+    log.warn("Resource not found exception is triggered at {}", getRequestPath(req));
+
+    var err =
+        ErrorResponse.of(
+            HttpStatus.NOT_FOUND, ex.getMessage(), getRequestPath(req), "RESOURCE_NOT_FOUND");
+
+    return new ResponseEntity<>(err, HttpStatus.NOT_FOUND);
+  }
 
   @ExceptionHandler(MissingServletRequestParameterException.class)
   public ResponseEntity<ErrorResponse> handleMissingServletRequestParameter(

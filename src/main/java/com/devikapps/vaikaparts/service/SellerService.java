@@ -14,15 +14,15 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class SellerService {
-  private final UserService us;
-  private final SellerMapper sm;
+  private final UserService userService;
+  private final SellerMapper sellerMapper;
 
   public Seller getCurrentSeller() {
     log.info("Retrieving current active seller");
-    return sm.toSeller(us.getCurrentSeller());
+    return sellerMapper.toSeller(userService.getCurrentSeller());
   }
 
   public Page<Seller> getSellers(Integer page, Integer size) {
-    return us.getJUsers(page, size, SELLER).map(u -> sm.toSeller((JSeller) u));
+    return userService.getJUsers(page, size, SELLER).map(u -> sellerMapper.toSeller((JSeller) u));
   }
 }

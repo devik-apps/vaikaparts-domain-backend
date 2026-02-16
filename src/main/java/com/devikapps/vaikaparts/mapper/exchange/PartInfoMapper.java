@@ -12,10 +12,7 @@ import org.mapstruct.Mapping;
     uses = {ValueObjectMapper.class, ImageUrlMapper.class})
 public interface PartInfoMapper {
 
-  @Mapping(
-      source = "partImageBucket",
-      target = "part.imageUrl",
-      qualifiedByName = "getPresignedUrl")
+  @Mapping(source = "partImageBuckets", target = "part.imageUrls", qualifiedByName = "toUrlList")
   @Mapping(source = "partName", target = "part.name")
   @Mapping(source = "carBrand", target = "part.carBrand")
   @Mapping(source = "carModel", target = "part.carModel")
@@ -23,7 +20,7 @@ public interface PartInfoMapper {
   @Mapping(source = "partCategory", target = "part.partCategory")
   PartInfo toDomain(JPartInfo jPartInfo);
 
-  @Mapping(target = "partImageBucket", ignore = true)
+  @Mapping(target = "partImageBuckets", ignore = true)
   @Mapping(target = "offer", ignore = true)
   @Mapping(source = "part.name", target = "partName")
   @Mapping(source = "part.carBrand", target = "carBrand")

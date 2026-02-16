@@ -13,17 +13,17 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/sellers")
 @RequiredArgsConstructor
 public class SellerController {
-  private final SellerService ss;
+  private final SellerService sellerService;
 
   @GetMapping
   public Seller getCurrentSeller() {
-    return ss.getCurrentSeller();
+    return sellerService.getCurrentSeller();
   }
 
   @GetMapping("/me")
   public Page<Seller> getSellers(
       @RequestParam(name = "page", required = false) Integer page,
       @RequestParam(name = "size", required = false) Integer size) {
-    return ss.getSellers(page, size);
+    return sellerService.getSellers(page, size);
   }
 }
