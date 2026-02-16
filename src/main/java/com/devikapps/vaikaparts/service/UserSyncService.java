@@ -144,9 +144,11 @@ public class UserSyncService {
     var createdAt = convertToLocalDateTime(profile.createdAt());
     var updatedAt = convertToLocalDateTime(profile.updatedAt());
     var name = extractName(profile);
+    var email = extractEmail(profile);
     var phoneNumber = extractPhoneNumber(profile);
 
-    var user = buildUserEntity(profile, userType, userId, name, phoneNumber, createdAt, updatedAt);
+    var user =
+        buildUserEntity(profile, userType, userId, name, email, phoneNumber, createdAt, updatedAt);
     updateUserFields(user, profile);
 
     return user;
@@ -156,6 +158,7 @@ public class UserSyncService {
       ProfileRecord profile,
       UserType userType,
       String userId,
+      String email,
       String name,
       String phoneNumber,
       LocalDateTime createdAt,
@@ -167,7 +170,8 @@ public class UserSyncService {
     return switch (userType) {
       case RESEARCHER -> {
         var location = extractLocation(metadata).orElse(null);
-        yield buildResearcher(profileId, name, phoneNumber, userId, location, createdAt, updatedAt);
+        yield buildResearcher(
+            profileId, email, name, phoneNumber, userId, location, createdAt, updatedAt);
       }
       case SELLER -> {
         var garageName = extractMetadataValue(metadata, GARAGE_NAME_KEY).orElse(null);
@@ -176,6 +180,7 @@ public class UserSyncService {
         yield buildSeller(
             profileId,
             name,
+            email,
             phoneNumber,
             garageName,
             userId,
@@ -189,7 +194,8 @@ public class UserSyncService {
             extractMetadataValue(metadata, MANAGER_ROLE_KEY)
                 .flatMap(this::parseManagerRole)
                 .orElse(ManagerRole.ADMIN);
-        yield buildManager(profileId, userId, name, phoneNumber, managerRole, createdAt, updatedAt);
+        yield buildManager(
+            profileId, userId, email, name, phoneNumber, managerRole, createdAt, updatedAt);
       }
     };
   }
@@ -197,6 +203,7 @@ public class UserSyncService {
   private JResearcher buildResearcher(
       String profileId,
       String name,
+      String email,
       String phoneNumber,
       String userId,
       Location location,
@@ -207,6 +214,7 @@ public class UserSyncService {
         .id(userId)
         .supabaseUserId(profileId)
         .name(name)
+        .email(email)
         .phoneNumber(phoneNumber)
         .profileImgKey("")
         .location(vom.map(finalLocation))
@@ -220,6 +228,7 @@ public class UserSyncService {
   private JSeller buildSeller(
       String profileId,
       String name,
+      String email,
       String phoneNumber,
       String garageName,
       String userId,
@@ -233,6 +242,7 @@ public class UserSyncService {
         .id(userId)
         .supabaseUserId(profileId)
         .name(name)
+        .email(email)
         .phoneNumber(phoneNumber)
         .profileImgKey("")
         .garageName(garageName)
@@ -249,6 +259,7 @@ public class UserSyncService {
       String profileId,
       String userId,
       String name,
+      String email,
       String phoneNumber,
       ManagerRole managerRole,
       LocalDateTime createdAt,
@@ -257,6 +268,7 @@ public class UserSyncService {
         .id(userId)
         .supabaseUserId(profileId)
         .name(name)
+        .email(email)
         .phoneNumber(phoneNumber)
         .profileImgKey("")
         .userType(UserType.MANAGER)
@@ -335,6 +347,10 @@ public class UserSyncService {
         .filter(obj -> obj instanceof Map)
         .map(obj -> (Map<String, Object>) obj)
         .flatMap(this::parseLocation);
+  }
+
+  private String extractEmail(ProfileRecord profile) {
+    return Optional.ofNullable(profile.email()).filter(p -> !p.isBlank()).orElse("");
   }
 
   private Optional<Location> parseLocation(Map<String, Object> locationMap) {

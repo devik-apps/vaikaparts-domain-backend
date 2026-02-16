@@ -23,6 +23,7 @@ public abstract sealed class User permits Researcher, Seller, Manager {
   private String id;
   private String supabaseUserId;
   private String name;
+  private String email;
   private String phoneNumber;
   private URL profileImgUrl;
   private UserType userType;
@@ -38,6 +39,7 @@ public abstract sealed class User permits Researcher, Seller, Manager {
         \tid=%s,
         \tsupabaseUserId=%s,
         \tname=%s,
+        \temail=%s,
         \tphoneNumber=%s,
         \tprofileImgUrl=%s,
         \tuserType=%s,
@@ -49,6 +51,7 @@ public abstract sealed class User permits Researcher, Seller, Manager {
         id,
         supabaseUserId,
         name,
+        email,
         phoneNumber,
         profileImgUrl,
         userType,

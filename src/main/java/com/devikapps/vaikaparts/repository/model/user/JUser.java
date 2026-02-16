@@ -42,6 +42,9 @@ public class JUser {
   @Column(name = "phone_number")
   private String phoneNumber;
 
+  @Column(name = "email")
+  private String email;
+
   @Column(name = "profile_img_key")
   private String profileImgKey;
 
