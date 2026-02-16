@@ -202,7 +202,7 @@ class UserServiceIT extends FacadeIT {
     val photoUrl = userService.uploadProfilePhoto(photo);
 
     assertNotNull(photoUrl);
-    assertTrue(photoUrl.contains("X-Amz"));
+    assertTrue(photoUrl.toString().contains("X-Amz"));
   }
 
   @Test

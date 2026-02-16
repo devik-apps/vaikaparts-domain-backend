@@ -3,6 +3,7 @@ package com.devikapps.vaikaparts.mapper;
 import static java.time.Duration.ofHours;
 
 import com.devikapps.vaikaparts.file.BucketComponent;
+import java.net.URL;
 import java.time.Duration;
 import org.mapstruct.Mapper;
 import org.mapstruct.Named;
@@ -19,10 +20,9 @@ public abstract class ImageUrlMapper {
   }
 
   @Named("getPresignedUrl")
-  public String getPresignedUrl(String profileImgKey) {
+  public URL getPresignedUrl(String profileImgKey) {
     if (profileImgKey == null || profileImgKey.isBlank()) return null;
 
-    var presignedUrl = bucketComponent.presign(profileImgKey, DEFAULT_DURATION);
-    return presignedUrl.toString();
+    return bucketComponent.presign(profileImgKey, DEFAULT_DURATION);
   }
 }

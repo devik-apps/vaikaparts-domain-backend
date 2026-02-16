@@ -28,7 +28,7 @@ public class UserController {
 
   @PostMapping("/me/profile-photo")
   public ProfilePhotoResponse uploadProfilePhoto(@RequestParam("photo") MultipartFile photo) {
-    String photoUrl = userService.uploadProfilePhoto(photo);
+    var photoUrl = userService.uploadProfilePhoto(photo);
     return new ProfilePhotoResponse(photoUrl);
   }
 

@@ -16,6 +16,7 @@ import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.repository.model.user.JUser;
 import com.devikapps.vaikaparts.service.util.Paginator;
+import java.net.URL;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -66,7 +67,7 @@ public class UserService {
   }
 
   @Transactional
-  public String uploadProfilePhoto(MultipartFile photo) {
+  public URL uploadProfilePhoto(MultipartFile photo) {
     var user = getCurrentUser();
     log.info("Upload user profile image for user with id : {}", forJava(user.getId()));
     return profilePhotoService.uploadPhoto(user, photo);

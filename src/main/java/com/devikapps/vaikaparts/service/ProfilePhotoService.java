@@ -10,6 +10,7 @@ import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.model.user.JUser;
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.time.LocalDateTime;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +41,7 @@ public class ProfilePhotoService {
   private final ImageUrlMapper profilePhotoUrlService;
 
   @Transactional
-  public String uploadPhoto(JUser user, MultipartFile photo) {
+  public URL uploadPhoto(JUser user, MultipartFile photo) {
     validatePhoto(photo);
 
     var oldPhotoKey = user.getProfileImgKey();

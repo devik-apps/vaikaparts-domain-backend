@@ -64,7 +64,7 @@ class ProfilePhotoServiceIT extends FacadeIT {
     val photoUrl = profilePhotoService.uploadPhoto(testUser, photo);
 
     assertNotNull(photoUrl);
-    assertTrue(photoUrl.contains("X-Amz"));
+    assertTrue(photoUrl.toString().contains("X-Amz"));
 
     val updatedUser = userRepository.findById(testUser.getId()).orElseThrow();
     assertNotNull(updatedUser.getUpdatedAt());
@@ -77,8 +77,8 @@ class ProfilePhotoServiceIT extends FacadeIT {
     val photoUrl = profilePhotoService.uploadPhoto(testUser, photo);
 
     assertNotNull(photoUrl);
-    assertTrue(photoUrl.contains("X-Amz"));
-    assertTrue(photoUrl.contains("profiles/" + testUser.getId()));
+    assertTrue(photoUrl.toString().contains("X-Amz"));
+    assertTrue(photoUrl.toString().contains("profiles/" + testUser.getId()));
   }
 
   @Test
@@ -142,7 +142,7 @@ class ProfilePhotoServiceIT extends FacadeIT {
     val photoUrl = profilePhotoService.uploadPhoto(testUser, photo);
 
     assertNotNull(photoUrl);
-    assertTrue(photoUrl.contains("X-Amz"));
+    assertTrue(photoUrl.toString().contains("X-Amz"));
     profilePhotoService.deletePhoto(testUser);
 
     val updatedUser = userRepository.findById(testUser.getId()).orElseThrow();
@@ -168,7 +168,7 @@ class ProfilePhotoServiceIT extends FacadeIT {
     val photoUrl = profilePhotoService.uploadPhoto(testUser, webpPhoto);
 
     assertNotNull(photoUrl);
-    assertTrue(photoUrl.contains("profiles/" + testUser.getId()));
+    assertTrue(photoUrl.toString().contains("profiles/" + testUser.getId()));
   }
 
   @Test
@@ -178,7 +178,7 @@ class ProfilePhotoServiceIT extends FacadeIT {
     val photoUrl = profilePhotoService.uploadPhoto(testUser, gifPhoto);
 
     assertNotNull(photoUrl);
-    assertTrue(photoUrl.contains("profiles/" + testUser.getId()));
+    assertTrue(photoUrl.toString().contains("profiles/" + testUser.getId()));
   }
 
   private MockMultipartFile createMockJpegPhoto() {
