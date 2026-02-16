@@ -26,19 +26,19 @@ jobs:
           distribution: 'temurin'
           cache: gradle
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@45cbd0c69e560cd9e7cd7f8c32362050c9b7ded2
+        uses: github/codeql-action/init@9e907b5e64f6b83e7804b09294d44122997950d6
         with:
           languages: java
           queries: security-extended
           debug: true
       - name: Autobuild
-        uses: github/codeql-action/autobuild@45cbd0c69e560cd9e7cd7f8c32362050c9b7ded2
+        uses: github/codeql-action/autobuild@9e907b5e64f6b83e7804b09294d44122997950d6
         env:
           JAVA_HOME_21_X64: ${{ steps.setup-java.outputs.java-home }}
         with:
           debug: true
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@45cbd0c69e560cd9e7cd7f8c32362050c9b7ded2
+        uses: github/codeql-action/analyze@9e907b5e64f6b83e7804b09294d44122997950d6
         with:
           category: "/language:java"
           debug: true
