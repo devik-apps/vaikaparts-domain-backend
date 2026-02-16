@@ -296,7 +296,6 @@ public class UserSyncService {
     switch (user.getUserType()) {
       case RESEARCHER -> updateResearcherLocation(user, metadata);
       case SELLER -> updateSellerLocationAndLatLon(user, metadata);
-      case MANAGER -> {} // No location for managers
     }
   }
 

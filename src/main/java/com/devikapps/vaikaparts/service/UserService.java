@@ -13,8 +13,13 @@ import com.devikapps.vaikaparts.repository.model.user.JManager;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.repository.model.user.JUser;
+import com.devikapps.vaikaparts.service.util.Paginator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -27,6 +32,7 @@ public class UserService {
   private final UserRepository userRepository;
   private final ProfilePhotoService profilePhotoService;
   private final UserMapper um;
+  private final Paginator paginator;
 
   @Transactional(readOnly = true)
   public JUser getCurrentUser() {
@@ -108,6 +114,17 @@ public class UserService {
               return new UserNotFoundException(
                   format("User not found for Supabase ID: %s", supabaseUserId));
             });
+  }
+
+  public Page<JUser> getJUsers(Integer page, Integer size, UserType userType) {
+    log.info("Retrieving lists of user with page {} and size {} and type {}", page, size, userType);
+
+    var pagination = paginator.apply(page, size);
+    Pageable pageable =
+        PageRequest.of(
+            pagination.get("page"), pagination.get("size"), Sort.by("createdAt").descending());
+
+    return userRepository.findAllByUserType(userType, pageable);
   }
 
   private void validateUserType(JUser user, UserType expectedType) {
