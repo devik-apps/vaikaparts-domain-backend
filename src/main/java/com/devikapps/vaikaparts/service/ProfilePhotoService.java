@@ -5,6 +5,7 @@ import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.file.TempFileManager;
+import com.devikapps.vaikaparts.mapper.ImageUrlMapper;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.model.user.JUser;
 import java.io.File;
@@ -36,7 +37,7 @@ public class ProfilePhotoService {
   private final BucketComponent bucketComponent;
   private final UserRepository userRepository;
   private final TempFileManager tempFileManager;
-  private final ProfilePhotoUrlService profilePhotoUrlService;
+  private final ImageUrlMapper profilePhotoUrlService;
 
   @Transactional
   public String uploadPhoto(JUser user, MultipartFile photo) {

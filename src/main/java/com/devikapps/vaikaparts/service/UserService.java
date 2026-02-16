@@ -5,7 +5,9 @@ import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.config.sec.SecContextUtil;
 import com.devikapps.vaikaparts.exception.UserNotFoundException;
-import com.devikapps.vaikaparts.mapper.user.UserMapper;
+import com.devikapps.vaikaparts.mapper.user.ManagerMapper;
+import com.devikapps.vaikaparts.mapper.user.ResearcherMapper;
+import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.user.User;
 import com.devikapps.vaikaparts.repository.UserRepository;
@@ -31,7 +33,9 @@ public class UserService {
 
   private final UserRepository userRepository;
   private final ProfilePhotoService profilePhotoService;
-  private final UserMapper um;
+  private final SellerMapper sm;
+  private final ResearcherMapper rm;
+  private final ManagerMapper mm;
   private final Paginator paginator;
 
   @Transactional(readOnly = true)
@@ -55,9 +59,9 @@ public class UserService {
     log.info("Fetch user with id : {}", forJava(user.getId()));
 
     return switch (user.getUserType()) {
-      case RESEARCHER -> um.toResearcher((JResearcher) user);
-      case SELLER -> um.toSeller((JSeller) user);
-      case MANAGER -> um.toManager((JManager) user);
+      case RESEARCHER -> rm.toResearcher((JResearcher) user);
+      case SELLER -> sm.toSeller((JSeller) user);
+      case MANAGER -> mm.toManager((JManager) user);
     };
   }
 

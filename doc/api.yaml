@@ -499,25 +499,6 @@ paths:
                 $ref: '#/components/schemas/Researcher'
         '403':
           description: Authenticated user is not a Researcher
-    patch:
-      operationId: updateMyResearcherProfile
-      tags: [Researchers]
-      summary: Update current Researcher profile
-      description: Modifies editable fields of the currently authenticated Researcher's profile.
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ResearcherUpdateRequest'
-      responses:
-        '200':
-          description: Researcher profile updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Researcher'
-        '400':
-          $ref: '#/components/responses/BadRequest'
   /researchers/{researcherId}:
     get:
       operationId: getResearcherById
@@ -603,25 +584,6 @@ paths:
                 $ref: '#/components/schemas/Seller'
         '403':
           description: Authenticated user is not a seller
-    patch:
-      operationId: updateMySellerProfile
-      tags: [Sellers]
-      summary: Update current seller profile
-      description: Modifies editable fields of the currently authenticated seller's profile including garage name and location.
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SellerUpdateRequest'
-      responses:
-        '200':
-          description: Seller profile updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Seller'
-        '400':
-          $ref: '#/components/responses/BadRequest'
   /sellers/{sellerId}:
     get:
       operationId: getSellerById
@@ -693,36 +655,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ManagerPageResponse'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-  /managers/{managerId}:
-    patch:
-      operationId: updateManager
-      tags: [Managers]
-      summary: Update manager account
-      description: |
-        Modifies manager account properties including role assignment and account status.
-
-        **Authorization**: Admin role required
-      parameters:
-        - name: managerId
-          in: path
-          required: true
-          description: Unique identifier of the manager
-          schema:
-            $ref: '#/components/schemas/UUID'
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ManagerUpdateRequest'
-      responses:
-        '200':
-          description: Manager account updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Manager'
         '403':
           $ref: '#/components/responses/Forbidden'
   /demands:
