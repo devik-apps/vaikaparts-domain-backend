@@ -1,4 +1,4 @@
-package com.devikapps.vaikaparts.model;
+package com.devikapps.vaikaparts.model.classifier;
 
 import lombok.Getter;
 

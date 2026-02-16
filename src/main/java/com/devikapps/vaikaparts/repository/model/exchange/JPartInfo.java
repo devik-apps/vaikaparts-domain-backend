@@ -1,11 +1,15 @@
-package com.devikapps.vaikaparts.repository.model;
+package com.devikapps.vaikaparts.repository.model.exchange;
 
-import com.devikapps.vaikaparts.model.PartCategory;
+import com.devikapps.vaikaparts.model.classifier.PartCategory;
+import com.devikapps.vaikaparts.model.classifier.PartCondition;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -17,14 +21,14 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "car_parts")
+@Table(name = "offer_part_infos")
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
 @EqualsAndHashCode
 @SuperBuilder
-public class JPart {
+public class JPartInfo {
   @Id private String id;
 
   @Column(name = "part_name")
@@ -39,11 +43,27 @@ public class JPart {
   @Column(name = "car_year")
   private int carYear;
 
-  @Column(name = "image_bucket")
-  private String imageBucket;
+  @Column(name = "part_image_bucket")
+  private String partImageBucket;
 
   @Enumerated(EnumType.STRING)
   @JdbcTypeCode(SqlTypes.NAMED_ENUM)
   @Column(name = "part_category")
   private PartCategory partCategory;
+
+  // PartInfo specific fields
+  @Column(name = "description")
+  private String description;
+
+  @Column(name = "price")
+  private double price;
+
+  @Enumerated(EnumType.STRING)
+  @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+  @Column(name = "condition")
+  private PartCondition condition;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "offer_id", nullable = false)
+  private JOffer offer;
 }
