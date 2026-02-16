@@ -3,7 +3,6 @@ package com.devikapps.vaikaparts.model.exchange;
 import static java.lang.String.format;
 
 import com.devikapps.vaikaparts.model.user.Researcher;
-import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -18,7 +17,7 @@ import lombok.experimental.SuperBuilder;
 @Getter
 @Setter
 public final class Demand extends Exchange {
-  private List<Part> parts;
+  private Part part;
   private Researcher researcher;
 
   @Override
@@ -47,6 +46,6 @@ public final class Demand extends Exchange {
         getSuspendedAt(),
         getCanceledAt(),
         researcher,
-        parts);
+        part);
   }
 }

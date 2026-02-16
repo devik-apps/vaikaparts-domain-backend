@@ -16,11 +16,11 @@ public interface OfferMapper {
       target = "attachedPhotosUrls",
       qualifiedByName = "toUrlList")
   @Mapping(source = "seller.id", target = "sellerId")
-  @Mapping(source = "partInfos", target = "partsInfos")
+  @Mapping(source = "partInfo", target = "partsInfo")
   Offer toDomain(JOffer jOffer);
 
   @Mapping(target = "attachedPhotoBucketKeys", ignore = true)
   @Mapping(target = "seller", ignore = true)
-  @Mapping(source = "partsInfos", target = "partInfos")
+  @Mapping(source = "partsInfo", target = "partInfo")
   JOffer toPersistence(Offer offer);
 }

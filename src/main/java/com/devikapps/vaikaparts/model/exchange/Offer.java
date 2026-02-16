@@ -2,7 +2,6 @@ package com.devikapps.vaikaparts.model.exchange;
 
 import static java.lang.String.format;
 
-import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -18,7 +17,7 @@ import lombok.experimental.SuperBuilder;
 @EqualsAndHashCode(callSuper = true)
 public class Offer extends Exchange {
   private String sellerId;
-  private List<PartInfo> partsInfos;
+  private PartInfo partsInfo;
 
   @Override
   public String toString() {
@@ -46,6 +45,6 @@ public class Offer extends Exchange {
         getSuspendedAt(),
         getCanceledAt(),
         sellerId,
-        partsInfos);
+        partsInfo);
   }
 }
