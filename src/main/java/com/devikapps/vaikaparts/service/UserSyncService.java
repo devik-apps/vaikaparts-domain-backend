@@ -344,7 +344,7 @@ public class UserSyncService {
   private Optional<Location> extractLocation(Map<String, Object> metadata) {
     return Optional.ofNullable(metadata)
         .map(m -> m.get(LOCATION_KEY))
-        .filter(obj -> obj instanceof Map)
+        .filter(Map.class::isInstance)
         .map(obj -> (Map<String, Object>) obj)
         .flatMap(this::parseLocation);
   }
@@ -386,7 +386,7 @@ public class UserSyncService {
   private Optional<LatLon> extractLatLon(Map<String, Object> metadata) {
     return Optional.ofNullable(metadata)
         .map(m -> m.get(LAT_LON_KEY))
-        .filter(obj -> obj instanceof Map)
+        .filter(Map.class::isInstance)
         .map(obj -> (Map<String, Object>) obj)
         .flatMap(this::parseLatLon);
   }
@@ -395,9 +395,7 @@ public class UserSyncService {
     var latObj = latLonMap.get(LAT_KEY);
     var lonObj = latLonMap.get(LON_KEY);
 
-    if (latObj == null || lonObj == null) {
-      return Optional.empty();
-    }
+    if (latObj == null || lonObj == null) return Optional.empty();
 
     var lat = ((Number) latObj).doubleValue();
     var lon = ((Number) lonObj).doubleValue();

@@ -13,7 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 @Mapper(componentModel = "spring")
 public abstract class ImageUrlMapper {
-  private final Duration DEFAULT_DURATION = ofDays(2L);
+  private final Duration DEFAULT_DURATION = ofDays(7L);
   private BucketComponent bucketComponent;
 
   @Autowired

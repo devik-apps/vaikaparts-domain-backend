@@ -9,6 +9,7 @@ import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring")
 public interface ValueObjectMapper {
+  int DEFAULT_YEAR = 1900;
 
   default Location map(JLocation jLocation) {
     if (jLocation == null) return null;
@@ -35,6 +36,6 @@ public interface ValueObjectMapper {
   }
 
   default int yearToInt(Year year) {
-    return year != null ? year.getValue() : 1900;
+    return year != null ? year.getValue() : DEFAULT_YEAR;
   }
 }

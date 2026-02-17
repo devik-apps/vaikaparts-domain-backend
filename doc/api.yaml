@@ -657,139 +657,98 @@ paths:
                 $ref: '#/components/schemas/ManagerPageResponse'
         '403':
           $ref: '#/components/responses/Forbidden'
-  /demands:
+  /v1/demands:
     get:
-      operationId: getAllDemands
+      operationId: getResearcherDemands
       tags: [Demands]
-      summary: List demands with role-based filtering
+      summary: List researcher demands with optional status filtering
       description: |
-        Retrieves a paginated list of demands based on the authenticated user's role:
-        - **Researchers**: Returns only their own demands with full details
-        - **Sellers**: Returns active demands with anonymized Researcher information
-        - **Managers**: Returns all demands with complete details
+        Returns a paginated list of demands belonging to the authenticated Researcher.
+        Results may be narrowed by lifecycle status.
+
+        **Authorization**: Researcher role required.
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
         - name: status
           in: query
-          description: Filter by demand status
+          required: false
+          description: Filter by demand lifecycle status. Omit to return all statuses.
           schema:
             $ref: '#/components/schemas/DemandStatus'
-        - name: partCategory
-          in: query
-          description: Filter by automotive part category
-          schema:
-            $ref: '#/components/schemas/PartCategory'
-        - name: carBrand
-          in: query
-          description: Filter by vehicle brand
-          schema:
-            type: string
-        - name: location
-          in: query
-          description: Filter by city or region
-          schema:
-            type: string
       responses:
         '200':
-          description: Demand list retrieved successfully
+          description: Demand list retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DemandPageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     post:
       operationId: createDemand
       tags: [Demands]
-      summary: Create new automotive parts demand
+      summary: Create a new automotive parts demand
       description: |
-        Creates a new demand for automotive parts. Upon creation, the system notifies relevant sellers based on matching criteria such as part category and location proximity.
+        Creates a new demand on behalf of the authenticated Researcher. The request
+        is submitted as `multipart/form-data`. Part fields are bound using Spring
+        dot-notation (`part.name`, `part.carBrand`, etc.). Images are optional and
+        bound under `part.images`; maximum 5 files per demand.
 
-        **Authorization**: Researcher role required
+        **Authorization**: Researcher role required.
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: '#/components/schemas/DemandCreateRequest'
+            encoding:
+              part.images:
+                contentType: image/jpeg, image/png, image/webp
       responses:
         '201':
-          description: Demand created successfully
+          description: Demand created successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Demand'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Only Researchers may create demands
-  /demands/upload-images:
-    post:
-      operationId: uploadDemandImages
-      tags: [Demands, Storage]
-      summary: Upload demand attachment images
-      description: |
-        Uploads images to be associated with a demand. This endpoint should be called before creating the demand to obtain image URLs for inclusion in the demand creation request.
-
-        **File Requirements**:
-        - Formats: JPEG, PNG
-        - Maximum size: 5 MB per image
-        - Maximum count: 5 images per demand
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [images]
-              properties:
-                images:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
-                  maxItems: 5
-      responses:
-        '200':
-          description: Images uploaded successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  imageUrls:
-                    type: array
-                    items:
-                      type: string
-                      format: uri
-                    description: S3 object URLs for the uploaded images
-        '400':
-          description: Invalid file format, size, or count
-  /demands/my-demands:
+          $ref: '#/components/responses/Forbidden'
+  /v1/demands/{demandId}:
     get:
-      operationId: getMyDemands
+      operationId: getDemandById
       tags: [Demands]
-      summary: Retrieve current Researcher's demands
+      summary: Retrieve a demand by its identifier
       description: |
-        Returns a paginated list of demands created by the currently authenticated Researcher.
+        Returns the full detail view for a single demand. Access is restricted to
+        the owning Researcher — requests for demands belonging to another principal
+        return 404 to prevent information disclosure.
 
-        **Authorization**: Researcher role required
+        **Authorization**: Researcher role required.
       parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/SizeParam'
-        - name: status
-          in: query
-          description: Filter by demand status
+        - name: demandId
+          in: path
+          required: true
+          description: Unique identifier of the demand.
           schema:
-            $ref: '#/components/schemas/DemandStatus'
+            type: string
       responses:
         '200':
-          description: Demand list retrieved successfully
+          description: Demand retrieved successfully.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DemandPageResponse'
-        '403':
-          description: Authenticated user is not a Researcher
+                $ref: '#/components/schemas/Demand'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /demands/{demandId}:
     get:
       operationId: getDemandById
@@ -816,35 +775,6 @@ paths:
                 $ref: '#/components/schemas/Demand'
         '404':
           $ref: '#/components/responses/NotFound'
-    patch:
-      operationId: updateDemand
-      tags: [Demands]
-      summary: Update demand details
-      description: |
-        Modifies editable fields of an existing demand including description, images, and status.
-
-        **Authorization**: Demand owner or manager role required
-      parameters:
-        - name: demandId
-          in: path
-          required: true
-          description: Unique identifier of the demand
-          schema:
-            $ref: '#/components/schemas/UUID'
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DemandUpdateRequest'
-      responses:
-        '200':
-          description: Demand updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Demand'
-        '403':
-          $ref: '#/components/responses/Forbidden'
     delete:
       operationId: deleteDemand
       tags: [Demands]
@@ -1609,32 +1539,10 @@ components:
       type: string
       enum: [ADMIN, MANAGER]
       description: Manager permission level
-    PartCategory:
-      type: string
-      description: Automotive part category classification
-      enum:
-        - engine_part
-        - direction_suspension
-        - braking
-        - starter
-        - alternator
-        - distribution
-        - headlights
-        - clutch_gearbox
-        - sensors_and_probes
-        - exhaust_pipe
-        - passenger_compartment
-        - body
-        - tire
-        - other
     PartCondition:
       type: string
       enum: [NEW, USED]
       description: Physical condition of automotive part
-    DemandStatus:
-      type: string
-      enum: [ACTIVE, FULFILLED, CANCELLED, EXPIRED]
-      description: Current state of demand lifecycle
     OfferStatus:
       type: string
       enum: [PENDING, SELECTED, REJECTED, WITHDRAWN]
@@ -1920,144 +1828,205 @@ components:
           properties:
             managerRole:
               $ref: '#/components/schemas/ManagerRole'
-    ResearcherUpdateRequest:
-      type: object
-      description: Researcher profile update payload
-      properties:
-        name:
-          type: string
-        email:
-          $ref: '#/components/schemas/EmailAddress'
-        location:
-          $ref: '#/components/schemas/Location'
-    SellerUpdateRequest:
-      type: object
-      description: Seller profile update payload
-      properties:
-        name:
-          type: string
-        email:
-          $ref: '#/components/schemas/EmailAddress'
-        garageName:
-          type: string
-        location:
-          $ref: '#/components/schemas/Location'
-    ManagerUpdateRequest:
-      type: object
-      description: Manager profile update payload
-      properties:
-        name:
-          type: string
-        email:
-          $ref: '#/components/schemas/EmailAddress'
-        status:
-          $ref: '#/components/schemas/UserStatus'
-        managerRole:
-          $ref: '#/components/schemas/ManagerRole'
+    PartCategory:
+      type: string
+      description: Automotive part category classification.
+      enum:
+        - ENGINE_PART
+        - TURBO_COMPRESSOR
+        - COOLING_SYSTEM
+        - FUEL_SYSTEM
+        - AIR_FILTER
+        - OIL_FILTER
+        - EXHAUST_PIPE
+        - CATALYTIC_CONVERTER
+        - CLUTCH_GEARBOX
+        - TRANSMISSION
+        - DRIVESHAFT
+        - DIFFERENTIAL
+        - STARTER
+        - ALTERNATOR
+        - BATTERY
+        - IGNITION_SYSTEM
+        - SPARK_PLUGS
+        - WIRING_HARNESS
+        - FUSES_RELAYS
+        - SENSORS_AND_PROBES
+        - ECU_COMPUTER
+        - DIRECTION_SUSPENSION
+        - SHOCK_ABSORBERS
+        - SPRINGS
+        - CONTROL_ARMS
+        - BALL_JOINTS
+        - STEERING_RACK
+        - POWER_STEERING_PUMP
+        - BRAKING
+        - BRAKE_PADS
+        - BRAKE_DISCS
+        - BRAKE_DRUMS
+        - BRAKE_CALIPERS
+        - MASTER_CYLINDER
+        - ABS_SYSTEM
+        - TIRE
+        - WHEELS_RIMS
+        - WHEEL_BEARINGS
+        - HEADLIGHTS
+        - TAIL_LIGHTS
+        - FOG_LIGHTS
+        - INDICATORS
+        - INTERIOR_LIGHTS
+        - BODY
+        - BUMPERS
+        - DOORS
+        - FENDERS
+        - HOOD_BONNET
+        - TRUNK_TAILGATE
+        - MIRRORS
+        - WINDSHIELD_WINDOWS
+        - WIPERS
+        - GRILLE
+        - PASSENGER_COMPARTMENT
+        - SEATS
+        - DASHBOARD
+        - STEERING_WHEEL
+        - PEDALS
+        - CARPETS_MATS
+        - AC_HEATER
+        - RADIATOR
+        - THERMOSTAT
+        - COOLING_FAN
+        - AC_COMPRESSOR
+        - ENGINE_OIL
+        - BRAKE_FLUID
+        - COOLANT
+        - TRANSMISSION_FLUID
+        - DISTRIBUTION
+        - TIMING_BELT
+        - TIMING_CHAIN
+        - ACCESSORIES
+        - UNIVERSAL_PARTS
+        - OTHER
+      example: FOG_LIGHTS
+    DemandStatus:
+      type: string
+      description: Lifecycle status of a demand.
+      enum:
+        - DRAFT
+        - PUBLISHED
+        - SUSPENDED
+        - PENDING
+        - CANCELED
+      example: PUBLISHED
     Part:
       type: object
-      required: [partName, carBrand, carModel, partCategory]
-      description: Automotive part specification
+      description: Automotive part being sought by the Researcher.
+      required: [name, carBrand, carModel, carYear, partCategory]
       properties:
-        partName:
+        name:
           type: string
-          description: Specific part name or designation
-          example: "Brake Pads Front"
+          description: Descriptive name of the part.
+          example: Headlight
         carBrand:
           type: string
-          description: Vehicle manufacturer
-          example: "Toyota"
+          description: Vehicle manufacturer.
+          example: Toyota
         carModel:
           type: string
-          description: Vehicle model name
-          example: "Corolla"
+          description: Vehicle model designation.
+          example: Corolla
         carYear:
           type: integer
+          description: Four-digit model year of the vehicle.
           minimum: 1900
           maximum: 2100
-          description: Vehicle model year
-          example: 2018
+          example: 2015
         partCategory:
           $ref: '#/components/schemas/PartCategory'
-    Demand:
-      type: object
-      required: [id, ResearcherId, part, status, createdAt]
-      description: Researcher request for automotive part
-      properties:
-        id:
-          $ref: '#/components/schemas/UUID'
-        ResearcherId:
-          $ref: '#/components/schemas/UUID'
-        ResearcherInfo:
-          type: object
-          description: Researcher information with conditional disclosure based on user role
-          properties:
-            name:
-              type: string
-              nullable: true
-            location:
-              type: object
-              properties:
-                city:
-                  type: string
-                region:
-                  type: string
-        part:
-          $ref: '#/components/schemas/Part'
-        description:
-          type: string
-          description: Additional part requirements or specifications
         imageUrls:
           type: array
+          description: >
+            Publicly accessible URLs of reference photographs uploaded by the Researcher. Populated server-side after images are stored.
+
           items:
             type: string
             format: uri
-          description: Reference photographs uploaded by Researcher
           maxItems: 5
+          readOnly: true
+    Demand:
+      type: object
+      description: A Researcher's request for a specific automotive part.
+      required: [id, researcher, part, status, createdAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        description:
+          type: string
+          description: Additional context or specifications provided by the Researcher.
+          example: Looking for headlight
+        researcher:
+          $ref: '#/components/schemas/Researcher'
+        part:
+          $ref: '#/components/schemas/Part'
         status:
           $ref: '#/components/schemas/DemandStatus'
-        offerCount:
-          type: integer
-          description: Number of submitted offers
         createdAt:
           $ref: '#/components/schemas/DateTime'
         updatedAt:
           $ref: '#/components/schemas/DateTime'
-        expiresAt:
+        canceledAt:
           $ref: '#/components/schemas/DateTime'
-          description: Automatic expiration timestamp
+        suspendedAt:
+          $ref: '#/components/schemas/DateTime'
     DemandCreateRequest:
       type: object
-      required: [part]
-      description: Demand creation payload
+      description: >
+        Payload for creating a new demand, submitted as multipart/form-data. Part fields use Spring dot-notation binding (e.g. `part.name`, `part.images`).
+
+      required: [description, part]
       properties:
+        description:
+          type: string
+          description: Additional context or specifications for the sought part.
+          maxLength: 1000
+          example: Looking for headlight
         part:
-          $ref: '#/components/schemas/Part'
-        description:
-          type: string
-          maxLength: 1000
-        imageUrls:
-          type: array
-          items:
-            type: string
-            format: uri
-          maxItems: 5
-          description: S3 URLs from image upload endpoint
-    DemandUpdateRequest:
+          $ref: '#/components/schemas/PartCreateRequest'
+    PartCreateRequest:
       type: object
-      description: Demand modification payload
+      description: >
+        Part details submitted as part of the demand creation multipart request. Fields are bound using Spring dot-notation: `part.name`, `part.carBrand`, etc.
+
+      required: [name, carBrand, carModel, carYear, partCategory]
       properties:
-        description:
+        name:
           type: string
-          maxLength: 1000
-        imageUrls:
+          description: Descriptive name of the part.
+          example: Headlight
+        carBrand:
+          type: string
+          description: Vehicle manufacturer.
+          example: Toyota
+        carModel:
+          type: string
+          description: Vehicle model designation.
+          example: Corolla
+        carYear:
+          type: integer
+          description: Four-digit model year of the vehicle.
+          minimum: 1900
+          maximum: 2100
+          example: 2015
+        partCategory:
+          $ref: '#/components/schemas/PartCategory'
+        images:
           type: array
+          description: >
+            Reference photographs of the sought part. Bound under the multipart field name `part.images`. Optional; maximum 5 files.
+
           items:
             type: string
-            format: uri
+            format: binary
           maxItems: 5
-        status:
-          $ref: '#/components/schemas/DemandStatus'
     Offer:
       type: object
       required: [id, demandId, sellerId, part, price, condition, status, createdAt]

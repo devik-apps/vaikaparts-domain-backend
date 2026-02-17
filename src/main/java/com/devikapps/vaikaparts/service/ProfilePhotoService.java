@@ -24,7 +24,8 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class ProfilePhotoService {
 
-  private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+  public static final int ONE_MEGABYTE = 1_024;
+  private static final long MAX_FILE_SIZE = 5_242_880L; // 5 MB
   private static final Set<String> ALLOWED_CONTENT_TYPES =
       Set.of(
           "image/jpeg",
@@ -99,7 +100,7 @@ public class ProfilePhotoService {
     if (photo.getSize() > MAX_FILE_SIZE) {
       log.warn("Photo upload rejected: size {} exceeds limit {}", photo.getSize(), MAX_FILE_SIZE);
       throw new IllegalArgumentException(
-          format("Photo size exceeds limit of %d MB", MAX_FILE_SIZE / 1024 / 1024));
+          format("Photo size exceeds limit of %d MB", MAX_FILE_SIZE / ONE_MEGABYTE / ONE_MEGABYTE));
     }
 
     String contentType = photo.getContentType();

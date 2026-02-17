@@ -233,6 +233,7 @@ class UserServiceIT extends FacadeIT {
   }
 
   private byte[] createMockImageBytes() {
+    //noinspection OctalInteger
     return new byte[] {
       (byte) 0x89,
       0x50,
