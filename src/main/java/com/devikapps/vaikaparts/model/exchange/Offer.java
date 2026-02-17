@@ -18,6 +18,7 @@ import lombok.experimental.SuperBuilder;
 public class Offer extends Exchange {
   private String sellerId;
   private PartInfo partsInfo;
+  private Demand demand;
 
   @Override
   public String toString() {
@@ -33,6 +34,7 @@ public class Offer extends Exchange {
         \tsuspendedAt=%s,
         \tcanceledAt=%s,
         \tsellerId=%s,
+        \t%s,
         \t%s
         }\
         """,
@@ -45,6 +47,7 @@ public class Offer extends Exchange {
         getSuspendedAt(),
         getCanceledAt(),
         sellerId,
-        partsInfo);
+        partsInfo,
+        demand);
   }
 }

@@ -4,6 +4,7 @@ import com.devikapps.vaikaparts.model.LatLon;
 import com.devikapps.vaikaparts.model.Location;
 import com.devikapps.vaikaparts.repository.model.JLatLon;
 import com.devikapps.vaikaparts.repository.model.JLocation;
+import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import java.time.Year;
 import org.mapstruct.Mapper;
 
@@ -37,5 +38,9 @@ public interface ValueObjectMapper {
 
   default int yearToInt(Year year) {
     return year != null ? year.getValue() : DEFAULT_YEAR;
+  }
+
+  default JSeller toPersistenceObj(String sellerId) {
+    return JSeller.builder().id(sellerId).build();
   }
 }

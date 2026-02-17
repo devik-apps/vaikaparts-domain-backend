@@ -65,6 +65,10 @@ public class JOffer {
   @JoinColumn(name = "seller_id", nullable = false)
   private JSeller seller;
 
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "demand_id", nullable = false)
+  private JDemand demand;
+
   @OneToOne(
       mappedBy = "offer",
       cascade = CascadeType.ALL,

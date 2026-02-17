@@ -13,6 +13,7 @@ import org.mapstruct.Mapping;
 public interface PartInfoMapper {
 
   @Mapping(source = "partImageBuckets", target = "part.imageUrls", qualifiedByName = "toUrlList")
+  @Mapping(source = "id", target = "part.id")
   @Mapping(source = "partName", target = "part.name")
   @Mapping(source = "carBrand", target = "part.carBrand")
   @Mapping(source = "carModel", target = "part.carModel")

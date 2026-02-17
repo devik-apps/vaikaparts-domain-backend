@@ -13,14 +13,14 @@ CREATE TABLE offer_part_infos
     CONSTRAINT fk_offer_part_infos_offer FOREIGN KEY (offer_id) REFERENCES offers (id) ON DELETE CASCADE
 );
 
-CREATE TABLE offer_part_infos_photos
+CREATE TABLE part_info_photos
 (
     part_id           VARCHAR(255) NOT NULL,
     part_image_bucket TEXT         NOT NULL,
     CONSTRAINT fk_offer_part_infos_photos FOREIGN KEY (part_id) REFERENCES offer_part_infos (id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_offer_part_infos_photos_id ON offer_part_infos_photos (part_id);
+CREATE INDEX idx_offer_part_infos_photos_id ON part_info_photos (part_id);
 CREATE INDEX idx_offer_part_infos_offer_id ON offer_part_infos (offer_id);
 CREATE INDEX idx_offer_part_infos_category ON offer_part_infos (part_category);
 CREATE INDEX idx_offer_part_infos_condition ON offer_part_infos (condition);
