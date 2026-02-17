@@ -3,6 +3,7 @@ package com.devikapps.vaikaparts.config;
 import com.devikapps.vaikaparts.InfraGenerated;
 import jakarta.annotation.PreDestroy;
 import java.net.URI;
+import java.time.Duration;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,9 +11,11 @@ import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
@@ -40,6 +43,9 @@ import software.amazon.awssdk.transfer.s3.S3TransferManager;
 @InfraGenerated
 @Configuration
 public class BucketConf {
+
+  private static final Duration API_CALL_TIMEOUT = Duration.ofSeconds(5L);
+  private static final Duration API_CALL_ATTEMPT_TIMEOUT = Duration.ofSeconds(5L);
 
   /** The name of the configured S3-compatible bucket. */
   @Getter private final String bucketName;
@@ -84,21 +90,46 @@ public class BucketConf {
 
     Region region = Region.of(regionString);
 
-    AwsCredentialsProvider credentialsProvider =
+    final AwsCredentialsProvider credentialsProvider =
         StaticCredentialsProvider.create(AwsBasicCredentials.create(keyId, applicationKey));
+
+    /*
+     * Backblaze B2 does not implement the x-amz-checksum-crc32 extension introduced
+     * in AWS SDK v2.21+, which causes HTTP 400 on every PutObject request.
+     * Disabling checksum validation is the correct resolution for all non-AWS S3-compatible
+     * providers. TLS guarantees transport-layer integrity.
+     *
+     * pathStyleAccessEnabled is required because Backblaze B2 does not support
+     * virtual-hosted-style URLs (bucket.endpoint.com).
+     */
+    final S3Configuration s3Configuration =
+        S3Configuration.builder()
+            .checksumValidationEnabled(false)
+            .pathStyleAccessEnabled(true)
+            .build();
+
+    final ClientOverrideConfiguration overrideConfiguration =
+        ClientOverrideConfiguration.builder()
+            .apiCallTimeout(API_CALL_TIMEOUT)
+            .apiCallAttemptTimeout(API_CALL_ATTEMPT_TIMEOUT)
+            .build();
 
     this.s3Client =
         S3Client.builder()
             .endpointOverride(endpoint)
             .region(region)
             .credentialsProvider(credentialsProvider)
+            .serviceConfiguration(s3Configuration)
+            .overrideConfiguration(overrideConfiguration)
             .build();
 
-    S3AsyncClient s3AsyncClient =
+    final S3AsyncClient s3AsyncClient =
         S3AsyncClient.builder()
             .endpointOverride(endpoint)
             .region(region)
             .credentialsProvider(credentialsProvider)
+            .serviceConfiguration(s3Configuration)
+            .overrideConfiguration(overrideConfiguration)
             .build();
 
     this.s3TransferManager = S3TransferManager.builder().s3Client(s3AsyncClient).build();
@@ -108,6 +139,7 @@ public class BucketConf {
             .endpointOverride(endpoint)
             .region(region)
             .credentialsProvider(credentialsProvider)
+            .serviceConfiguration(s3Configuration)
             .build();
   }
 
