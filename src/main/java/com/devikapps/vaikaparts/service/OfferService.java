@@ -7,7 +7,6 @@ import static org.owasp.encoder.Encode.forJava;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPartInfo;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
-import com.devikapps.vaikaparts.file.FilenameSanitizer;
 import com.devikapps.vaikaparts.mapper.exchange.DemandMapper;
 import com.devikapps.vaikaparts.mapper.exchange.OfferMapper;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
@@ -19,8 +18,8 @@ import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
+import com.devikapps.vaikaparts.service.util.ImageUploader;
 import com.devikapps.vaikaparts.service.util.Paginator;
-import java.io.File;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -49,7 +48,7 @@ public class OfferService {
   private final SellerService sellerService;
   private final Paginator paginator;
   private final BucketComponent bucketComponent;
-  private final FilenameSanitizer filenameSanitizer;
+  private final ImageUploader imageUploader;
 
   @Transactional
   public Offer createOffer(String demandId, String description, RestPartInfo restPartInfo) {
@@ -274,35 +273,7 @@ public class OfferService {
 
   @SneakyThrows
   private List<String> uploadPartInfoImages(RestPartInfo restPartInfo) {
-    if (restPartInfo.images() == null || restPartInfo.images().isEmpty()) {
-      log.debug("No part info images to upload");
-      return new ArrayList<>();
-    }
-
-    log.info("Uploading {} part info images to bucket", restPartInfo.images().size());
-    var bucketKeys = new ArrayList<String>();
-
-    for (var image : restPartInfo.images()) {
-      var originalFilename = image.getOriginalFilename();
-      var sanitizedFilename =
-          filenameSanitizer.apply(originalFilename != null ? originalFilename : "part-info-image");
-      var bucketKey = PART_INFO_BUCKET_PREFIX + randomUUID() + "-" + sanitizedFilename;
-
-      var tempFile = File.createTempFile("part-info-", "-" + sanitizedFilename);
-      try {
-        image.transferTo(tempFile);
-        bucketComponent.upload(tempFile, bucketKey);
-        bucketKeys.add(bucketKey);
-        log.debug("Successfully uploaded part info image: {}", forJava(bucketKey));
-      } finally {
-        if (tempFile.exists() && !tempFile.delete()) {
-          log.warn("Failed to delete temporary file: {}", forJava(tempFile.getAbsolutePath()));
-        }
-      }
-    }
-
-    log.info("Successfully uploaded {} part info images", bucketKeys.size());
-    return bucketKeys;
+    return imageUploader.apply(restPartInfo.images(), PART_INFO_BUCKET_PREFIX);
   }
 
   private Offer buildNewOffer(

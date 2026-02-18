@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -25,16 +24,14 @@ import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
+import com.devikapps.vaikaparts.service.util.ImageUploader;
 import com.devikapps.vaikaparts.service.util.Paginator;
-import java.net.URI;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import lombok.val;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,7 +42,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.mock.web.MockMultipartFile;
 
 @ExtendWith(MockitoExtension.class)
 class DemandServiceTest {
@@ -67,6 +63,7 @@ class DemandServiceTest {
   @Mock private Paginator paginator;
 
   @Mock private FilenameSanitizer filenameSanitizer;
+  @Mock private ImageUploader imageUploader;
 
   @InjectMocks private DemandService demandService;
 
@@ -101,40 +98,6 @@ class DemandServiceTest {
     assertEquals(PostStatus.DRAFT, result.getStatus());
     verify(demandRepository, times(1)).save(any(JDemand.class));
     verify(researcherService, times(1)).getCurrentResearcher();
-  }
-
-  @Test
-  void should_create_demand_with_multiple_images() throws Exception {
-    val imageFile1 =
-        new MockMultipartFile("image1", "img1.jpg", "image/jpeg", "content1".getBytes());
-    val imageFile2 =
-        new MockMultipartFile("image2", "img2.jpg", "image/jpeg", "content2".getBytes());
-    val imageFile3 =
-        new MockMultipartFile("image3", "img3.jpg", "image/jpeg", "content3".getBytes());
-
-    val restPartWithImages =
-        new RestPart(
-            TEST_PART_NAME,
-            TEST_CAR_BRAND,
-            TEST_CAR_MODEL,
-            Year.of(TEST_CAR_YEAR),
-            List.of(imageFile1, imageFile2, imageFile3),
-            PartCategory.FOG_LIGHTS);
-
-    when(researcherService.getCurrentResearcher()).thenReturn(testResearcher);
-    when(bucketComponent.presign(anyString(), any(Duration.class)))
-        .thenReturn(URI.create("https://bucket.com/image1.jpg").toURL())
-        .thenReturn(URI.create("https://bucket.com/image2.jpg").toURL())
-        .thenReturn(URI.create("https://bucket.com/image3.jpg").toURL());
-    when(demandMapper.toPersistence(any(Demand.class))).thenReturn(testJDemand);
-    when(demandRepository.save(any(JDemand.class))).thenReturn(testJDemand);
-    when(demandMapper.toDomain(testJDemand)).thenReturn(testDemand);
-
-    Demand result = demandService.createDemand(TEST_DESCRIPTION, restPartWithImages);
-
-    assertNotNull(result);
-    verify(bucketComponent, times(3)).upload(any(), anyString());
-    verify(bucketComponent, times(3)).presign(anyString(), any(Duration.class));
   }
 
   @Test

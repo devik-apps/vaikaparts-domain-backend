@@ -56,7 +56,7 @@ public class ApiExceptionHandler {
   @ExceptionHandler(ResourceNotFoundException.class)
   public ResponseEntity<ErrorResponse> handleResourceNotFoundException(
       ResourceNotFoundException ex, WebRequest req) {
-    log.warn("Resource not found exception is triggered at {}", getRequestPath(req));
+    log.warn("Resource not found exception is triggered at {}", forJava(getRequestPath(req)));
 
     var err =
         ErrorResponse.of(
@@ -68,7 +68,7 @@ public class ApiExceptionHandler {
   @ExceptionHandler(IllegalStateException.class)
   public ResponseEntity<ErrorResponse> handleIllegalStateException(
       IllegalStateException ex, WebRequest request) {
-    log.error("IllegalStateException triggered by user at {}", getRequestPath(request));
+    log.error("IllegalStateException triggered by user at {}", forJava(getRequestPath(request)));
     var err =
         ErrorResponse.of(
             HttpStatus.BAD_REQUEST, ex.getMessage(), getRequestPath(request), "ILLEGAL_STATE");

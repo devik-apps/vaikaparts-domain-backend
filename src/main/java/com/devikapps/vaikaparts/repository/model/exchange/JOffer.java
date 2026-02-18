@@ -1,5 +1,7 @@
 package com.devikapps.vaikaparts.repository.model.exchange;
 
+import static java.lang.String.format;
+
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import jakarta.persistence.CascadeType;
@@ -75,4 +77,35 @@ public class JOffer {
       orphanRemoval = true,
       fetch = FetchType.LAZY)
   private JPartInfo partInfo;
+
+  @Override
+  public String toString() {
+    return format(
+        """
+        JOffer={
+        \tid=%s,
+        \tdescription=%s,
+        \tattachedPhotos=%s,
+        \tstatus=%s,
+        \tcreatedAt=%s,
+        \tupdatedAt=%s,
+        \tsuspendedAt=%s,
+        \tcanceledAt=%s,
+        \t%s,
+        \t%s,
+        \t%s
+        }\
+        """,
+        getId(),
+        getDescription(),
+        attachedPhotoBucketKeys,
+        getStatus(),
+        getCreatedAt(),
+        getUpdatedAt(),
+        getSuspendedAt(),
+        getCanceledAt(),
+        seller,
+        partInfo,
+        demand);
+  }
 }

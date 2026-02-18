@@ -1,5 +1,7 @@
 package com.devikapps.vaikaparts.repository.model.exchange;
 
+import static java.lang.String.format;
+
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import jakarta.persistence.CascadeType;
@@ -76,4 +78,33 @@ public class JDemand {
 
   @OneToMany(mappedBy = "demand", fetch = FetchType.LAZY)
   private List<JOffer> offers = new ArrayList<>();
+
+  @Override
+  public String toString() {
+    return format(
+        """
+        JDemand={
+        \tid=%s,
+        \tdescription=%s,
+        \tattachedPhotos=%s,
+        \tstatus=%s,
+        \tcreatedAt=%s,
+        \tupdatedAt=%s,
+        \tsuspendedAt=%s,
+        \tcanceledAt=%s,
+        \t%s,
+        \t%s
+        }\
+        """,
+        getId(),
+        getDescription(),
+        attachedPhotoBucketKeys,
+        getStatus(),
+        getCreatedAt(),
+        getUpdatedAt(),
+        getSuspendedAt(),
+        getCanceledAt(),
+        researcher,
+        part);
+  }
 }

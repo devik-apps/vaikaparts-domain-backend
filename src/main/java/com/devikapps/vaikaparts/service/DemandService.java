@@ -7,7 +7,6 @@ import static org.owasp.encoder.Encode.forJava;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPart;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
-import com.devikapps.vaikaparts.file.FilenameSanitizer;
 import com.devikapps.vaikaparts.mapper.exchange.DemandMapper;
 import com.devikapps.vaikaparts.mapper.exchange.OfferMapper;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
@@ -19,8 +18,8 @@ import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
+import com.devikapps.vaikaparts.service.util.ImageUploader;
 import com.devikapps.vaikaparts.service.util.Paginator;
-import java.io.File;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -49,7 +48,7 @@ public class DemandService {
   private final OfferRepository offerRepository;
   private final Paginator paginator;
   private final BucketComponent bucketComponent;
-  private final FilenameSanitizer filenameSanitizer;
+  private final ImageUploader imageUploader;
 
   @Transactional
   public Demand createDemand(String description, RestPart restPart) {
@@ -85,7 +84,7 @@ public class DemandService {
         PageRequest.of(
             pagination.get("page"), pagination.get("size"), Sort.by("createdAt").descending());
 
-    Page<JOffer> jOffers = offerRepository.findByDemandId(demandId, pageable);
+    Page<JOffer> jOffers = offerRepository.findByDemandId(jDemand.getId(), pageable);
 
     log.info("Found {} offers for demand {}", jOffers.getTotalElements(), forJava(demandId));
 
@@ -228,38 +227,7 @@ public class DemandService {
 
   @SneakyThrows
   private List<String> uploadPartImages(RestPart restPart) {
-    if (restPart.images() == null || restPart.images().isEmpty()) {
-      log.debug("No part images to upload");
-      return new ArrayList<>();
-    }
-
-    log.info("Uploading {} part images to bucket", restPart.images().size());
-
-    var bucketKeys = new ArrayList<String>();
-
-    for (var image : restPart.images()) {
-      var originalFilename = image.getOriginalFilename();
-      var sanitizedFilename =
-          filenameSanitizer.apply(originalFilename != null ? originalFilename : "part-image");
-      var bucketKey = PARTS_BUCKET_PREFIX + randomUUID() + "-" + sanitizedFilename;
-
-      log.debug("Uploading part image to bucket: key={}", forJava(bucketKey));
-
-      var tempFile = File.createTempFile("part-", "-" + sanitizedFilename);
-      try {
-        image.transferTo(tempFile);
-        bucketComponent.upload(tempFile, bucketKey);
-        bucketKeys.add(bucketKey);
-        log.debug("Successfully uploaded part image: {}", forJava(bucketKey));
-      } finally {
-        if (tempFile.exists() && !tempFile.delete()) {
-          log.warn("Failed to delete temporary file: {}", forJava(tempFile.getAbsolutePath()));
-        }
-      }
-    }
-
-    log.info("Successfully uploaded {} part images", bucketKeys.size());
-    return bucketKeys;
+    return imageUploader.apply(restPart.images(), PARTS_BUCKET_PREFIX);
   }
 
   private Part buildPartFromRestPart(RestPart restPart, List<String> imageBucketKeys) {
