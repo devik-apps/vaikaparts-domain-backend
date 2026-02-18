@@ -26,5 +26,6 @@ public interface DemandMapper {
   }
 
   @Mapping(target = "attachedPhotoBucketKeys", ignore = true)
+  @Mapping(target = "offers", ignore = true)
   JDemand toPersistence(Demand demand);
 }
