@@ -1,4 +1,4 @@
-package com.devikapps.vaikaparts.endpoint.rest.controller;
+package com.devikapps.vaikaparts.endpoint.rest.controller.user;
 
 import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.service.SellerService;
@@ -13,17 +13,17 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/sellers")
 @RequiredArgsConstructor
 public class SellerController {
-  private final SellerService ss;
-
-  @GetMapping
-  public Seller getCurrentSeller() {
-    return ss.getCurrentSeller();
-  }
+  private final SellerService sellerService;
 
   @GetMapping("/me")
+  public Seller getCurrentSeller() {
+    return sellerService.getCurrentSeller();
+  }
+
+  @GetMapping
   public Page<Seller> getSellers(
       @RequestParam(name = "page", required = false) Integer page,
       @RequestParam(name = "size", required = false) Integer size) {
-    return ss.getSellers(page, size);
+    return sellerService.getSellers(page, size);
   }
 }

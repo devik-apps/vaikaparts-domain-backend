@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.devikapps.vaikaparts.conf.FacadeIT;
 import com.devikapps.vaikaparts.exception.UserNotFoundException;
-import com.devikapps.vaikaparts.mapper.user.ValueObjectMapper;
+import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
 import com.devikapps.vaikaparts.model.Location;
 import com.devikapps.vaikaparts.model.classifier.City;
 import com.devikapps.vaikaparts.model.classifier.ManagerRole;
@@ -202,7 +202,7 @@ class UserServiceIT extends FacadeIT {
     val photoUrl = userService.uploadProfilePhoto(photo);
 
     assertNotNull(photoUrl);
-    assertTrue(photoUrl.contains("X-Amz"));
+    assertTrue(photoUrl.toString().contains("X-Amz"));
   }
 
   @Test
@@ -233,6 +233,7 @@ class UserServiceIT extends FacadeIT {
   }
 
   private byte[] createMockImageBytes() {
+    //noinspection OctalInteger
     return new byte[] {
       (byte) 0x89,
       0x50,

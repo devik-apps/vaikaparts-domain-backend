@@ -57,6 +57,7 @@ exclude:
   - name: CodeStyleInspection
   - name: RedundantModifierInspection
   - name: UnnecessarySemicolonInspection
+  - name: OctalInteger
   - name: SpellCheckingInspection
 failureConditions:
   severityThresholds:

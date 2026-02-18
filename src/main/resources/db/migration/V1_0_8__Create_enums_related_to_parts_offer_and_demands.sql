@@ -1,0 +1,3 @@
+CREATE TYPE post_status AS ENUM ('DRAFT', 'PUBLISHED', 'SUSPENDED', 'PENDING', 'CANCELED');
+
+CREATE TYPE part_condition AS ENUM ('NEW', 'USED');

@@ -5,10 +5,12 @@ import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.file.TempFileManager;
+import com.devikapps.vaikaparts.mapper.ImageUrlMapper;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.model.user.JUser;
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.time.LocalDateTime;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +24,8 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class ProfilePhotoService {
 
-  private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+  public static final int ONE_MEGABYTE = 1_024;
+  private static final long MAX_FILE_SIZE = 5_242_880L; // 5 MB
   private static final Set<String> ALLOWED_CONTENT_TYPES =
       Set.of(
           "image/jpeg",
@@ -36,10 +39,10 @@ public class ProfilePhotoService {
   private final BucketComponent bucketComponent;
   private final UserRepository userRepository;
   private final TempFileManager tempFileManager;
-  private final ProfilePhotoUrlService profilePhotoUrlService;
+  private final ImageUrlMapper profilePhotoUrlService;
 
   @Transactional
-  public String uploadPhoto(JUser user, MultipartFile photo) {
+  public URL uploadPhoto(JUser user, MultipartFile photo) {
     validatePhoto(photo);
 
     var oldPhotoKey = user.getProfileImgKey();
@@ -97,7 +100,7 @@ public class ProfilePhotoService {
     if (photo.getSize() > MAX_FILE_SIZE) {
       log.warn("Photo upload rejected: size {} exceeds limit {}", photo.getSize(), MAX_FILE_SIZE);
       throw new IllegalArgumentException(
-          format("Photo size exceeds limit of %d MB", MAX_FILE_SIZE / 1024 / 1024));
+          format("Photo size exceeds limit of %d MB", MAX_FILE_SIZE / ONE_MEGABYTE / ONE_MEGABYTE));
     }
 
     String contentType = photo.getContentType();

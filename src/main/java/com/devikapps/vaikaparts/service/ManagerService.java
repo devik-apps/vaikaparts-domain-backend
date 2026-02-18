@@ -1,6 +1,6 @@
 package com.devikapps.vaikaparts.service;
 
-import com.devikapps.vaikaparts.mapper.user.UserMapper;
+import com.devikapps.vaikaparts.mapper.user.ManagerMapper;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.user.Manager;
 import com.devikapps.vaikaparts.repository.model.user.JManager;
@@ -13,15 +13,17 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class ManagerService {
-  private final UserService us;
-  private final UserMapper um;
+  private final UserService userService;
+  private final ManagerMapper managerMapper;
 
   public Manager getCurrent() {
     log.info("Retrieving current active manager");
-    return um.toManager(us.getCurrentManager());
+    return managerMapper.toManager(userService.getCurrentManager());
   }
 
   public Page<Manager> getManagers(Integer page, Integer size) {
-    return us.getJUsers(page, size, UserType.MANAGER).map(u -> um.toManager((JManager) u));
+    return userService
+        .getJUsers(page, size, UserType.MANAGER)
+        .map(u -> managerMapper.toManager((JManager) u));
   }
 }

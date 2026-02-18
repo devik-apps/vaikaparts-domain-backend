@@ -2,7 +2,7 @@ package com.devikapps.vaikaparts.service;
 
 import static com.devikapps.vaikaparts.model.classifier.UserType.SELLER;
 
-import com.devikapps.vaikaparts.mapper.user.UserMapper;
+import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import lombok.RequiredArgsConstructor;
@@ -14,15 +14,15 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class SellerService {
-  private final UserService us;
-  private final UserMapper um;
+  private final UserService userService;
+  private final SellerMapper sellerMapper;
 
   public Seller getCurrentSeller() {
     log.info("Retrieving current active seller");
-    return um.toSeller(us.getCurrentSeller());
+    return sellerMapper.toSeller(userService.getCurrentSeller());
   }
 
   public Page<Seller> getSellers(Integer page, Integer size) {
-    return us.getJUsers(page, size, SELLER).map(u -> um.toSeller((JSeller) u));
+    return userService.getJUsers(page, size, SELLER).map(u -> sellerMapper.toSeller((JSeller) u));
   }
 }

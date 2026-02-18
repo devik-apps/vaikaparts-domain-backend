@@ -16,6 +16,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashSet;
@@ -373,16 +374,14 @@ public class FileZipManager {
     String[] pathParts = entryName.split(UNIX_PATH_SEPARATOR);
 
     for (int i = 0; i < pathParts.length - 1; i++) {
-      StringBuilder currentPath = new StringBuilder();
-      for (int j = 0; j <= i; j++) {
-        if (j > 0) currentPath.append(UNIX_PATH_SEPARATOR);
-
-        currentPath.append(pathParts[j]);
-      }
-      String dirPath = currentPath + UNIX_PATH_SEPARATOR;
-
+      String dirPath = buildDirectoryPath(pathParts, i);
       if (addedDirectories.add(dirPath)) addDirectoryEntry(zos, dirPath);
     }
+  }
+
+  private String buildDirectoryPath(String[] pathParts, int depth) {
+    return String.join(UNIX_PATH_SEPARATOR, Arrays.copyOfRange(pathParts, 0, depth + 1))
+        + UNIX_PATH_SEPARATOR;
   }
 
   private String calculateEntryName(Path filePath, Path basePath) {
@@ -417,7 +416,7 @@ public class FileZipManager {
     @Getter private final Path targetPath;
     @Getter private final Set<String> extractedPaths = new HashSet<>();
     @Getter private final AtomicLong totalDecompressedSize = new AtomicLong(0);
-    @Getter private int entryCount = 0;
+    @Getter private int entryCount;
 
     ExtractionContext(Path targetPath) {
       this.targetPath = targetPath;

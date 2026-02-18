@@ -5,7 +5,9 @@ import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.config.sec.SecContextUtil;
 import com.devikapps.vaikaparts.exception.UserNotFoundException;
-import com.devikapps.vaikaparts.mapper.user.UserMapper;
+import com.devikapps.vaikaparts.mapper.user.ManagerMapper;
+import com.devikapps.vaikaparts.mapper.user.ResearcherMapper;
+import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.user.User;
 import com.devikapps.vaikaparts.repository.UserRepository;
@@ -14,6 +16,7 @@ import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.repository.model.user.JUser;
 import com.devikapps.vaikaparts.service.util.Paginator;
+import java.net.URL;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -31,7 +34,9 @@ public class UserService {
 
   private final UserRepository userRepository;
   private final ProfilePhotoService profilePhotoService;
-  private final UserMapper um;
+  private final SellerMapper sellerMapper;
+  private final ResearcherMapper researcherMapper;
+  private final ManagerMapper managerMapper;
   private final Paginator paginator;
 
   @Transactional(readOnly = true)
@@ -55,14 +60,14 @@ public class UserService {
     log.info("Fetch user with id : {}", forJava(user.getId()));
 
     return switch (user.getUserType()) {
-      case RESEARCHER -> um.toResearcher((JResearcher) user);
-      case SELLER -> um.toSeller((JSeller) user);
-      case MANAGER -> um.toManager((JManager) user);
+      case RESEARCHER -> researcherMapper.toResearcher((JResearcher) user);
+      case SELLER -> sellerMapper.toSeller((JSeller) user);
+      case MANAGER -> managerMapper.toManager((JManager) user);
     };
   }
 
   @Transactional
-  public String uploadProfilePhoto(MultipartFile photo) {
+  public URL uploadProfilePhoto(MultipartFile photo) {
     var user = getCurrentUser();
     log.info("Upload user profile image for user with id : {}", forJava(user.getId()));
     return profilePhotoService.uploadPhoto(user, photo);

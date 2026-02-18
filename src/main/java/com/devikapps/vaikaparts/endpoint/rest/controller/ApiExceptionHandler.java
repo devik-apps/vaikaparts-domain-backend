@@ -6,6 +6,7 @@ import static org.owasp.encoder.Encode.forJava;
 import com.devikapps.vaikaparts.InfraGenerated;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ErrorResponse;
 import com.devikapps.vaikaparts.exception.MissingAuthorizationException;
+import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.exception.UserNotFoundException;
 import com.devikapps.vaikaparts.exception.bucket.BucketHealthCheckException;
 import com.devikapps.vaikaparts.exception.bucket.BucketOperationException;
@@ -51,6 +52,28 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 @RequiredArgsConstructor
 @InfraGenerated
 public class ApiExceptionHandler {
+
+  @ExceptionHandler(ResourceNotFoundException.class)
+  public ResponseEntity<ErrorResponse> handleResourceNotFoundException(
+      ResourceNotFoundException ex, WebRequest req) {
+    log.warn("Resource not found exception is triggered at {}", forJava(getRequestPath(req)));
+
+    var err =
+        ErrorResponse.of(
+            HttpStatus.NOT_FOUND, ex.getMessage(), getRequestPath(req), "RESOURCE_NOT_FOUND");
+
+    return new ResponseEntity<>(err, HttpStatus.NOT_FOUND);
+  }
+
+  @ExceptionHandler(IllegalStateException.class)
+  public ResponseEntity<ErrorResponse> handleIllegalStateException(
+      IllegalStateException ex, WebRequest request) {
+    log.error("IllegalStateException triggered by user at {}", forJava(getRequestPath(request)));
+    var err =
+        ErrorResponse.of(
+            HttpStatus.BAD_REQUEST, ex.getMessage(), getRequestPath(request), "ILLEGAL_STATE");
+    return new ResponseEntity<>(err, HttpStatus.BAD_REQUEST);
+  }
 
   @ExceptionHandler(MissingServletRequestParameterException.class)
   public ResponseEntity<ErrorResponse> handleMissingServletRequestParameter(
@@ -232,7 +255,7 @@ public class ApiExceptionHandler {
             .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
             .collect(Collectors.joining(", "));
 
-    log.warn(
+    log.error(
         "Constraint violation at path: {}, violations: {}",
         forJava(getRequestPath(request)),
         forJava(message));
@@ -283,7 +306,7 @@ public class ApiExceptionHandler {
   public ResponseEntity<ErrorResponse> handleAuthorizationDeniedException(
       AuthorizationDeniedException ex, WebRequest request) {
 
-    log.warn(
+    log.error(
         "Authorization denied at path: {}, reason: {}",
         forJava(getRequestPath(request)),
         forJava(ex.getMessage()));
@@ -318,7 +341,7 @@ public class ApiExceptionHandler {
       }
     }
 
-    log.warn(
+    log.error(
         "Data integrity violation at path: {}, error code: {}, root cause: {}",
         forJava(getRequestPath(request)),
         forJava(errorCode),
@@ -354,7 +377,7 @@ public class ApiExceptionHandler {
   public ResponseEntity<ErrorResponse> handleEntityNotFoundException(
       EntityNotFoundException ex, WebRequest request) {
 
-    log.warn(
+    log.error(
         "Entity not found at path: {}, reason: {}",
         forJava(getRequestPath(request)),
         forJava(ex.getMessage()));
@@ -375,7 +398,7 @@ public class ApiExceptionHandler {
             .map(FieldError::getDefaultMessage)
             .orElse("Validation failed");
 
-    log.warn(
+    log.error(
         "Validation failed at path: {}, message: {}",
         forJava(getRequestPath(request)),
         forJava(message));
@@ -390,7 +413,7 @@ public class ApiExceptionHandler {
   public ResponseEntity<ErrorResponse> handleMissingAuthorization(
       MissingAuthorizationException ex, WebRequest request) {
 
-    log.warn(
+    log.error(
         "Missing authorization at path: {}, reason: {}",
         forJava(getRequestPath(request)),
         forJava(ex.getMessage()));
@@ -426,7 +449,7 @@ public class ApiExceptionHandler {
   public ResponseEntity<ErrorResponse> handleHandlerMethodValidationException(
       HandlerMethodValidationException ex, WebRequest request) {
 
-    log.warn(
+    log.error(
         "Handler method validation failed at path: {}, message: {}",
         forJava(getRequestPath(request)),
         forJava(ex.getMessage()));

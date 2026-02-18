@@ -2,7 +2,7 @@ package com.devikapps.vaikaparts.service;
 
 import static com.devikapps.vaikaparts.model.classifier.UserType.RESEARCHER;
 
-import com.devikapps.vaikaparts.mapper.user.UserMapper;
+import com.devikapps.vaikaparts.mapper.user.ResearcherMapper;
 import com.devikapps.vaikaparts.model.user.Researcher;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import lombok.RequiredArgsConstructor;
@@ -14,15 +14,17 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @RequiredArgsConstructor
 public class ResearcherService {
-  private final UserService us;
-  private final UserMapper um;
+  private final UserService userService;
+  private final ResearcherMapper researcherMapper;
 
   public Researcher getCurrentResearcher() {
     log.info("Retrieving current active researcher");
-    return um.toResearcher(us.getCurrentResearcher());
+    return researcherMapper.toResearcher(userService.getCurrentResearcher());
   }
 
   public Page<Researcher> getResearchers(Integer page, Integer size) {
-    return us.getJUsers(page, size, RESEARCHER).map(u -> um.toResearcher((JResearcher) u));
+    return userService
+        .getJUsers(page, size, RESEARCHER)
+        .map(u -> researcherMapper.toResearcher((JResearcher) u));
   }
 }

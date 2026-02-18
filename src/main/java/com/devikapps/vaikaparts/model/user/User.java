@@ -4,6 +4,7 @@ import static java.lang.String.format;
 
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
+import java.net.URL;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -22,8 +23,9 @@ public abstract sealed class User permits Researcher, Seller, Manager {
   private String id;
   private String supabaseUserId;
   private String name;
+  private String email;
   private String phoneNumber;
-  private String profileImgUrl;
+  private URL profileImgUrl;
   private UserType userType;
   private UserStatus status;
   private LocalDateTime createdAt;
@@ -37,6 +39,7 @@ public abstract sealed class User permits Researcher, Seller, Manager {
         \tid=%s,
         \tsupabaseUserId=%s,
         \tname=%s,
+        \temail=%s,
         \tphoneNumber=%s,
         \tprofileImgUrl=%s,
         \tuserType=%s,
@@ -48,6 +51,7 @@ public abstract sealed class User permits Researcher, Seller, Manager {
         id,
         supabaseUserId,
         name,
+        email,
         phoneNumber,
         profileImgUrl,
         userType,

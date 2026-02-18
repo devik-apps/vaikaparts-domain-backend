@@ -1,4 +1,4 @@
-package com.devikapps.vaikaparts.endpoint.rest.controller.model;
+package com.devikapps.vaikaparts.endpoint.rest.controller.model.user;
 
 import static java.lang.String.format;
 import static org.owasp.encoder.Encode.forJava;

@@ -35,7 +35,7 @@ public class SecurityConf {
   private static final String ANY_SUBPATH = "/**";
   private static final String V_3_API_DOCS = "/v3/api-docs/**";
   private static final String V_3_API_DOCS_YAML = "/v3/api-docs.yaml";
-  private static final String SPB_WEBHOOK = "/webhooks/**";
+  private static final String SPB_WEBHOOK = "/v1/webhooks/**";
 
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
 

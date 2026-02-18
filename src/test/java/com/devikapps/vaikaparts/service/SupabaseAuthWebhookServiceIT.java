@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.devikapps.vaikaparts.conf.FacadeIT;
 import com.devikapps.vaikaparts.config.SupabaseConf;
-import com.devikapps.vaikaparts.mapper.user.ValueObjectMapper;
+import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
 import com.devikapps.vaikaparts.model.Location;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
@@ -49,8 +49,8 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
         supabaseAuthWebhookService.handleAuthWebhook(payload, supabaseConf.getWebhookSecret());
 
     assertEquals("Webhook processed successfully", response.get("message"));
-    assertEquals(TEST_SUPABASE_USER_ID, response.get("userId"));
-    assertEquals("INSERT", response.get("eventType"));
+    assertEquals(TEST_SUPABASE_USER_ID, response.get("user_id"));
+    assertEquals("INSERT", response.get("event_type"));
 
     var savedUser = userRepository.findBySupabaseUserId(TEST_SUPABASE_USER_ID);
     assertTrue(savedUser.isPresent());

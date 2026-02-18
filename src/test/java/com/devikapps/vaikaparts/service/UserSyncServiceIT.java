@@ -8,8 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.devikapps.vaikaparts.conf.FacadeIT;
-import com.devikapps.vaikaparts.endpoint.rest.controller.model.ProfileRecord;
-import com.devikapps.vaikaparts.endpoint.rest.controller.model.SupabaseWebhook;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.user.ProfileRecord;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.user.SupabaseWebhook;
 import com.devikapps.vaikaparts.model.classifier.ManagerRole;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;

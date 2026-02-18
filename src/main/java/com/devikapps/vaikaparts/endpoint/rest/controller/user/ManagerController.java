@@ -1,7 +1,7 @@
-package com.devikapps.vaikaparts.endpoint.rest.controller;
+package com.devikapps.vaikaparts.endpoint.rest.controller.user;
 
-import com.devikapps.vaikaparts.model.user.Researcher;
-import com.devikapps.vaikaparts.service.ResearcherService;
+import com.devikapps.vaikaparts.model.user.Manager;
+import com.devikapps.vaikaparts.service.ManagerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,20 +10,20 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/researchers")
+@RequestMapping("/managers")
 @RequiredArgsConstructor
-public class ResearcherController {
-  private final ResearcherService rs;
+public class ManagerController {
+  private final ManagerService ms;
 
   @GetMapping("/me")
-  public Researcher getCurrentResearcher() {
-    return rs.getCurrentResearcher();
+  public Manager getCurrentManager() {
+    return ms.getCurrent();
   }
 
   @GetMapping
-  public Page<Researcher> getResearchers(
+  public Page<Manager> getManagers(
       @RequestParam(name = "page", required = false) Integer page,
       @RequestParam(name = "size", required = false) Integer size) {
-    return rs.getResearchers(page, size);
+    return ms.getManagers(page, size);
   }
 }

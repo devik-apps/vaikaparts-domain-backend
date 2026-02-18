@@ -1,6 +1,6 @@
-package com.devikapps.vaikaparts.endpoint.rest.controller;
+package com.devikapps.vaikaparts.endpoint.rest.controller.user;
 
-import com.devikapps.vaikaparts.endpoint.rest.controller.model.ProfilePhotoResponse;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.user.ProfilePhotoResponse;
 import com.devikapps.vaikaparts.model.user.User;
 import com.devikapps.vaikaparts.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +28,7 @@ public class UserController {
 
   @PostMapping("/me/profile-photo")
   public ProfilePhotoResponse uploadProfilePhoto(@RequestParam("photo") MultipartFile photo) {
-    String photoUrl = userService.uploadProfilePhoto(photo);
+    var photoUrl = userService.uploadProfilePhoto(photo);
     return new ProfilePhotoResponse(photoUrl);
   }
 
