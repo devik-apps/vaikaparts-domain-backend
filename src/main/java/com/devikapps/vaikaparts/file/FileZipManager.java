@@ -416,7 +416,7 @@ public class FileZipManager {
     @Getter private final Path targetPath;
     @Getter private final Set<String> extractedPaths = new HashSet<>();
     @Getter private final AtomicLong totalDecompressedSize = new AtomicLong(0);
-    @Getter private int entryCount = 0;
+    @Getter private int entryCount;
 
     ExtractionContext(Path targetPath) {
       this.targetPath = targetPath;

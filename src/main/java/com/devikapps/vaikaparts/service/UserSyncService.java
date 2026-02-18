@@ -5,8 +5,8 @@ import static java.time.LocalDateTime.ofInstant;
 import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
-import com.devikapps.vaikaparts.endpoint.rest.controller.model.ProfileRecord;
-import com.devikapps.vaikaparts.endpoint.rest.controller.model.SupabaseWebhook;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.user.ProfileRecord;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.user.SupabaseWebhook;
 import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
 import com.devikapps.vaikaparts.model.LatLon;
 import com.devikapps.vaikaparts.model.Location;

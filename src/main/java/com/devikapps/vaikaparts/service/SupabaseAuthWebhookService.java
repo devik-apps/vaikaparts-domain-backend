@@ -3,8 +3,8 @@ package com.devikapps.vaikaparts.service;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.config.SupabaseConf;
-import com.devikapps.vaikaparts.endpoint.rest.controller.model.SupabaseEventType;
-import com.devikapps.vaikaparts.endpoint.rest.controller.model.SupabaseWebhook;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.user.SupabaseEventType;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.user.SupabaseWebhook;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
@@ -80,7 +80,7 @@ public class SupabaseAuthWebhookService {
   private Map<String, String> buildSuccessResponse(String userId, String eventType) {
     return Map.of(
         "message", WEBHOOK_PROCESSED_MESSAGE,
-        "userId", userId,
-        "eventType", eventType);
+        "user_id", userId,
+        "event_type", eventType);
   }
 }

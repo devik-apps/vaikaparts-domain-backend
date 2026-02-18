@@ -1,6 +1,6 @@
 package com.devikapps.vaikaparts.endpoint.rest.controller.exchange;
 
-import com.devikapps.vaikaparts.endpoint.rest.controller.model.CreateOfferRequest;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.CreateOfferRequest;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.model.exchange.Offer;
 import com.devikapps.vaikaparts.service.OfferService;

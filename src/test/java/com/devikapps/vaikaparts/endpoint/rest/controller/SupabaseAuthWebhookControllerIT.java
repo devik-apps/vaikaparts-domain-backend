@@ -20,7 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 class SupabaseAuthWebhookControllerIT extends FacadeIT {
 
-  private static final String WEBHOOK_ENDPOINT = "/webhooks/spb/auth";
+  private static final String WEBHOOK_ENDPOINT = "/v1/webhooks/spb/auth";
   private static final String SIGNATURE_HEADER = "X-Webhook-Signature";
   private static final String TEST_SUPABASE_USER_ID = "550e8400-e29b-41d4-a716-446655440000";
   private static final String TEST_EMAIL = "test@example.com";
@@ -49,8 +49,8 @@ class SupabaseAuthWebhookControllerIT extends FacadeIT {
                 .content(payload))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.message").value("Webhook processed successfully"))
-        .andExpect(jsonPath("$.userId").value(TEST_SUPABASE_USER_ID))
-        .andExpect(jsonPath("$.eventType").value("INSERT"));
+        .andExpect(jsonPath("$.user_id").value(TEST_SUPABASE_USER_ID))
+        .andExpect(jsonPath("$.event_type").value("INSERT"));
   }
 
   @Test

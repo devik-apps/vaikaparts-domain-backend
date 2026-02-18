@@ -326,7 +326,7 @@ paths:
                   totalPages: 1
                   number: 0
                   size: 5
-  /webhooks/spb/auth:
+  /v1/webhooks/spb/auth:
     post:
       operationId: supabaseProfileWebhook
       tags: [Webhooks]
@@ -362,11 +362,11 @@ paths:
                   message:
                     type: string
                     example: Webhook processed successfully
-                  userId:
+                  user_id:
                     type: string
                     format: uuid
                     description: The VaikaParts user ID (same as Supabase profile ID)
-                  eventType:
+                  event_type:
                     type: string
                     enum: [INSERT, UPDATE, DELETE]
         '400':
@@ -443,7 +443,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  photoUrl:
+                  photo_url:
                     type: string
                     format: uri
                     description: S3 object URL for the uploaded photograph
@@ -460,45 +460,44 @@ paths:
           description: Profile photograph deleted successfully
   /researchers:
     get:
-      operationId: getAllResearchers
+      operationId: getResearchers
       tags: [Researchers]
       summary: List all Researcher profiles
       description: |
-        Retrieves a paginated list of all Researcher profiles in the system. This endpoint is restricted to users with manager-level permissions.
+        Returns a paginated list of all Researcher profiles in the system.
 
-        **Authorization**: Manager role required
+        **Authorization**: Manager role required.
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
-        - name: status
-          in: query
-          description: Filter by account status
-          schema:
-            $ref: '#/components/schemas/UserStatus'
       responses:
         '200':
-          description: Researcher list retrieved successfully
+          description: Researcher list retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResearcherPageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
   /researchers/me:
     get:
-      operationId: getMyResearcherProfile
+      operationId: getCurrentResearcher
       tags: [Researchers]
-      summary: Retrieve current Researcher profile
+      summary: Retrieve the currently authenticated Researcher profile
       description: Returns the complete profile of the currently authenticated Researcher.
       responses:
         '200':
-          description: Researcher profile retrieved successfully
+          description: Researcher profile retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Researcher'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Authenticated user is not a Researcher
+          description: Authenticated user is not a Researcher.
   /researchers/{researcherId}:
     get:
       operationId: getResearcherById
@@ -526,90 +525,50 @@ paths:
           $ref: '#/components/responses/NotFound'
         '403':
           $ref: '#/components/responses/Forbidden'
-  /sellers:
-    get:
-      operationId: getAllSellers
-      tags: [Sellers]
-      summary: List all seller profiles
-      description: |
-        Retrieves a paginated list of seller profiles. For unauthenticated requests or non-manager users, returns anonymized seller profiles with masked contact information. Manager users receive complete seller details.
-
-        **Public Access**: This endpoint does not require authentication
-      security: []
-      parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/SizeParam'
-        - name: status
-          in: query
-          description: Filter by account status
-          schema:
-            $ref: '#/components/schemas/UserStatus'
-        - name: location
-          in: query
-          description: Filter by city or region
-          schema:
-            type: string
-        - name: minRating
-          in: query
-          description: Minimum average rating threshold
-          schema:
-            type: number
-            minimum: 0
-            maximum: 5
-        - name: premiumOnly
-          in: query
-          description: Return only premium sellers
-          schema:
-            type: boolean
-            default: false
-      responses:
-        '200':
-          description: Seller list retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AnonymousSellerPageResponse'
   /sellers/me:
     get:
-      operationId: getMySellerProfile
+      operationId: getCurrentSeller
       tags: [Sellers]
-      summary: Retrieve current seller profile
-      description: Returns the complete profile of the currently authenticated seller with all contact details and statistics.
+      summary: Retrieve the currently authenticated Seller profile
+      description: |
+        Returns the complete profile of the currently authenticated Seller including
+        all contact details.
+
+        **Authorization**: Seller role required.
       responses:
         '200':
-          description: Seller profile retrieved successfully
+          description: Seller profile retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Seller'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Authenticated user is not a seller
-  /sellers/{sellerId}:
+          description: Authenticated user is not a Seller.
+  /sellers:
     get:
-      operationId: getSellerById
+      operationId: getSellers
       tags: [Sellers]
-      summary: Retrieve seller profile by ID
+      summary: List all Seller profiles
       description: |
-        Returns seller profile information for the specified UUID. Regular users receive an anonymized profile with masked contact information. Manager users receive complete details.
+        Returns a paginated list of all Seller profiles in the system.
 
-        **Public Access**: This endpoint does not require authentication
-      security: []
+        **Authorization**: Manager role required.
       parameters:
-        - name: sellerId
-          in: path
-          required: true
-          description: Unique identifier of the seller
-          schema:
-            $ref: '#/components/schemas/UUID'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
       responses:
         '200':
-          description: Seller profile retrieved successfully
+          description: Seller list retrieved successfully.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AnonymousSellerProfile'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: '#/components/schemas/SellerPageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /sellers/{sellerId}/statistics:
     get:
       operationId: getSellerStatistics
@@ -636,25 +595,47 @@ paths:
                 $ref: '#/components/schemas/SellerPublicStatistics'
         '404':
           $ref: '#/components/responses/NotFound'
+  /managers/me:
+    get:
+      operationId: getCurrentManager
+      tags: [Managers]
+      summary: Retrieve the currently authenticated Manager profile
+      description: |
+        Returns the complete profile of the currently authenticated Manager.
+
+        **Authorization**: Manager role required.
+      responses:
+        '200':
+          description: Manager profile retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Manager'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Authenticated user is not a Manager.
   /managers:
     get:
-      operationId: getAllManagers
+      operationId: getManagers
       tags: [Managers]
-      summary: List all manager accounts
+      summary: List all Manager profiles
       description: |
-        Retrieves a paginated list of all manager accounts in the system.
+        Returns a paginated list of all Manager profiles in the system.
 
-        **Authorization**: Admin role required
+        **Authorization**: Manager role required.
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
       responses:
         '200':
-          description: Manager list retrieved successfully
+          description: Manager list retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ManagerPageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
   /v1/demands:
@@ -749,261 +730,244 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-  /demands/{demandId}:
-    get:
-      operationId: getDemandById
+  /v1/demands/{demandId}/status:
+    patch:
+      operationId: updateDemandStatus
       tags: [Demands]
-      summary: Retrieve demand details
+      summary: Update the lifecycle status of a demand
       description: |
-        Returns detailed information for a specific demand. The level of detail varies by user role:
-        - **Demand owner**: Full details including Researcher information
-        - **Sellers**: Demand details with anonymized Researcher information
-        - **Managers**: Complete details including all Researcher information
+        Transitions the demand to a new lifecycle status. Only permitted
+        status transitions are accepted; invalid transitions return 400.
+
+        **Authorization**: Researcher role required.
       parameters:
         - name: demandId
           in: path
           required: true
-          description: Unique identifier of the demand
+          description: Unique identifier of the demand.
           schema:
-            $ref: '#/components/schemas/UUID'
+            type: string
+        - name: status
+          in: query
+          required: true
+          description: Target lifecycle status to apply to the demand.
+          schema:
+            $ref: '#/components/schemas/DemandStatus'
       responses:
         '200':
-          description: Demand retrieved successfully
+          description: Demand status updated successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Demand'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      operationId: deleteDemand
-      tags: [Demands]
-      summary: Cancel demand
-      description: |
-        Cancels an existing demand and notifies sellers who have submitted offers.
-
-        **Authorization**: Demand owner or manager role required
-      parameters:
-        - name: demandId
-          in: path
-          required: true
-          description: Unique identifier of the demand
-          schema:
-            $ref: '#/components/schemas/UUID'
-      responses:
-        '204':
-          description: Demand cancelled successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-  /demands/{demandId}/offers:
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/demands/{demandId}/offers:
     get:
       operationId: getOffersForDemand
       tags: [Demands, Offers]
-      summary: Retrieve offers for a demand
+      summary: Retrieve paginated offers submitted for a specific demand
       description: |
-        Returns all offers submitted for a specific demand. The level of detail varies by user role:
-        - **Researcher (demand owner)**: All offers with anonymized seller information
-        - **Seller**: Only their own offer with full details
-        - **Manager**: All offers with complete seller details
+        Returns a paginated list of all offers submitted in response to the
+        specified demand. Access is restricted to the demand owner.
+
+        **Authorization**: Researcher role required.
       parameters:
         - name: demandId
           in: path
           required: true
-          description: Unique identifier of the demand
-          schema:
-            $ref: '#/components/schemas/UUID'
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/SizeParam'
-        - name: sortBy
-          in: query
-          description: Sort offers by specified criterion
+          description: Unique identifier of the demand.
           schema:
             type: string
-            enum: [price_asc, price_desc, rating_desc, created_desc]
-            default: created_desc
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
       responses:
         '200':
-          description: Offer list retrieved successfully
+          description: Offer list retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OfferPageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-  /offers:
+  /v1/offers:
     post:
       operationId: createOffer
       tags: [Offers]
-      summary: Submit offer for demand
+      summary: Submit a new offer in response to a demand
       description: |
-        Creates a new offer in response to a Researcher's demand. The Researcher receives a notification and can view the offer with anonymized seller information until they complete a contact unlock transaction.
+        Creates a new offer on behalf of the authenticated seller. The request is
+        submitted as `multipart/form-data`. Part info fields are bound using Spring
+        dot-notation (`part_info.name`, `part_info.car_brand`, etc.). Images are
+        optional and bound under `part_info.images`; maximum 5 files per offer.
 
-        **Authorization**: Seller role required
+        **Authorization**: Seller role required.
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: '#/components/schemas/OfferCreateRequest'
+            encoding:
+              part_info.images:
+                contentType: image/jpeg, image/png, image/webp
       responses:
         '201':
-          description: Offer created successfully
+          description: Offer created successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Offer'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Only sellers may create offers
-  /offers/upload-images:
-    post:
-      operationId: uploadOfferImages
-      tags: [Offers, Storage]
-      summary: Upload offer attachment images
-      description: |
-        Uploads images to be associated with an offer. This endpoint should be called before creating the offer to obtain image URLs for inclusion in the offer creation request.
-
-        **File Requirements**:
-        - Formats: JPEG, PNG
-        - Maximum size: 5 MB per image
-        - Maximum count: 5 images per offer
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [images]
-              properties:
-                images:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
-                  maxItems: 5
-      responses:
-        '200':
-          description: Images uploaded successfully
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Demand not found.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  imageUrls:
-                    type: array
-                    items:
-                      type: string
-                      format: uri
-        '400':
-          description: Invalid file format, size, or count
-  /offers/my-offers:
+                $ref: '#/components/schemas/ErrorResponse'
     get:
-      operationId: getMyOffers
+      operationId: getSellerOffers
       tags: [Offers]
-      summary: Retrieve current seller's offers
+      summary: List offers submitted by the authenticated seller
       description: |
-        Returns a paginated list of offers submitted by the currently authenticated seller.
+        Returns a paginated list of offers submitted by the currently authenticated
+        seller. Results may be narrowed by lifecycle status.
 
-        **Authorization**: Seller role required
+        **Authorization**: Seller role required.
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
         - name: status
           in: query
-          description: Filter by offer status
+          required: false
+          description: Filter by offer lifecycle status. Omit to return all statuses.
           schema:
             $ref: '#/components/schemas/OfferStatus'
-        - name: demandId
-          in: query
-          description: Filter by specific demand
-          schema:
-            $ref: '#/components/schemas/UUID'
       responses:
         '200':
-          description: Offer list retrieved successfully
+          description: Offer list retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OfferPageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Authenticated user is not a seller
-  /offers/{offerId}:
+          $ref: '#/components/responses/Forbidden'
+  /v1/offers/{offerId}:
     get:
       operationId: getOfferById
       tags: [Offers]
-      summary: Retrieve offer details
+      summary: Retrieve an offer by its identifier
       description: |
-        Returns detailed information for a specific offer. The level of seller information disclosure depends on the requesting user's role and whether a contact unlock transaction has been completed:
-        - **Researcher (without unlock)**: Offer details with anonymized seller information
-        - **Researcher (with unlock)**: Offer details with complete seller contact information
-        - **Seller (offer owner)**: Full offer and seller details
-        - **Manager**: Complete details including all seller information
+        Returns the full detail view for a single offer. Access is restricted to
+        the owning seller — requests for offers belonging to another principal
+        return 404 to prevent information disclosure.
+
+        **Authorization**: Seller role required.
       parameters:
         - name: offerId
           in: path
           required: true
-          description: Unique identifier of the offer
+          description: Unique identifier of the offer.
           schema:
-            $ref: '#/components/schemas/UUID'
+            type: string
       responses:
         '200':
-          description: Offer retrieved successfully
+          description: Offer retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Offer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+  /v1/offers/{offerId}/status:
     patch:
-      operationId: updateOffer
+      operationId: updateOfferStatus
       tags: [Offers]
-      summary: Update offer details
+      summary: Update the lifecycle status of an offer
       description: |
-        Modifies editable fields of an existing offer including price, condition, description, and images.
+        Transitions the offer to a new lifecycle status. Only permitted
+        status transitions are accepted; invalid transitions return 400.
 
-        **Authorization**: Offer owner required
+        **Authorization**: Seller role required.
       parameters:
         - name: offerId
           in: path
           required: true
-          description: Unique identifier of the offer
+          description: Unique identifier of the offer.
           schema:
-            $ref: '#/components/schemas/UUID'
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OfferUpdateRequest'
+            type: string
+        - name: status
+          in: query
+          required: true
+          description: Target lifecycle status to apply to the offer.
+          schema:
+            $ref: '#/components/schemas/OfferStatus'
       responses:
         '200':
-          description: Offer updated successfully
+          description: Offer status updated successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Offer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-    delete:
-      operationId: withdrawOffer
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/offers/demand/{demandId}:
+    get:
+      operationId: getOffersByDemandId
       tags: [Offers]
-      summary: Withdraw offer
+      summary: Retrieve paginated offers associated with a specific demand
       description: |
-        Withdraws an existing offer and notifies the Researcher if the offer was still under consideration.
+        Returns a paginated list of offers submitted in response to the specified
+        demand, as visible to the authenticated seller.
 
-        **Authorization**: Offer owner or manager role required
+        **Authorization**: Seller role required.
       parameters:
-        - name: offerId
+        - name: demandId
           in: path
           required: true
-          description: Unique identifier of the offer
+          description: Unique identifier of the demand.
           schema:
-            $ref: '#/components/schemas/UUID'
+            type: string
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
       responses:
-        '204':
-          description: Offer withdrawn successfully
+        '200':
+          description: Offer list retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferPageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /contact-unlocks/initiate:
     post:
       operationId: initiateContactUnlock
@@ -1497,30 +1461,30 @@ components:
       example: "jane.doe@example.mg"
     Location:
       type: object
-      required: [city, region]
+      required: [city, region, address]
       description: Geographical location information
       properties:
         city:
           type: string
-          example: "Antananarivo"
+          example: "ANTANANARIVO"
         region:
           type: string
-          example: "Analamanga"
+          example: "ANALAMANGA"
         address:
           type: string
           description: Detailed street address
     LatLon:
       type: object
-      required: [latitude, longitude]
+      required: [lat, lon]
       description: Geographic coordinates
       properties:
-        latitude:
+        lat:
           type: number
           format: double
           minimum: -90
           maximum: 90
           example: -18.8792
-        longitude:
+        lon:
           type: number
           format: double
           minimum: -180
@@ -1528,7 +1492,7 @@ components:
           example: 47.5079
     UserType:
       type: string
-      enum: [Researcher, SELLER, MANAGER]
+      enum: [RESEARCHER, SELLER, MANAGER]
       description: User account type
     UserStatus:
       type: string
@@ -1723,78 +1687,69 @@ components:
           $ref: '#/components/schemas/DateTime'
     BaseUser:
       type: object
-      required: [id, supabaseUserId, name, phoneNumber, userType, status, createdAt]
+      required: [id, supabase_user_id, name, phone_number, user_type, status, created_at]
       description: Common user profile attributes
       properties:
         id:
           $ref: '#/components/schemas/UUID'
           description: VaikaParts internal user identifier
-        supabaseUserId:
+        supabase_user_id:
           type: string
           description: Supabase authentication system user identifier
         name:
           type: string
           description: Full name of the user
-        phoneNumber:
+        phone_number:
           $ref: '#/components/schemas/PhoneNumber'
         email:
           $ref: '#/components/schemas/EmailAddress'
-        profilePhotoUrl:
+        profile_img_url:
           type: string
           format: uri
           description: S3 object URL for profile photograph
-        userType:
+        user_type:
           $ref: '#/components/schemas/UserType'
         status:
           $ref: '#/components/schemas/UserStatus'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/DateTime'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/DateTime'
     Researcher:
       allOf:
         - $ref: '#/components/schemas/BaseUser'
         - type: object
           required: [location]
-          description: Researcher user profile with demand statistics
+          description: Researcher user profile
           properties:
             location:
               $ref: '#/components/schemas/Location'
-            totalDemands:
-              type: integer
-              description: Lifetime demand count
-            activeDemands:
-              type: integer
-              description: Currently active demand count
-            totalContactUnlocks:
-              type: integer
-              description: Total contact unlocks purchased
     Seller:
       allOf:
         - $ref: '#/components/schemas/BaseUser'
         - type: object
           required: [location]
-          description: Seller user profile with performance metrics
+          description: Seller user profile
           properties:
-            garageName:
+            garage_name:
               type: string
               description: Business or garage name
             location:
               $ref: '#/components/schemas/Location'
-            latLon:
+            lat_lon:
               $ref: '#/components/schemas/LatLon'
     AnonymousSellerProfile:
       type: object
-      required: [id, location, averageRating, memberSince]
+      required: [id, location, average_rating, member_since]
       description: Anonymized seller profile visible before contact unlock
       properties:
         id:
           $ref: '#/components/schemas/UUID'
-        maskedProfilePhotoUrl:
+        masked_profile_photo_url:
           type: string
           format: uri
           description: Blurred or placeholder profile photograph URL
-        garageName:
+        garage_name:
           type: string
           description: Business name (visible only for premium sellers)
           nullable: true
@@ -1807,26 +1762,26 @@ components:
               type: string
             region:
               type: string
-        averageRating:
+        average_rating:
           type: number
           format: float
-        totalRatings:
+        total_ratings:
           type: integer
-        successfulUnlocks:
+        successful_unlocks:
           type: integer
-        isPremium:
+        is_premium:
           type: boolean
           description: Premium subscription status
-        memberSince:
+        member_since:
           $ref: '#/components/schemas/DateTime'
     Manager:
       allOf:
         - $ref: '#/components/schemas/BaseUser'
         - type: object
-          required: [managerRole]
+          required: [role]
           description: Manager user profile with administrative permissions
           properties:
-            managerRole:
+            role:
               $ref: '#/components/schemas/ManagerRole'
     PartCategory:
       type: string
@@ -1920,29 +1875,29 @@ components:
     Part:
       type: object
       description: Automotive part being sought by the Researcher.
-      required: [name, carBrand, carModel, carYear, partCategory]
+      required: [name, car_brand, car_model, car_year, part_category]
       properties:
         name:
           type: string
           description: Descriptive name of the part.
           example: Headlight
-        carBrand:
+        car_brand:
           type: string
           description: Vehicle manufacturer.
           example: Toyota
-        carModel:
+        car_model:
           type: string
           description: Vehicle model designation.
           example: Corolla
-        carYear:
+        car_year:
           type: integer
           description: Four-digit model year of the vehicle.
           minimum: 1900
           maximum: 2100
           example: 2015
-        partCategory:
+        part_category:
           $ref: '#/components/schemas/PartCategory'
-        imageUrls:
+        image_urls:
           type: array
           description: >
             Publicly accessible URLs of reference photographs uploaded by the Researcher. Populated server-side after images are stored.
@@ -1955,7 +1910,7 @@ components:
     Demand:
       type: object
       description: A Researcher's request for a specific automotive part.
-      required: [id, researcher, part, status, createdAt]
+      required: [id, researcher, part, status, created_at]
       properties:
         id:
           $ref: '#/components/schemas/UUID'
@@ -1963,19 +1918,27 @@ components:
           type: string
           description: Additional context or specifications provided by the Researcher.
           example: Looking for headlight
+        attached_photos_urls:
+          type: array
+          description: URLs of photographs attached to the demand.
+          items:
+            type: string
+            format: uri
+          maxItems: 5
+          readOnly: true
         researcher:
           $ref: '#/components/schemas/Researcher'
         part:
           $ref: '#/components/schemas/Part'
         status:
           $ref: '#/components/schemas/DemandStatus'
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/DateTime'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/DateTime'
-        canceledAt:
+        canceled_at:
           $ref: '#/components/schemas/DateTime'
-        suspendedAt:
+        suspended_at:
           $ref: '#/components/schemas/DateTime'
     DemandCreateRequest:
       type: object
@@ -1994,29 +1957,29 @@ components:
     PartCreateRequest:
       type: object
       description: >
-        Part details submitted as part of the demand creation multipart request. Fields are bound using Spring dot-notation: `part.name`, `part.carBrand`, etc.
+        Part details submitted as part of the demand creation multipart request. Fields are bound using Spring dot-notation: `part.name`, `part.car_brand`, etc.
 
-      required: [name, carBrand, carModel, carYear, partCategory]
+      required: [name, car_brand, car_model, car_year, part_category]
       properties:
         name:
           type: string
           description: Descriptive name of the part.
           example: Headlight
-        carBrand:
+        car_brand:
           type: string
           description: Vehicle manufacturer.
           example: Toyota
-        carModel:
+        car_model:
           type: string
           description: Vehicle model designation.
           example: Corolla
-        carYear:
+        car_year:
           type: integer
           description: Four-digit model year of the vehicle.
           minimum: 1900
           maximum: 2100
           example: 2015
-        partCategory:
+        part_category:
           $ref: '#/components/schemas/PartCategory'
         images:
           type: array
@@ -2029,71 +1992,120 @@ components:
           maxItems: 5
     Offer:
       type: object
-      required: [id, demandId, sellerId, part, price, condition, status, createdAt]
-      description: Seller response to Researcher demand
+      required: [id, seller_id, parts_info, demand, status, created_at]
+      description: Seller response to a Researcher demand.
       properties:
         id:
           $ref: '#/components/schemas/UUID'
-        demandId:
-          $ref: '#/components/schemas/UUID'
-        sellerId:
-          $ref: '#/components/schemas/UUID'
-        sellerInfo:
-          oneOf:
-            - $ref: '#/components/schemas/AnonymousSellerProfile'
-            - $ref: '#/components/schemas/Seller'
-          description: Seller information with conditional disclosure based on unlock status
-        part:
-          $ref: '#/components/schemas/Part'
-        price:
-          type: number
-          format: double
-          description: Offered price in Malagasy Ariary
-        condition:
-          $ref: '#/components/schemas/PartCondition'
         description:
           type: string
-          description: Part condition details and additional information
+          description: Part condition details and additional information.
           maxLength: 1000
-        imageUrls:
+        attached_photos_urls:
           type: array
           items:
             type: string
             format: uri
-          description: Photographs of the actual part
+          description: Photographs of the actual part.
           maxItems: 5
+          readOnly: true
+        seller_id:
+          $ref: '#/components/schemas/UUID'
+        parts_info:
+          $ref: '#/components/schemas/PartInfo'
+        demand:
+          $ref: '#/components/schemas/Demand'
         status:
           $ref: '#/components/schemas/OfferStatus'
-        isUnlockedByResearcher:
-          type: boolean
-          description: Whether Researcher has paid to unlock this seller's contact
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/DateTime'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/DateTime'
-    OfferCreateRequest:
+        canceled_at:
+          $ref: '#/components/schemas/DateTime'
+        suspended_at:
+          $ref: '#/components/schemas/DateTime'
+    PartInfo:
       type: object
-      required: [demandId, part, price, condition]
-      description: Offer creation payload
+      description: Information about the part offered by the seller, including pricing and condition.
+      required: [id, part, price, condition]
       properties:
-        demandId:
+        id:
           $ref: '#/components/schemas/UUID'
         part:
           $ref: '#/components/schemas/Part'
+        description:
+          type: string
+          description: Additional details about the part condition.
+          maxLength: 1000
         price:
           type: number
           format: double
+          description: Offered price in Malagasy Ariary.
           minimum: 0
         condition:
           $ref: '#/components/schemas/PartCondition'
+    OfferCreateRequest:
+      type: object
+      required: [demand_id, description, part_info]
+      description: >
+        Payload for creating a new offer, submitted as multipart/form-data. Part info fields use Spring dot-notation binding (e.g. `part_info.name`, `part_info.images`).
+
+      properties:
+        demand_id:
+          type: string
+          description: Identifier of the demand this offer responds to.
+          example: "e6b5cc3e-eaaa-4cb3-912c-e059e983bb78"
         description:
           type: string
+          description: Additional context or condition details provided by the seller.
           maxLength: 1000
-        imageUrls:
+          example: Part is in excellent condition, tested before shipping.
+        part_info:
+          $ref: '#/components/schemas/PartInfoCreateRequest'
+    PartInfoCreateRequest:
+      type: object
+      description: >
+        Part information submitted as part of the offer creation multipart request. Fields are bound using Spring dot-notation: `part_info.name`, `part_info.car_brand`, etc.
+
+      required: [name, car_brand, car_model, car_year, part_category, condition, price]
+      properties:
+        name:
+          type: string
+          description: Descriptive name of the part.
+          example: Headlight
+        car_brand:
+          type: string
+          description: Vehicle manufacturer.
+          example: Toyota
+        car_model:
+          type: string
+          description: Vehicle model designation.
+          example: Corolla
+        car_year:
+          type: integer
+          description: Four-digit model year of the vehicle.
+          minimum: 1900
+          maximum: 2100
+          example: 2015
+        part_category:
+          $ref: '#/components/schemas/PartCategory'
+        condition:
+          $ref: '#/components/schemas/PartCondition'
+        price:
+          type: number
+          format: double
+          description: Offered price in Malagasy Ariary.
+          minimum: 0
+          example: 150000
+        images:
           type: array
+          description: >
+            Photographs of the offered part. Bound under the multipart field name `part_info.images`. Optional; maximum 5 files.
+
           items:
             type: string
-            format: uri
+            format: binary
           maxItems: 5
     OfferUpdateRequest:
       type: object
@@ -2107,7 +2119,7 @@ components:
         description:
           type: string
           maxLength: 1000
-        imageUrls:
+        image_urls:
           type: array
           items:
             type: string
@@ -2115,79 +2127,79 @@ components:
           maxItems: 5
     ContactUnlock:
       type: object
-      required: [id, demandId, offerId, ResearcherId, sellerId, status, contactFee, createdAt]
+      required: [id, demand_id, offer_id, researcher_id, seller_id, status, contact_fee, created_at]
       description: Contact information unlock transaction
       properties:
         id:
           $ref: '#/components/schemas/UUID'
-        demandId:
+        demand_id:
           $ref: '#/components/schemas/UUID'
-        offerId:
+        offer_id:
           $ref: '#/components/schemas/UUID'
-        ResearcherId:
+        researcher_id:
           $ref: '#/components/schemas/UUID'
-        sellerId:
+        seller_id:
           $ref: '#/components/schemas/UUID'
-        ResearcherContact:
+        researcher_contact:
           type: object
           description: Researcher contact details (revealed to seller after payment)
           nullable: true
           properties:
             name:
               type: string
-            phoneNumber:
+            phone_number:
               $ref: '#/components/schemas/PhoneNumber'
             email:
               $ref: '#/components/schemas/EmailAddress'
-            profilePhotoUrl:
+            profile_img_url:
               type: string
               format: uri
             location:
               $ref: '#/components/schemas/Location'
-        sellerContact:
+        seller_contact:
           type: object
           description: Seller contact details (revealed to Researcher after payment)
           nullable: true
           properties:
             name:
               type: string
-            phoneNumber:
+            phone_number:
               $ref: '#/components/schemas/PhoneNumber'
             email:
               $ref: '#/components/schemas/EmailAddress'
-            profilePhotoUrl:
+            profile_img_url:
               type: string
               format: uri
-            garageName:
+            garage_name:
               type: string
             location:
               $ref: '#/components/schemas/Location'
         status:
           $ref: '#/components/schemas/ContactUnlockStatus'
-        contactFee:
+        contact_fee:
           type: number
           format: double
           description: Unlock fee in Malagasy Ariary
-        paymentReference:
+        payment_reference:
           type: string
           description: Payment Service reference identifier
-        transactionId:
+        transaction_id:
           type: string
           description: Mobile money transaction reference
           nullable: true
-        paidAt:
+        paid_at:
           $ref: '#/components/schemas/DateTime'
           nullable: true
-        confirmedAt:
+        confirmed_at:
           $ref: '#/components/schemas/DateTime'
           nullable: true
-        confirmationDeadline:
+        confirmation_deadline:
           $ref: '#/components/schemas/DateTime'
           description: Researcher confirmation deadline (48 hours from payment)
           nullable: true
-        createdAt:
+        created_at:
           $ref: '#/components/schemas/DateTime'
-        updatedAt:
+        updated_at:
           $ref: '#/components/schemas/DateTime'
     PremiumSubscription:
       type: object
@@ -2459,24 +2471,77 @@ components:
           maxItems: 20
     PageResponse:
       type: object
-      required: [content, page, size, totalElements, totalPages]
-      description: Generic paginated response wrapper
+      required: [content, pageable, total_elements, total_pages, last, first, size, number, number_of_elements, empty]
+      description: >
+        Paginated response wrapper matching the JSON serialization of org.springframework.data.domain.Page. The pagination metadata is nested under the `pageable` object, consistent with Spring Data defaults.
+
       properties:
         content:
           type: array
+          description: Page content — the list of elements for the current page.
           items: {}
-        page:
+        pageable:
+          type: object
+          description: Pagination state used to produce this page.
+          properties:
+            page_number:
+              type: integer
+              description: Zero-based current page index.
+            page_size:
+              type: integer
+              description: Requested number of items per page.
+            offset:
+              type: integer
+              format: int64
+              description: Offset of the first element of this page relative to the full result set.
+            sort:
+              $ref: '#/components/schemas/SortDescriptor'
+            paged:
+              type: boolean
+              description: Whether pagination is applied.
+            unpaged:
+              type: boolean
+              description: Whether pagination is disabled.
+        total_elements:
           type: integer
-          description: Current page number (zero-indexed)
+          format: int64
+          description: Total number of elements across all pages.
+        total_pages:
+          type: integer
+          description: Total number of pages available.
+        last:
+          type: boolean
+          description: Whether this is the last page.
+        first:
+          type: boolean
+          description: Whether this is the first page.
         size:
           type: integer
-          description: Items per page
-        totalElements:
+          description: Effective page size (number of elements requested per page).
+        number:
           type: integer
-          description: Total item count across all pages
-        totalPages:
+          description: Zero-based index of the current page.
+        number_of_elements:
           type: integer
-          description: Total page count
+          description: Number of elements on the current page.
+        empty:
+          type: boolean
+          description: Whether the current page has no content.
+        sort:
+          $ref: '#/components/schemas/SortDescriptor'
+    SortDescriptor:
+      type: object
+      description: Sort state descriptor returned by Spring Data.
+      properties:
+        empty:
+          type: boolean
+          description: Whether no sort orders are applied.
+        sorted:
+          type: boolean
+          description: Whether at least one sort order is applied.
+        unsorted:
+          type: boolean
+          description: Whether no sort orders are applied (inverse of sorted).
     ResearcherPageResponse:
       allOf:
         - $ref: '#/components/schemas/PageResponse'
@@ -2486,6 +2551,15 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/Researcher'
+    SellerPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/Seller'
     AnonymousSellerPageResponse:
       allOf:
         - $ref: '#/components/schemas/PageResponse'

@@ -1,4 +1,4 @@
-package com.devikapps.vaikaparts.endpoint.rest.controller.model;
+package com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange;
 
 import com.devikapps.vaikaparts.model.classifier.PartCategory;
 import jakarta.validation.constraints.NotBlank;

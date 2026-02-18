@@ -1,4 +1,4 @@
-package com.devikapps.vaikaparts.endpoint.rest.controller.model;
+package com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

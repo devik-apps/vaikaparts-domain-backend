@@ -49,8 +49,8 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
         supabaseAuthWebhookService.handleAuthWebhook(payload, supabaseConf.getWebhookSecret());
 
     assertEquals("Webhook processed successfully", response.get("message"));
-    assertEquals(TEST_SUPABASE_USER_ID, response.get("userId"));
-    assertEquals("INSERT", response.get("eventType"));
+    assertEquals(TEST_SUPABASE_USER_ID, response.get("user_id"));
+    assertEquals("INSERT", response.get("event_type"));
 
     var savedUser = userRepository.findBySupabaseUserId(TEST_SUPABASE_USER_ID);
     assertTrue(savedUser.isPresent());

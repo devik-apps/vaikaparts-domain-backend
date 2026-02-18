@@ -15,12 +15,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class SellerController {
   private final SellerService sellerService;
 
-  @GetMapping
+  @GetMapping("/me")
   public Seller getCurrentSeller() {
     return sellerService.getCurrentSeller();
   }
 
-  @GetMapping("/me")
+  @GetMapping
   public Page<Seller> getSellers(
       @RequestParam(name = "page", required = false) Integer page,
       @RequestParam(name = "size", required = false) Integer size) {

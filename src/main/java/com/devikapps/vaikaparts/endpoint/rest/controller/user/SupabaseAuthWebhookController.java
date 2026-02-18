@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/webhooks/spb")
+@RequestMapping("/v1/webhooks/spb")
 @RequiredArgsConstructor
 @Slf4j
 public class SupabaseAuthWebhookController {
