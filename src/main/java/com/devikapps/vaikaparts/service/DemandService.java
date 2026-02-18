@@ -9,12 +9,16 @@ import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.file.FilenameSanitizer;
 import com.devikapps.vaikaparts.mapper.exchange.DemandMapper;
+import com.devikapps.vaikaparts.mapper.exchange.OfferMapper;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.model.exchange.Demand;
+import com.devikapps.vaikaparts.model.exchange.Offer;
 import com.devikapps.vaikaparts.model.exchange.Part;
 import com.devikapps.vaikaparts.model.user.Researcher;
 import com.devikapps.vaikaparts.repository.DemandRepository;
+import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
+import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.service.util.Paginator;
 import java.io.File;
 import java.time.Duration;
@@ -41,6 +45,8 @@ public class DemandService {
   private final DemandRepository demandRepository;
   private final DemandMapper demandMapper;
   private final ResearcherService researcherService;
+  private final OfferMapper offerMapper;
+  private final OfferRepository offerRepository;
   private final Paginator paginator;
   private final BucketComponent bucketComponent;
   private final FilenameSanitizer filenameSanitizer;
@@ -66,6 +72,26 @@ public class DemandService {
     return demandMapper.toDomain(savedJDemand);
   }
 
+  @Transactional(readOnly = true)
+  public Page<Offer> getOffersForDemand(String demandId, Integer page, Integer size) {
+    log.info("Fetching offers for demand: {}", forJava(demandId));
+
+    var currentResearcher = researcherService.getCurrentResearcher();
+
+    var jDemand = findDemandByIdAndResearcher(demandId, currentResearcher.getId());
+
+    var pagination = paginator.apply(page, size);
+    var pageable =
+        PageRequest.of(
+            pagination.get("page"), pagination.get("size"), Sort.by("createdAt").descending());
+
+    Page<JOffer> jOffers = offerRepository.findByDemandId(demandId, pageable);
+
+    log.info("Found {} offers for demand {}", jOffers.getTotalElements(), forJava(demandId));
+
+    return jOffers.map(offerMapper::toDomain);
+  }
+
   @Transactional
   public Demand updateDemandStatus(String demandId, PostStatus newStatus) {
     log.info(
@@ -77,7 +103,7 @@ public class DemandService {
     var jDemand = findDemandByIdAndResearcher(demandId, currentResearcher.getId());
 
     validateStatusTransition(jDemand.getStatus(), newStatus);
-    updateStatus(jDemand, newStatus);
+    applyStatusUpdate(jDemand, newStatus);
 
     var updatedJDemand = demandRepository.save(jDemand);
     log.info(
@@ -268,7 +294,7 @@ public class DemandService {
         .build();
   }
 
-  private void updateStatus(JDemand jDemand, PostStatus newStatus) {
+  private void applyStatusUpdate(JDemand jDemand, PostStatus newStatus) {
     var now = LocalDateTime.now();
     jDemand.setStatus(newStatus);
     jDemand.setUpdatedAt(now);

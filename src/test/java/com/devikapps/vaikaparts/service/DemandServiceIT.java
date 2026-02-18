@@ -14,21 +14,26 @@ import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
 import com.devikapps.vaikaparts.model.Location;
 import com.devikapps.vaikaparts.model.classifier.PartCategory;
+import com.devikapps.vaikaparts.model.classifier.PartCondition;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
+import com.devikapps.vaikaparts.model.exchange.Offer;
 import com.devikapps.vaikaparts.repository.DemandRepository;
+import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
+import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
+import com.devikapps.vaikaparts.repository.model.exchange.JPartInfo;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
+import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import jakarta.transaction.Transactional;
 import java.time.LocalDateTime;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
-import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,15 +56,16 @@ class DemandServiceIT extends FacadeIT {
   private static final String TEST_CAR_BRAND = "Toyota";
   private static final String TEST_CAR_MODEL = "Corolla";
   private static final int TEST_CAR_YEAR = 2015;
+  private static final double TEST_PRICE = 150.00;
 
   private static final Integer DEFAULT_PAGE = 0;
   private static final Integer DEFAULT_SIZE = 10;
 
   @Autowired private DemandService demandService;
-  @Autowired private ResearcherService researcherService;
   @Autowired private DemandRepository demandRepository;
-  @Autowired private ValueObjectMapper vom;
+  @Autowired private OfferRepository offerRepository;
   @Autowired private UserRepository userRepository;
+  @Autowired private ValueObjectMapper vom;
 
   private JResearcher testResearcher;
 
@@ -72,6 +78,7 @@ class DemandServiceIT extends FacadeIT {
   @AfterEach
   void tearDown() {
     SecurityContextHolder.clearContext();
+    offerRepository.deleteAll();
     demandRepository.deleteAll();
     userRepository.deleteAll();
   }
@@ -87,7 +94,13 @@ class DemandServiceIT extends FacadeIT {
     assertEquals(TEST_DESCRIPTION, demand.getDescription());
     assertEquals(PostStatus.DRAFT, demand.getStatus());
     assertEquals(TEST_RESEARCHER_ID, demand.getResearcher().getId());
+    assertEquals(TEST_RESEARCHER_NAME, demand.getResearcher().getName());
+    assertEquals(TEST_EMAIL, demand.getResearcher().getEmail());
     assertEquals(TEST_PART_NAME, demand.getPart().getName());
+    assertEquals(TEST_CAR_BRAND, demand.getPart().getCarBrand());
+    assertEquals(TEST_CAR_MODEL, demand.getPart().getCarModel());
+    assertEquals(Year.of(TEST_CAR_YEAR), demand.getPart().getCarYear());
+    assertEquals(PartCategory.FOG_LIGHTS, demand.getPart().getPartCategory());
     assertNotNull(demand.getCreatedAt());
     assertNotNull(demand.getUpdatedAt());
     assertNull(demand.getCanceledAt());
@@ -131,15 +144,11 @@ class DemandServiceIT extends FacadeIT {
   void should_create_demand_with_multiple_images_successfully() {
     val imageFile1 =
         new MockMultipartFile(
-            "image1", "headlight-front.jpg", "image/jpeg", "fake image content 1".getBytes());
-
+            "image1", "headlight-front.jpg", "image/jpeg", "content 1".getBytes());
     val imageFile2 =
-        new MockMultipartFile(
-            "image2", "headlight-side.jpg", "image/jpeg", "fake image content 2".getBytes());
-
+        new MockMultipartFile("image2", "headlight-side.jpg", "image/jpeg", "content 2".getBytes());
     val imageFile3 =
-        new MockMultipartFile(
-            "image3", "headlight-back.jpg", "image/jpeg", "fake image content 3".getBytes());
+        new MockMultipartFile("image3", "headlight-back.jpg", "image/jpeg", "content 3".getBytes());
 
     val restPart =
         new RestPart(
@@ -158,7 +167,6 @@ class DemandServiceIT extends FacadeIT {
 
     val savedDemand = demandRepository.findById(demand.getId());
     assertTrue(savedDemand.isPresent());
-    assertNotNull(savedDemand.get().getPart().getImageBuckets());
     assertEquals(3, savedDemand.get().getPart().getImageBuckets().size());
   }
 
@@ -182,7 +190,6 @@ class DemandServiceIT extends FacadeIT {
 
     val savedDemand = demandRepository.findById(demand.getId());
     assertTrue(savedDemand.isPresent());
-    assertNotNull(savedDemand.get().getPart().getImageBuckets());
     assertTrue(savedDemand.get().getPart().getImageBuckets().isEmpty());
   }
 
@@ -212,11 +219,9 @@ class DemandServiceIT extends FacadeIT {
 
     val updatedDemand = demandService.updateDemandStatus(demand.getId(), PostStatus.PUBLISHED);
 
-    assertNotNull(updatedDemand);
     assertEquals(PostStatus.PUBLISHED, updatedDemand.getStatus());
     assertNull(updatedDemand.getCanceledAt());
     assertNull(updatedDemand.getSuspendedAt());
-    assertNotNull(updatedDemand.getUpdatedAt());
 
     val savedDemand = demandRepository.findById(demand.getId());
     assertTrue(savedDemand.isPresent());
@@ -229,7 +234,6 @@ class DemandServiceIT extends FacadeIT {
 
     val updatedDemand = demandService.updateDemandStatus(demand.getId(), PostStatus.CANCELED);
 
-    assertNotNull(updatedDemand);
     assertEquals(PostStatus.CANCELED, updatedDemand.getStatus());
     assertNotNull(updatedDemand.getCanceledAt());
 
@@ -245,7 +249,6 @@ class DemandServiceIT extends FacadeIT {
 
     val updatedDemand = demandService.updateDemandStatus(demand.getId(), PostStatus.SUSPENDED);
 
-    assertNotNull(updatedDemand);
     assertEquals(PostStatus.SUSPENDED, updatedDemand.getStatus());
     assertNotNull(updatedDemand.getSuspendedAt());
 
@@ -261,7 +264,6 @@ class DemandServiceIT extends FacadeIT {
 
     val updatedDemand = demandService.updateDemandStatus(demand.getId(), PostStatus.PUBLISHED);
 
-    assertNotNull(updatedDemand);
     assertEquals(PostStatus.PUBLISHED, updatedDemand.getStatus());
     assertNull(updatedDemand.getSuspendedAt());
     assertNull(updatedDemand.getCanceledAt());
@@ -292,7 +294,6 @@ class DemandServiceIT extends FacadeIT {
     assertThrows(
         IllegalStateException.class,
         () -> demandService.updateDemandStatus(demand.getId(), PostStatus.DRAFT));
-
     assertThrows(
         IllegalStateException.class,
         () -> demandService.updateDemandStatus(demand.getId(), PostStatus.CANCELED));
@@ -324,7 +325,6 @@ class DemandServiceIT extends FacadeIT {
     Page<Demand> draftDemands =
         demandService.getResearcherDemandsByStatus(PostStatus.DRAFT, DEFAULT_PAGE, DEFAULT_SIZE);
 
-    assertNotNull(draftDemands);
     assertEquals(2, draftDemands.getTotalElements());
     draftDemands
         .getContent()
@@ -343,7 +343,6 @@ class DemandServiceIT extends FacadeIT {
 
     Page<Demand> allDemands = demandService.getAllResearcherDemands(DEFAULT_PAGE, DEFAULT_SIZE);
 
-    assertNotNull(allDemands);
     assertEquals(3, allDemands.getTotalElements());
     allDemands
         .getContent()
@@ -358,7 +357,6 @@ class DemandServiceIT extends FacadeIT {
 
     Page<Demand> myDemands = demandService.getAllResearcherDemands(DEFAULT_PAGE, DEFAULT_SIZE);
 
-    assertNotNull(myDemands);
     assertEquals(1, myDemands.getTotalElements());
     assertEquals(TEST_RESEARCHER_ID, myDemands.getContent().getFirst().getResearcher().getId());
   }
@@ -374,6 +372,7 @@ class DemandServiceIT extends FacadeIT {
     assertEquals(TEST_DESCRIPTION, demand.getDescription());
     assertEquals(TEST_RESEARCHER_ID, demand.getResearcher().getId());
     assertNotNull(demand.getPart());
+    assertEquals(TEST_PART_NAME, demand.getPart().getName());
   }
 
   @Test
@@ -399,7 +398,6 @@ class DemandServiceIT extends FacadeIT {
         demandService.getResearcherDemandsByStatus(
             PostStatus.PUBLISHED, DEFAULT_PAGE, DEFAULT_SIZE);
 
-    assertNotNull(publishedDemands);
     assertEquals(0, publishedDemands.getTotalElements());
     assertTrue(publishedDemands.getContent().isEmpty());
   }
@@ -428,39 +426,56 @@ class DemandServiceIT extends FacadeIT {
     assertFalse(lastPageResult.isFirst());
   }
 
-  private JResearcher createTestResearcher() {
-    val researcher =
-        JResearcher.builder()
-            .id(TEST_RESEARCHER_ID)
-            .supabaseUserId(TEST_SUPABASE_USER_ID)
-            .name(TEST_RESEARCHER_NAME)
-            .phoneNumber(TEST_PHONE)
-            .email(TEST_EMAIL)
-            .profileImgKey("")
-            .location(vom.map(Location.getDefault()))
-            .userType(UserType.RESEARCHER)
-            .status(UserStatus.ENABLED)
-            .build();
-    return userRepository.save(researcher);
+  @Test
+  void should_get_offers_for_demand() {
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+    val seller1 = createTestSeller("seller-1");
+    val seller2 = createTestSeller("seller-2");
+
+    createPersistedOffer(seller1, demand);
+    createPersistedOffer(seller2, demand);
+
+    Page<Offer> offers =
+        demandService.getOffersForDemand(demand.getId(), DEFAULT_PAGE, DEFAULT_SIZE);
+
+    assertEquals(2, offers.getTotalElements());
+    offers
+        .getContent()
+        .forEach(
+            offer -> {
+              assertEquals(demand.getId(), offer.getDemand().getId());
+              assertNotNull(offer.getPartsInfo());
+            });
   }
 
-  private JResearcher createOtherResearcher() {
-    val researcher =
-        JResearcher.builder()
-            .id("other-researcher-456")
-            .supabaseUserId("other-supabase-user-456")
-            .name("Jane Doe")
-            .email("jane@gmail.com")
-            .phoneNumber("+9876543210")
-            .profileImgKey("")
-            .location(vom.map(Location.getDefault()))
-            .userType(UserType.RESEARCHER)
-            .status(UserStatus.ENABLED)
-            .build();
-    return userRepository.save(researcher);
+  @Test
+  void should_return_empty_page_when_no_offers_for_demand() {
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+
+    Page<Offer> offers =
+        demandService.getOffersForDemand(demand.getId(), DEFAULT_PAGE, DEFAULT_SIZE);
+
+    assertEquals(0, offers.getTotalElements());
+    assertTrue(offers.getContent().isEmpty());
   }
 
-  @SneakyThrows
+  @Test
+  void should_throw_exception_when_getting_offers_for_other_researcher_demand() {
+    val otherResearcher = createOtherResearcher();
+    val otherDemand = createDemandForResearcher(otherResearcher, PostStatus.PUBLISHED);
+
+    assertThrows(
+        ResourceNotFoundException.class,
+        () -> demandService.getOffersForDemand(otherDemand.getId(), DEFAULT_PAGE, DEFAULT_SIZE));
+  }
+
+  @Test
+  void should_throw_exception_when_getting_offers_for_non_existent_demand() {
+    assertThrows(
+        ResourceNotFoundException.class,
+        () -> demandService.getOffersForDemand("non-existent-id", DEFAULT_PAGE, DEFAULT_SIZE));
+  }
+
   private void authenticateResearcher() {
     val authentication =
         new UsernamePasswordAuthenticationToken(TEST_SUPABASE_USER_ID, null, new ArrayList<>());
@@ -477,6 +492,51 @@ class DemandServiceIT extends FacadeIT {
         PartCategory.FOG_LIGHTS);
   }
 
+  private JResearcher createTestResearcher() {
+    return userRepository.save(
+        JResearcher.builder()
+            .id(TEST_RESEARCHER_ID)
+            .supabaseUserId(TEST_SUPABASE_USER_ID)
+            .name(TEST_RESEARCHER_NAME)
+            .phoneNumber(TEST_PHONE)
+            .email(TEST_EMAIL)
+            .profileImgKey("")
+            .location(vom.map(Location.getDefault()))
+            .userType(UserType.RESEARCHER)
+            .status(UserStatus.ENABLED)
+            .build());
+  }
+
+  private JResearcher createOtherResearcher() {
+    return userRepository.save(
+        JResearcher.builder()
+            .id("other-researcher-" + currentTimeMillis())
+            .supabaseUserId("other-supabase-" + currentTimeMillis())
+            .name("Jane Doe")
+            .email("jane-" + currentTimeMillis() + "@gmail.com")
+            .phoneNumber("+9876543210")
+            .profileImgKey("")
+            .location(vom.map(Location.getDefault()))
+            .userType(UserType.RESEARCHER)
+            .status(UserStatus.ENABLED)
+            .build());
+  }
+
+  private JSeller createTestSeller(String id) {
+    return userRepository.save(
+        JSeller.builder()
+            .id(id + "-" + currentTimeMillis())
+            .supabaseUserId("supabase-" + id + "-" + currentTimeMillis())
+            .name("Seller " + id)
+            .email(id + "-" + currentTimeMillis() + "@gmail.com")
+            .phoneNumber("+1234567890")
+            .profileImgKey("")
+            .location(vom.map(Location.getDefault()))
+            .userType(UserType.SELLER)
+            .status(UserStatus.ENABLED)
+            .build());
+  }
+
   private JDemand createTestDemand(PostStatus status) {
     return createDemandForResearcher(testResearcher, status);
   }
@@ -490,7 +550,7 @@ class DemandServiceIT extends FacadeIT {
             .carModel(TEST_CAR_MODEL)
             .carYear(TEST_CAR_YEAR)
             .partCategory(PartCategory.FOG_LIGHTS)
-            .imageBuckets(List.of())
+            .imageBuckets(new ArrayList<>())
             .build();
 
     val demand =
@@ -506,9 +566,40 @@ class DemandServiceIT extends FacadeIT {
             .build();
 
     if (status == PostStatus.CANCELED) demand.setCanceledAt(LocalDateTime.now());
-    else if (status == PostStatus.SUSPENDED) demand.setSuspendedAt(LocalDateTime.now());
+    if (status == PostStatus.SUSPENDED) demand.setSuspendedAt(LocalDateTime.now());
 
     part.setDemand(demand);
     return demandRepository.save(demand);
+  }
+
+  private void createPersistedOffer(JSeller seller, JDemand demand) {
+    val partInfo =
+        JPartInfo.builder()
+            .id("part-info-" + currentTimeMillis())
+            .partName(TEST_PART_NAME)
+            .carBrand(TEST_CAR_BRAND)
+            .carModel(TEST_CAR_MODEL)
+            .carYear(TEST_CAR_YEAR)
+            .partCategory(PartCategory.FOG_LIGHTS)
+            .condition(PartCondition.USED)
+            .price(TEST_PRICE)
+            .partImageBuckets(new ArrayList<>())
+            .build();
+
+    val offer =
+        JOffer.builder()
+            .id("offer-" + currentTimeMillis())
+            .demand(demand)
+            .description("Offering " + TEST_PART_NAME)
+            .attachedPhotoBucketKeys(new ArrayList<>())
+            .partInfo(partInfo)
+            .seller(seller)
+            .status(PostStatus.PUBLISHED)
+            .createdAt(LocalDateTime.now())
+            .updatedAt(LocalDateTime.now())
+            .build();
+
+    partInfo.setOffer(offer);
+    offerRepository.save(offer);
   }
 }

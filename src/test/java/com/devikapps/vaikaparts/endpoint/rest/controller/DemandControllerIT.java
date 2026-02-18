@@ -4,6 +4,7 @@ import static java.lang.System.currentTimeMillis;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -11,14 +12,19 @@ import com.devikapps.vaikaparts.conf.FacadeIT;
 import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
 import com.devikapps.vaikaparts.model.Location;
 import com.devikapps.vaikaparts.model.classifier.PartCategory;
+import com.devikapps.vaikaparts.model.classifier.PartCondition;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.repository.DemandRepository;
+import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
+import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
+import com.devikapps.vaikaparts.repository.model.exchange.JPartInfo;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
+import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,7 +54,7 @@ class DemandControllerIT extends FacadeIT {
   private static final String TEST_CAR_BRAND = "Toyota";
   private static final String TEST_CAR_MODEL = "Corolla";
   private static final int TEST_CAR_YEAR = 2015;
-
+  @Autowired OfferRepository offerRepository;
   @Autowired private MockMvc mockMvc;
   @Autowired private DemandRepository demandRepository;
   @Autowired private UserRepository userRepository;
@@ -59,10 +65,12 @@ class DemandControllerIT extends FacadeIT {
   @BeforeEach
   void setUp() {
     testResearcher = createTestResearcher();
+    createTestSeller();
   }
 
   @AfterEach
   void tearDown() {
+    offerRepository.deleteAll();
     demandRepository.deleteAll();
     userRepository.deleteAll();
   }
@@ -300,6 +308,22 @@ class DemandControllerIT extends FacadeIT {
   }
 
   @Test
+  void should_update_demand_status_to_published() throws Exception {
+    authenticateUser();
+    var demand = createTestDemand(PostStatus.DRAFT);
+
+    mockMvc
+        .perform(
+            patch(DEMANDS_ENDPOINT + "/{demandId}/status", demand.getId())
+                .param("status", PostStatus.PUBLISHED.name()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(demand.getId()))
+        .andExpect(jsonPath("$.status").value(PostStatus.PUBLISHED.name()))
+        .andExpect(jsonPath("$.canceled_at").doesNotExist())
+        .andExpect(jsonPath("$.suspended_at").doesNotExist());
+  }
+
+  @Test
   void should_not_return_other_researcher_demands() throws Exception {
     authenticateUser();
 
@@ -313,6 +337,140 @@ class DemandControllerIT extends FacadeIT {
         .andExpect(jsonPath("$.content").isArray())
         .andExpect(jsonPath("$.content", hasSize(1)))
         .andExpect(jsonPath("$.content[0].researcher.id").value(TEST_RESEARCHER_ID));
+  }
+
+  private void createTestSeller() {
+    userRepository.save(
+        JSeller.builder()
+            .id("seller-123")
+            .supabaseUserId("supabase-seller-123")
+            .name("Jane Seller")
+            .email("seller@gmail.com")
+            .phoneNumber("+9876543210")
+            .profileImgKey("")
+            .location(vom.map(Location.getDefault()))
+            .userType(UserType.SELLER)
+            .status(UserStatus.ENABLED)
+            .build());
+  }
+
+  @Test
+  void should_get_offers_for_demand() throws Exception {
+    authenticateUser();
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+    val seller1 = createTestSeller("seller-1");
+    val seller2 = createTestSeller("seller-2");
+
+    createPersistedOffer(seller1, demand);
+    createPersistedOffer(seller2, demand);
+
+    mockMvc
+        .perform(
+            get(DEMANDS_ENDPOINT + "/{demandId}/offers", demand.getId())
+                .param("page", "0")
+                .param("size", "10"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content").isArray())
+        .andExpect(jsonPath("$.content", hasSize(2)))
+        .andExpect(jsonPath("$.content[0].demand.id").value(demand.getId()))
+        .andExpect(jsonPath("$.content[1].demand.id").value(demand.getId()))
+        .andExpect(jsonPath("$.total_elements").value(2));
+  }
+
+  @Test
+  void should_return_empty_page_when_no_offers_for_demand() throws Exception {
+    authenticateUser();
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+
+    mockMvc
+        .perform(get(DEMANDS_ENDPOINT + "/{demandId}/offers", demand.getId()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content").isArray())
+        .andExpect(jsonPath("$.content", hasSize(0)))
+        .andExpect(jsonPath("$.total_elements").value(0));
+  }
+
+  @Test
+  void should_return_404_when_getting_offers_for_other_researcher_demand() throws Exception {
+    authenticateUser();
+    val otherResearcher = createOtherResearcher();
+    val otherDemand = createDemandForResearcher(otherResearcher, PostStatus.PUBLISHED);
+
+    mockMvc
+        .perform(get(DEMANDS_ENDPOINT + "/{demandId}/offers", otherDemand.getId()))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void should_return_400_when_seller_tries_to_create_demand() throws Exception {
+    authenticateSeller();
+
+    mockMvc
+        .perform(
+            multipart(DEMANDS_ENDPOINT)
+                .param("description", TEST_DESCRIPTION)
+                .param("part.name", TEST_PART_NAME)
+                .param("part.carBrand", TEST_CAR_BRAND)
+                .param("part.carModel", TEST_CAR_MODEL)
+                .param("part.carYear", String.valueOf(TEST_CAR_YEAR))
+                .param("part.partCategory", PartCategory.FOG_LIGHTS.name())
+                .contentType(MediaType.MULTIPART_FORM_DATA))
+        .andExpect(status().isBadRequest());
+  }
+
+  private JSeller createTestSeller(String id) {
+    return userRepository.save(
+        JSeller.builder()
+            .id(id + "-" + currentTimeMillis())
+            .supabaseUserId("supabase-" + id + "-" + currentTimeMillis())
+            .name("Seller " + id)
+            .email(id + "-" + currentTimeMillis() + "@gmail.com")
+            .phoneNumber("+1234567890")
+            .profileImgKey("")
+            .location(vom.map(Location.getDefault()))
+            .userType(UserType.SELLER)
+            .status(UserStatus.ENABLED)
+            .build());
+  }
+
+  private void authenticateSeller() {
+    val authentication =
+        new UsernamePasswordAuthenticationToken(
+            "supabase-seller-123",
+            null,
+            Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+  }
+
+  private void createPersistedOffer(JSeller seller, JDemand demand) {
+    val partInfo =
+        JPartInfo.builder()
+            .id("part-info-" + currentTimeMillis())
+            .partName(TEST_PART_NAME)
+            .carBrand(TEST_CAR_BRAND)
+            .carModel(TEST_CAR_MODEL)
+            .carYear(TEST_CAR_YEAR)
+            .partCategory(PartCategory.FOG_LIGHTS)
+            .condition(PartCondition.USED)
+            .price(150.00)
+            .partImageBuckets(new ArrayList<>())
+            .build();
+
+    val offer =
+        JOffer.builder()
+            .id("offer-" + currentTimeMillis())
+            .demand(demand)
+            .description("Offering part")
+            .attachedPhotoBucketKeys(new ArrayList<>())
+            .partInfo(partInfo)
+            .seller(seller)
+            .status(PostStatus.PUBLISHED)
+            .createdAt(LocalDateTime.now())
+            .updatedAt(LocalDateTime.now())
+            .build();
+
+    partInfo.setOffer(offer);
+    offerRepository.save(offer);
   }
 
   private JResearcher createTestResearcher() {
