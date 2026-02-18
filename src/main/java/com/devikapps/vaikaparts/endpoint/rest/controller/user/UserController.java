@@ -1,4 +1,4 @@
-package com.devikapps.vaikaparts.endpoint.rest.controller;
+package com.devikapps.vaikaparts.endpoint.rest.controller.user;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ProfilePhotoResponse;
 import com.devikapps.vaikaparts.model.user.User;

@@ -260,8 +260,8 @@ public class OfferService {
 
   private void applyStatusUpdate(JOffer jOffer, PostStatus newStatus) {
     var now = LocalDateTime.now();
-    jOffer.setStatus(newStatus);
     jOffer.setUpdatedAt(now);
+    jOffer.setStatus(newStatus);
     switch (newStatus) {
       case CANCELED -> jOffer.setCanceledAt(now);
       case SUSPENDED -> jOffer.setSuspendedAt(now);

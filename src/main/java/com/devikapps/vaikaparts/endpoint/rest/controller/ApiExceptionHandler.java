@@ -65,6 +65,16 @@ public class ApiExceptionHandler {
     return new ResponseEntity<>(err, HttpStatus.NOT_FOUND);
   }
 
+  @ExceptionHandler(IllegalStateException.class)
+  public ResponseEntity<ErrorResponse> handleIllegalStateException(
+      IllegalStateException ex, WebRequest request) {
+    log.error("IllegalStateException triggered by user at {}", getRequestPath(request));
+    var err =
+        ErrorResponse.of(
+            HttpStatus.BAD_REQUEST, ex.getMessage(), getRequestPath(request), "ILLEGAL_STATE");
+    return new ResponseEntity<>(err, HttpStatus.BAD_REQUEST);
+  }
+
   @ExceptionHandler(MissingServletRequestParameterException.class)
   public ResponseEntity<ErrorResponse> handleMissingServletRequestParameter(
       MissingServletRequestParameterException ex, WebRequest request) {
@@ -245,7 +255,7 @@ public class ApiExceptionHandler {
             .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
             .collect(Collectors.joining(", "));
 
-    log.warn(
+    log.error(
         "Constraint violation at path: {}, violations: {}",
         forJava(getRequestPath(request)),
         forJava(message));
@@ -296,7 +306,7 @@ public class ApiExceptionHandler {
   public ResponseEntity<ErrorResponse> handleAuthorizationDeniedException(
       AuthorizationDeniedException ex, WebRequest request) {
 
-    log.warn(
+    log.error(
         "Authorization denied at path: {}, reason: {}",
         forJava(getRequestPath(request)),
         forJava(ex.getMessage()));
@@ -331,7 +341,7 @@ public class ApiExceptionHandler {
       }
     }
 
-    log.warn(
+    log.error(
         "Data integrity violation at path: {}, error code: {}, root cause: {}",
         forJava(getRequestPath(request)),
         forJava(errorCode),
@@ -367,7 +377,7 @@ public class ApiExceptionHandler {
   public ResponseEntity<ErrorResponse> handleEntityNotFoundException(
       EntityNotFoundException ex, WebRequest request) {
 
-    log.warn(
+    log.error(
         "Entity not found at path: {}, reason: {}",
         forJava(getRequestPath(request)),
         forJava(ex.getMessage()));
@@ -388,7 +398,7 @@ public class ApiExceptionHandler {
             .map(FieldError::getDefaultMessage)
             .orElse("Validation failed");
 
-    log.warn(
+    log.error(
         "Validation failed at path: {}, message: {}",
         forJava(getRequestPath(request)),
         forJava(message));
@@ -403,7 +413,7 @@ public class ApiExceptionHandler {
   public ResponseEntity<ErrorResponse> handleMissingAuthorization(
       MissingAuthorizationException ex, WebRequest request) {
 
-    log.warn(
+    log.error(
         "Missing authorization at path: {}, reason: {}",
         forJava(getRequestPath(request)),
         forJava(ex.getMessage()));
@@ -439,7 +449,7 @@ public class ApiExceptionHandler {
   public ResponseEntity<ErrorResponse> handleHandlerMethodValidationException(
       HandlerMethodValidationException ex, WebRequest request) {
 
-    log.warn(
+    log.error(
         "Handler method validation failed at path: {}, message: {}",
         forJava(getRequestPath(request)),
         forJava(ex.getMessage()));
