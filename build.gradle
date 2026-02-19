@@ -51,8 +51,8 @@ dependencies {
     implementation 'org.owasp.encoder:encoder:1.4.0'
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
-    implementation 'software.amazon.awssdk:s3:2.41.31'
-    implementation 'software.amazon.awssdk:s3-transfer-manager:2.41.31'
+    implementation 'software.amazon.awssdk:s3:2.41.32'
+    implementation 'software.amazon.awssdk:s3-transfer-manager:2.41.32'
 
     runtimeOnly 'org.postgresql:postgresql'
 
@@ -79,7 +79,7 @@ dependencies {
 
     implementation 'com.auth0:java-jwt:4.5.1'
     implementation 'com.auth0:jwks-rsa:0.23.0'
-    implementation 'org.jetbrains:annotations:26.0.2-1'
+    implementation 'org.jetbrains:annotations:26.1.0'
 
 }
 
