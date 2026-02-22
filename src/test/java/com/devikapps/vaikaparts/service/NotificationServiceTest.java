@@ -1,0 +1,166 @@
+package com.devikapps.vaikaparts.service;
+
+import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.EMAIL;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.NotificationRequest;
+import com.devikapps.vaikaparts.model.classifier.NotificationType;
+import com.devikapps.vaikaparts.model.exchange.Demand;
+import com.devikapps.vaikaparts.model.notification.Notification;
+import com.devikapps.vaikaparts.model.user.Seller;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class NotificationServiceTest {
+
+  private static final String TEST_SELLER_ID = "seller-123";
+  private static final String TEST_DEMAND_ID = "demand-456";
+  private static final String TEST_MESSAGE = "New demand: Toyota Corolla Headlight";
+  private static final String TEST_CLICK_ACTION =
+      "{\"action\":\"VIEW_DEMAND\",\"demandId\":\"demand-456\"}";
+
+  @Mock private NotificationChannel inAppChannel;
+  @Mock private SellerService sellerService;
+  @Mock private DemandService demandService;
+
+  private NotificationService notificationService;
+
+  @BeforeEach
+  void setUp() {
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    notificationService =
+        new NotificationService(List.of(inAppChannel), sellerService, demandService);
+  }
+
+  @Test
+  void should_create_notification_with_correct_attributes() {
+    var request =
+        NotificationRequest.builder()
+            .sellerId(TEST_SELLER_ID)
+            .demandId(TEST_DEMAND_ID)
+            .message(TEST_MESSAGE)
+            .notificationType(NotificationType.DEMAND_PUBLISHED)
+            .clickAction(TEST_CLICK_ACTION)
+            .build();
+
+    when(sellerService.getSellerById(TEST_SELLER_ID)).thenReturn(buildTestSeller());
+    when(demandService.getDemandById(TEST_DEMAND_ID)).thenReturn(buildTestDemand());
+
+    var notification = notificationService.createAndSendNotification(request);
+
+    assertNotNull(notification);
+    assertNotNull(notification.getId());
+    assertEquals(TEST_SELLER_ID, notification.getSeller().getId());
+    assertEquals(TEST_DEMAND_ID, notification.getDemand().getId());
+    assertEquals(TEST_MESSAGE, notification.getMessage());
+    assertEquals(NotificationType.DEMAND_PUBLISHED, notification.getNotificationType());
+    assertEquals(TEST_CLICK_ACTION, notification.getClickAction());
+    assertFalse(notification.isRead());
+    assertNotNull(notification.getCreatedAt());
+    assertNull(notification.getReadAt());
+  }
+
+  @Test
+  void should_send_notification_through_enabled_channels() {
+    var request = buildTestRequest();
+
+    when(sellerService.getSellerById(TEST_SELLER_ID)).thenReturn(buildTestSeller());
+    when(demandService.getDemandById(TEST_DEMAND_ID)).thenReturn(buildTestDemand());
+
+    notificationService.createAndSendNotification(request);
+
+    ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+    verify(inAppChannel, times(1)).send(captor.capture());
+
+    var sentNotification = captor.getValue();
+    assertEquals(TEST_SELLER_ID, sentNotification.getSeller().getId());
+    assertEquals(TEST_DEMAND_ID, sentNotification.getDemand().getId());
+  }
+
+  @Test
+  void should_not_send_through_disabled_channels() {
+    when(inAppChannel.isEnabled()).thenReturn(false);
+    when(sellerService.getSellerById(TEST_SELLER_ID)).thenReturn(buildTestSeller());
+    when(demandService.getDemandById(TEST_DEMAND_ID)).thenReturn(buildTestDemand());
+
+    var request = buildTestRequest();
+    notificationService.createAndSendNotification(request);
+
+    verify(inAppChannel, never()).send(any(Notification.class));
+  }
+
+  @Test
+  void should_continue_sending_to_other_channels_if_one_fails() {
+    NotificationChannel failingChannel = mock(NotificationChannel.class);
+
+    when(failingChannel.isEnabled()).thenReturn(true);
+    when(failingChannel.getChannelType()).thenReturn(EMAIL);
+    when(sellerService.getSellerById(TEST_SELLER_ID)).thenReturn(buildTestSeller());
+    when(demandService.getDemandById(TEST_DEMAND_ID)).thenReturn(buildTestDemand());
+    doThrow(new RuntimeException("Channel failure")).when(failingChannel).send(any());
+
+    notificationService =
+        new NotificationService(
+            List.of(failingChannel, inAppChannel), sellerService, demandService);
+
+    var request = buildTestRequest();
+
+    assertDoesNotThrow(() -> notificationService.createAndSendNotification(request));
+
+    verify(failingChannel, times(1)).send(any(Notification.class));
+    verify(inAppChannel, times(1)).send(any(Notification.class));
+  }
+
+  @Test
+  void should_send_to_multiple_channels() {
+    NotificationChannel emailChannel = mock(NotificationChannel.class);
+    when(emailChannel.isEnabled()).thenReturn(true);
+    when(emailChannel.getChannelType()).thenReturn(EMAIL);
+    when(sellerService.getSellerById(TEST_SELLER_ID)).thenReturn(buildTestSeller());
+    when(demandService.getDemandById(TEST_DEMAND_ID)).thenReturn(buildTestDemand());
+
+    notificationService =
+        new NotificationService(List.of(inAppChannel, emailChannel), sellerService, demandService);
+
+    var request = buildTestRequest();
+    notificationService.createAndSendNotification(request);
+
+    verify(inAppChannel, times(1)).send(any(Notification.class));
+    verify(emailChannel, times(1)).send(any(Notification.class));
+  }
+
+  private NotificationRequest buildTestRequest() {
+    return NotificationRequest.builder()
+        .sellerId(TEST_SELLER_ID)
+        .demandId(TEST_DEMAND_ID)
+        .message(TEST_MESSAGE)
+        .notificationType(NotificationType.DEMAND_PUBLISHED)
+        .clickAction(TEST_CLICK_ACTION)
+        .build();
+  }
+
+  private Seller buildTestSeller() {
+    return Seller.builder().id(TEST_SELLER_ID).build();
+  }
+
+  private Demand buildTestDemand() {
+    return Demand.builder().id(TEST_DEMAND_ID).build();
+  }
+}

@@ -12,6 +12,8 @@ import org.springframework.stereotype.Repository;
 public interface UserRepository extends JpaRepository<JUser, String> {
   Optional<JUser> findBySupabaseUserId(String supabaseUserId);
 
+  Optional<JUser> findJUserById(String id);
+
   boolean existsBySupabaseUserId(String supabaseUserId);
 
   Page<JUser> findAllByUserType(UserType userType, Pageable pageable);

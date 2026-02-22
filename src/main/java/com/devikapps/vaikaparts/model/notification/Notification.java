@@ -23,7 +23,8 @@ public class Notification {
   private Demand demand;
   private String message;
   private NotificationType notificationType;
-  private boolean read;
+  private boolean
+      read; // This is named as "read" because Mapstruct struggles to handle the "isRead" name
   private String clickAction;
   private LocalDateTime createdAt;
   private LocalDateTime readAt;
