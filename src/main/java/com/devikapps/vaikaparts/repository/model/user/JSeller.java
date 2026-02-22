@@ -2,13 +2,20 @@ package com.devikapps.vaikaparts.repository.model.user;
 
 import static java.lang.String.format;
 
+import com.devikapps.vaikaparts.repository.event.JNotification;
+import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.JLatLon;
 import com.devikapps.vaikaparts.repository.model.JLocation;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -30,6 +37,14 @@ public class JSeller extends JUser {
   @Embedded private JLocation location;
 
   @Embedded private JLatLon latLon;
+
+  @OneToMany(mappedBy = "seller", fetch = FetchType.LAZY)
+  @Builder.Default
+  private List<JNotificationRequested> notificationRequestedLogs = new ArrayList<>();
+
+  @OneToMany(mappedBy = "seller", fetch = FetchType.LAZY)
+  @Builder.Default
+  private List<JNotification> notifications = new ArrayList<>();
 
   @Override
   public String toString() {

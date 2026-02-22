@@ -1,0 +1,7 @@
+CREATE TYPE notification_type AS ENUM (
+    'DEMAND_PUBLISHED',
+    'OFFER_ACCEPTED',
+    'OFFER_REJECTED',
+    'DEMAND_CANCELED',
+    'SYSTEM_ANNOUNCEMENT'
+    );

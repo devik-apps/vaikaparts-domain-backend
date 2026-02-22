@@ -3,6 +3,7 @@ package com.devikapps.vaikaparts.repository.model.exchange;
 import static java.lang.String.format;
 
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
+import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
@@ -22,6 +23,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -77,7 +79,12 @@ public class JDemand {
   private JPart part;
 
   @OneToMany(mappedBy = "demand", fetch = FetchType.LAZY)
+  @Builder.Default
   private List<JOffer> offers = new ArrayList<>();
+
+  @OneToMany(mappedBy = "demand", fetch = FetchType.LAZY)
+  @Builder.Default
+  private List<JDemandPublishedRequested> publishedRequestedLogs = new ArrayList<>();
 
   @Override
   public String toString() {
