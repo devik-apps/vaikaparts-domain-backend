@@ -1,5 +1,6 @@
 package com.devikapps.vaikaparts.service;
 
+import static com.devikapps.vaikaparts.model.classifier.UserStatus.ENABLED;
 import static java.lang.String.format;
 import static org.owasp.encoder.Encode.forJava;
 
@@ -19,6 +20,7 @@ import com.devikapps.vaikaparts.service.util.Paginator;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.net.URL;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -66,6 +68,11 @@ public class UserService {
       case SELLER -> sellerMapper.toSeller((JSeller) user);
       case MANAGER -> managerMapper.toManager((JManager) user);
     };
+  }
+
+  @Transactional(readOnly = true)
+  public List<JUser> findAllActiveUserByUserType(UserType userType) {
+    return userRepository.findAllByUserTypeAndStatus(userType, ENABLED);
   }
 
   @Transactional

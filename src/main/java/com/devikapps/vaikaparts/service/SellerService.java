@@ -8,6 +8,7 @@ import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import jakarta.validation.constraints.NotBlank;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -28,6 +29,12 @@ public class SellerService {
 
   public Page<Seller> getSellers(Integer page, Integer size) {
     return userService.getJUsers(page, size, SELLER).map(u -> sellerMapper.toSeller((JSeller) u));
+  }
+
+  public List<Seller> getAllActiveSellers() {
+    return userService.findAllActiveUserByUserType(SELLER).stream()
+        .map(u -> sellerMapper.toSeller((JSeller) u))
+        .toList();
   }
 
   public Seller getSellerById(
