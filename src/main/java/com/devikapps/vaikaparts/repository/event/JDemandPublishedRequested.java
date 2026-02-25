@@ -35,7 +35,7 @@ import org.hibernate.type.SqlTypes;
 public class JDemandPublishedRequested {
 
   @Id
-  @Column(name = "id", nullable = false)
+  @Column(name = "id")
   private String id;
 
   @ManyToOne(fetch = FetchType.LAZY)

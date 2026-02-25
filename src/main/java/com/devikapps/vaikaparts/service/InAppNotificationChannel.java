@@ -1,13 +1,19 @@
 package com.devikapps.vaikaparts.service;
 
 import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.IN_APP;
+import static java.lang.String.format;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.exception.NotificationDeliveryException;
-import com.devikapps.vaikaparts.mapper.NotificationMapper;
+import com.devikapps.vaikaparts.exception.UserNotFoundException;
 import com.devikapps.vaikaparts.model.classifier.NotificationChannelType;
 import com.devikapps.vaikaparts.model.notification.Notification;
+import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.NotificationRepository;
+import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
+import com.devikapps.vaikaparts.repository.UserRepository;
+import com.devikapps.vaikaparts.repository.event.JNotification;
+import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -18,8 +24,10 @@ import org.springframework.stereotype.Component;
 public class InAppNotificationChannel implements NotificationChannel {
 
   private final NotificationRepository notificationRepository;
-  private final NotificationMapper notificationMapper;
+  private final UserRepository userRepository;
+  private final NotificationRequestedRepository notificationRequestedRepository;
   private final NotificationWebSocketService webSocketService;
+  private final DemandRepository demandRepository;
 
   @Override
   public void send(Notification notification) {
@@ -49,10 +57,35 @@ public class InAppNotificationChannel implements NotificationChannel {
   }
 
   private void saveNotificationToDatabase(Notification notification) {
-    var jNotification = notificationMapper.toPersistence(notification);
+    var jNotificationRequested =
+        notificationRequestedRepository.getReferenceById(notification.getNotificationRequestedId());
+    var jSeller =
+        userRepository
+            .findJUserById(notification.getSeller().getId())
+            .map(u -> (JSeller) u)
+            .orElseThrow(
+                () ->
+                    new UserNotFoundException(
+                        format(
+                            "No seller with id=%s not found.", notification.getSeller().getId())));
+    var jDemand = demandRepository.getReferenceById(notification.getDemand().getId());
+
+    var jNotification =
+        JNotification.builder()
+            .id(notification.getId())
+            .notificationRequested(jNotificationRequested)
+            .seller(jSeller)
+            .demand(jDemand)
+            .message(notification.getMessage())
+            .notificationType(notification.getNotificationType())
+            .read(notification.isRead())
+            .clickAction(notification.getClickAction())
+            .createdAt(notification.getCreatedAt())
+            .readAt(notification.getReadAt())
+            .build();
+
     notificationRepository.save(jNotification);
-    log.debug(
-        "Saved notification to database with notification id={}", forJava(notification.getId()));
+    log.debug("Saved notification to database with id={}", forJava(notification.getId()));
   }
 
   private void sendViaWebSocket(Notification notification) {

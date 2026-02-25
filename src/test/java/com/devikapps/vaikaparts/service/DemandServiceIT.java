@@ -20,6 +20,7 @@ import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.exchange.Offer;
+import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
@@ -63,6 +64,7 @@ class DemandServiceIT extends FacadeIT {
 
   @Autowired private DemandService demandService;
   @Autowired private DemandRepository demandRepository;
+  @Autowired private DemandPublishedRequestedRepository demandPublishedRequestedRepository;
   @Autowired private OfferRepository offerRepository;
   @Autowired private UserRepository userRepository;
   @Autowired private ValueObjectMapper vom;
@@ -78,6 +80,7 @@ class DemandServiceIT extends FacadeIT {
   @AfterEach
   void tearDown() {
     SecurityContextHolder.clearContext();
+    demandPublishedRequestedRepository.deleteAll();
     offerRepository.deleteAll();
     demandRepository.deleteAll();
     userRepository.deleteAll();
@@ -109,6 +112,7 @@ class DemandServiceIT extends FacadeIT {
     val savedDemand = demandRepository.findById(demand.getId());
     assertTrue(savedDemand.isPresent());
     assertEquals(TEST_DESCRIPTION, savedDemand.get().getDescription());
+    assertEquals(PostStatus.DRAFT, savedDemand.get().getStatus());
   }
 
   @Test
@@ -197,24 +201,36 @@ class DemandServiceIT extends FacadeIT {
   void should_throw_exception_when_description_is_null() {
     val restPart = buildTestRestPart();
 
-    assertThrows(IllegalArgumentException.class, () -> demandService.createDemand(null, restPart));
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class, () -> demandService.createDemand(null, restPart));
+
+    assertTrue(exception.getMessage().contains("cannot be null or empty"));
   }
 
   @Test
   void should_throw_exception_when_description_is_blank() {
     val restPart = buildTestRestPart();
 
-    assertThrows(IllegalArgumentException.class, () -> demandService.createDemand("   ", restPart));
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class, () -> demandService.createDemand("   ", restPart));
+
+    assertTrue(exception.getMessage().contains("cannot be null or empty"));
   }
 
   @Test
   void should_throw_exception_when_part_is_null() {
-    assertThrows(
-        IllegalArgumentException.class, () -> demandService.createDemand(TEST_DESCRIPTION, null));
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> demandService.createDemand(TEST_DESCRIPTION, null));
+
+    assertTrue(exception.getMessage().contains("Part cannot be null"));
   }
 
   @Test
-  void should_update_demand_status_to_published() {
+  void should_update_demand_status_to_published() throws InterruptedException {
     val demand = createTestDemand(PostStatus.DRAFT);
 
     val updatedDemand = demandService.updateDemandStatus(demand.getId(), PostStatus.PUBLISHED);
@@ -226,6 +242,24 @@ class DemandServiceIT extends FacadeIT {
     val savedDemand = demandRepository.findById(demand.getId());
     assertTrue(savedDemand.isPresent());
     assertEquals(PostStatus.PUBLISHED, savedDemand.get().getStatus());
+
+    Thread.sleep(1000);
+
+    val eventLogs = demandPublishedRequestedRepository.findAll();
+    assertEquals(1, eventLogs.size());
+    assertEquals(demand.getId(), eventLogs.getFirst().getDemand().getId());
+  }
+
+  @Test
+  void should_not_publish_event_when_republishing() {
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+    demandRepository.save(demand);
+
+    demandService.updateDemandStatus(demand.getId(), PostStatus.SUSPENDED);
+    demandService.updateDemandStatus(demand.getId(), PostStatus.PUBLISHED);
+
+    val eventLogs = demandPublishedRequestedRepository.findAll();
+    assertEquals(0, eventLogs.size());
   }
 
   @Test
@@ -273,37 +307,53 @@ class DemandServiceIT extends FacadeIT {
   void should_throw_exception_when_updating_to_same_status() {
     val demand = createTestDemand(PostStatus.PUBLISHED);
 
-    assertThrows(
-        IllegalStateException.class,
-        () -> demandService.updateDemandStatus(demand.getId(), PostStatus.PUBLISHED));
+    IllegalStateException exception =
+        assertThrows(
+            IllegalStateException.class,
+            () -> demandService.updateDemandStatus(demand.getId(), PostStatus.PUBLISHED));
+
+    assertTrue(exception.getMessage().contains("already in PUBLISHED status"));
   }
 
   @Test
   void should_throw_exception_when_updating_canceled_demand() {
     val demand = createTestDemand(PostStatus.CANCELED);
 
-    assertThrows(
-        IllegalStateException.class,
-        () -> demandService.updateDemandStatus(demand.getId(), PostStatus.PUBLISHED));
+    IllegalStateException exception =
+        assertThrows(
+            IllegalStateException.class,
+            () -> demandService.updateDemandStatus(demand.getId(), PostStatus.PUBLISHED));
+
+    assertTrue(exception.getMessage().contains("Cannot update status of a canceled demand"));
   }
 
   @Test
   void should_throw_exception_when_suspended_demand_transitions_to_non_published_status() {
     val demand = createTestDemand(PostStatus.SUSPENDED);
 
-    assertThrows(
-        IllegalStateException.class,
-        () -> demandService.updateDemandStatus(demand.getId(), PostStatus.DRAFT));
-    assertThrows(
-        IllegalStateException.class,
-        () -> demandService.updateDemandStatus(demand.getId(), PostStatus.CANCELED));
+    IllegalStateException exception1 =
+        assertThrows(
+            IllegalStateException.class,
+            () -> demandService.updateDemandStatus(demand.getId(), PostStatus.DRAFT));
+
+    assertTrue(exception1.getMessage().contains("can only transition to PUBLISHED status"));
+
+    IllegalStateException exception2 =
+        assertThrows(
+            IllegalStateException.class,
+            () -> demandService.updateDemandStatus(demand.getId(), PostStatus.CANCELED));
+
+    assertTrue(exception2.getMessage().contains("can only transition to PUBLISHED status"));
   }
 
   @Test
   void should_throw_exception_when_demand_not_found() {
-    assertThrows(
-        ResourceNotFoundException.class,
-        () -> demandService.updateDemandStatus("non-existent-id", PostStatus.PUBLISHED));
+    ResourceNotFoundException exception =
+        assertThrows(
+            ResourceNotFoundException.class,
+            () -> demandService.updateDemandStatus("non-existent-id", PostStatus.PUBLISHED));
+
+    assertTrue(exception.getMessage().contains("not found or access denied"));
   }
 
   @Test
@@ -311,9 +361,12 @@ class DemandServiceIT extends FacadeIT {
     val otherResearcher = createOtherResearcher();
     val demand = createDemandForResearcher(otherResearcher, PostStatus.DRAFT);
 
-    assertThrows(
-        ResourceNotFoundException.class,
-        () -> demandService.updateDemandStatus(demand.getId(), PostStatus.PUBLISHED));
+    ResourceNotFoundException exception =
+        assertThrows(
+            ResourceNotFoundException.class,
+            () -> demandService.updateDemandStatus(demand.getId(), PostStatus.PUBLISHED));
+
+    assertTrue(exception.getMessage().contains("not found or access denied"));
   }
 
   @Test
@@ -326,12 +379,15 @@ class DemandServiceIT extends FacadeIT {
         demandService.getResearcherDemandsByStatus(PostStatus.DRAFT, DEFAULT_PAGE, DEFAULT_SIZE);
 
     assertEquals(2, draftDemands.getTotalElements());
+    assertEquals(2, draftDemands.getContent().size());
     draftDemands
         .getContent()
         .forEach(
             demand -> {
               assertEquals(PostStatus.DRAFT, demand.getStatus());
               assertEquals(TEST_RESEARCHER_ID, demand.getResearcher().getId());
+              assertNotNull(demand.getId());
+              assertNotNull(demand.getDescription());
             });
   }
 
@@ -344,9 +400,15 @@ class DemandServiceIT extends FacadeIT {
     Page<Demand> allDemands = demandService.getAllResearcherDemands(DEFAULT_PAGE, DEFAULT_SIZE);
 
     assertEquals(3, allDemands.getTotalElements());
+    assertEquals(3, allDemands.getContent().size());
     allDemands
         .getContent()
-        .forEach(demand -> assertEquals(TEST_RESEARCHER_ID, demand.getResearcher().getId()));
+        .forEach(
+            demand -> {
+              assertEquals(TEST_RESEARCHER_ID, demand.getResearcher().getId());
+              assertNotNull(demand.getId());
+              assertNotNull(demand.getStatus());
+            });
   }
 
   @Test
@@ -371,14 +433,20 @@ class DemandServiceIT extends FacadeIT {
     assertEquals(createdDemand.getId(), demand.getId());
     assertEquals(TEST_DESCRIPTION, demand.getDescription());
     assertEquals(TEST_RESEARCHER_ID, demand.getResearcher().getId());
+    assertEquals(PostStatus.PUBLISHED, demand.getStatus());
     assertNotNull(demand.getPart());
     assertEquals(TEST_PART_NAME, demand.getPart().getName());
+    assertEquals(TEST_CAR_BRAND, demand.getPart().getCarBrand());
+    assertEquals(TEST_CAR_MODEL, demand.getPart().getCarModel());
   }
 
   @Test
   void should_throw_exception_when_getting_non_existent_demand() {
-    assertThrows(
-        ResourceNotFoundException.class, () -> demandService.getDemandById("non-existent-id"));
+    ResourceNotFoundException exception =
+        assertThrows(
+            ResourceNotFoundException.class, () -> demandService.getDemandById("non-existent-id"));
+
+    assertTrue(exception.getMessage().contains("not found or access denied"));
   }
 
   @Test
@@ -386,8 +454,12 @@ class DemandServiceIT extends FacadeIT {
     val otherResearcher = createOtherResearcher();
     val otherDemand = createDemandForResearcher(otherResearcher, PostStatus.PUBLISHED);
 
-    assertThrows(
-        ResourceNotFoundException.class, () -> demandService.getDemandById(otherDemand.getId()));
+    ResourceNotFoundException exception =
+        assertThrows(
+            ResourceNotFoundException.class,
+            () -> demandService.getDemandById(otherDemand.getId()));
+
+    assertTrue(exception.getMessage().contains("not found or access denied"));
   }
 
   @Test
@@ -439,12 +511,15 @@ class DemandServiceIT extends FacadeIT {
         demandService.getOffersForDemand(demand.getId(), DEFAULT_PAGE, DEFAULT_SIZE);
 
     assertEquals(2, offers.getTotalElements());
+    assertEquals(2, offers.getContent().size());
     offers
         .getContent()
         .forEach(
             offer -> {
               assertEquals(demand.getId(), offer.getDemand().getId());
               assertNotNull(offer.getPartsInfo());
+              assertNotNull(offer.getId());
+              assertNotNull(offer.getSellerId());
             });
   }
 
@@ -464,16 +539,23 @@ class DemandServiceIT extends FacadeIT {
     val otherResearcher = createOtherResearcher();
     val otherDemand = createDemandForResearcher(otherResearcher, PostStatus.PUBLISHED);
 
-    assertThrows(
-        ResourceNotFoundException.class,
-        () -> demandService.getOffersForDemand(otherDemand.getId(), DEFAULT_PAGE, DEFAULT_SIZE));
+    ResourceNotFoundException exception =
+        assertThrows(
+            ResourceNotFoundException.class,
+            () ->
+                demandService.getOffersForDemand(otherDemand.getId(), DEFAULT_PAGE, DEFAULT_SIZE));
+
+    assertTrue(exception.getMessage().contains("not found or access denied"));
   }
 
   @Test
   void should_throw_exception_when_getting_offers_for_non_existent_demand() {
-    assertThrows(
-        ResourceNotFoundException.class,
-        () -> demandService.getOffersForDemand("non-existent-id", DEFAULT_PAGE, DEFAULT_SIZE));
+    ResourceNotFoundException exception =
+        assertThrows(
+            ResourceNotFoundException.class,
+            () -> demandService.getOffersForDemand("non-existent-id", DEFAULT_PAGE, DEFAULT_SIZE));
+
+    assertTrue(exception.getMessage().contains("not found or access denied"));
   }
 
   private void authenticateResearcher() {

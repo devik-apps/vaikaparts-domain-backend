@@ -19,6 +19,7 @@ import lombok.Setter;
 @EqualsAndHashCode
 public class Notification {
   private String id;
+  private String notificationRequestedId;
   private Seller seller;
   private Demand demand;
   private String message;

@@ -15,11 +15,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.NotificationRequest;
+import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.notification.Notification;
 import com.devikapps.vaikaparts.model.user.Seller;
+import com.devikapps.vaikaparts.repository.UserRepository;
+import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +34,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
 
+  private static final String TEST_NOTIFICATION_REQUESTED_ID = "notification-requested-123";
   private static final String TEST_SELLER_ID = "seller-123";
   private static final String TEST_DEMAND_ID = "demand-456";
   private static final String TEST_MESSAGE = "New demand: Toyota Corolla Headlight";
@@ -37,8 +42,9 @@ class NotificationServiceTest {
       "{\"action\":\"VIEW_DEMAND\",\"demandId\":\"demand-456\"}";
 
   @Mock private NotificationChannel inAppChannel;
-  @Mock private SellerService sellerService;
   @Mock private DemandService demandService;
+  @Mock private UserRepository userRepository;
+  @Mock private SellerMapper sellerMapper;
 
   private NotificationService notificationService;
 
@@ -46,27 +52,24 @@ class NotificationServiceTest {
   void setUp() {
     when(inAppChannel.isEnabled()).thenReturn(true);
     notificationService =
-        new NotificationService(List.of(inAppChannel), sellerService, demandService);
+        new NotificationService(List.of(inAppChannel), userRepository, sellerMapper, demandService);
   }
 
   @Test
   void should_create_notification_with_correct_attributes() {
-    var request =
-        NotificationRequest.builder()
-            .sellerId(TEST_SELLER_ID)
-            .demandId(TEST_DEMAND_ID)
-            .message(TEST_MESSAGE)
-            .notificationType(NotificationType.DEMAND_PUBLISHED)
-            .clickAction(TEST_CLICK_ACTION)
-            .build();
+    var request = buildTestRequest();
 
-    when(sellerService.getSellerById(TEST_SELLER_ID)).thenReturn(buildTestSeller());
-    when(demandService.getDemandById(TEST_DEMAND_ID)).thenReturn(buildTestDemand());
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(Optional.of(JSeller.builder().build()));
+    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
+    when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
+        .thenReturn(buildTestDemand());
 
     var notification = notificationService.createAndSendNotification(request);
 
     assertNotNull(notification);
     assertNotNull(notification.getId());
+    assertEquals(TEST_NOTIFICATION_REQUESTED_ID, notification.getNotificationRequestedId());
     assertEquals(TEST_SELLER_ID, notification.getSeller().getId());
     assertEquals(TEST_DEMAND_ID, notification.getDemand().getId());
     assertEquals(TEST_MESSAGE, notification.getMessage());
@@ -80,9 +83,11 @@ class NotificationServiceTest {
   @Test
   void should_send_notification_through_enabled_channels() {
     var request = buildTestRequest();
-
-    when(sellerService.getSellerById(TEST_SELLER_ID)).thenReturn(buildTestSeller());
-    when(demandService.getDemandById(TEST_DEMAND_ID)).thenReturn(buildTestDemand());
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(Optional.of(JSeller.builder().build()));
+    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
+    when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
+        .thenReturn(buildTestDemand());
 
     notificationService.createAndSendNotification(request);
 
@@ -90,6 +95,7 @@ class NotificationServiceTest {
     verify(inAppChannel, times(1)).send(captor.capture());
 
     var sentNotification = captor.getValue();
+    assertEquals(TEST_NOTIFICATION_REQUESTED_ID, sentNotification.getNotificationRequestedId());
     assertEquals(TEST_SELLER_ID, sentNotification.getSeller().getId());
     assertEquals(TEST_DEMAND_ID, sentNotification.getDemand().getId());
   }
@@ -97,11 +103,13 @@ class NotificationServiceTest {
   @Test
   void should_not_send_through_disabled_channels() {
     when(inAppChannel.isEnabled()).thenReturn(false);
-    when(sellerService.getSellerById(TEST_SELLER_ID)).thenReturn(buildTestSeller());
-    when(demandService.getDemandById(TEST_DEMAND_ID)).thenReturn(buildTestDemand());
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(Optional.of(JSeller.builder().build()));
+    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
+    when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
+        .thenReturn(buildTestDemand());
 
-    var request = buildTestRequest();
-    notificationService.createAndSendNotification(request);
+    notificationService.createAndSendNotification(buildTestRequest());
 
     verify(inAppChannel, never()).send(any(Notification.class));
   }
@@ -112,17 +120,18 @@ class NotificationServiceTest {
 
     when(failingChannel.isEnabled()).thenReturn(true);
     when(failingChannel.getChannelType()).thenReturn(EMAIL);
-    when(sellerService.getSellerById(TEST_SELLER_ID)).thenReturn(buildTestSeller());
-    when(demandService.getDemandById(TEST_DEMAND_ID)).thenReturn(buildTestDemand());
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(Optional.of(JSeller.builder().build()));
+    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
+    when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
+        .thenReturn(buildTestDemand());
     doThrow(new RuntimeException("Channel failure")).when(failingChannel).send(any());
 
     notificationService =
         new NotificationService(
-            List.of(failingChannel, inAppChannel), sellerService, demandService);
+            List.of(failingChannel, inAppChannel), userRepository, sellerMapper, demandService);
 
-    var request = buildTestRequest();
-
-    assertDoesNotThrow(() -> notificationService.createAndSendNotification(request));
+    assertDoesNotThrow(() -> notificationService.createAndSendNotification(buildTestRequest()));
 
     verify(failingChannel, times(1)).send(any(Notification.class));
     verify(inAppChannel, times(1)).send(any(Notification.class));
@@ -133,14 +142,17 @@ class NotificationServiceTest {
     NotificationChannel emailChannel = mock(NotificationChannel.class);
     when(emailChannel.isEnabled()).thenReturn(true);
     when(emailChannel.getChannelType()).thenReturn(EMAIL);
-    when(sellerService.getSellerById(TEST_SELLER_ID)).thenReturn(buildTestSeller());
-    when(demandService.getDemandById(TEST_DEMAND_ID)).thenReturn(buildTestDemand());
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(Optional.of(JSeller.builder().build()));
+    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
+    when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
+        .thenReturn(buildTestDemand());
 
     notificationService =
-        new NotificationService(List.of(inAppChannel, emailChannel), sellerService, demandService);
+        new NotificationService(
+            List.of(inAppChannel, emailChannel), userRepository, sellerMapper, demandService);
 
-    var request = buildTestRequest();
-    notificationService.createAndSendNotification(request);
+    notificationService.createAndSendNotification(buildTestRequest());
 
     verify(inAppChannel, times(1)).send(any(Notification.class));
     verify(emailChannel, times(1)).send(any(Notification.class));
@@ -148,6 +160,7 @@ class NotificationServiceTest {
 
   private NotificationRequest buildTestRequest() {
     return NotificationRequest.builder()
+        .notificationRequestedId(TEST_NOTIFICATION_REQUESTED_ID)
         .sellerId(TEST_SELLER_ID)
         .demandId(TEST_DEMAND_ID)
         .message(TEST_MESSAGE)

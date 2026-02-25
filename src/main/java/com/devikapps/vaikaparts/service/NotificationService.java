@@ -1,10 +1,15 @@
 package com.devikapps.vaikaparts.service;
 
+import static java.lang.String.format;
 import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.NotificationRequest;
+import com.devikapps.vaikaparts.exception.UserNotFoundException;
+import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.notification.Notification;
+import com.devikapps.vaikaparts.repository.UserRepository;
+import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +22,8 @@ import org.springframework.stereotype.Service;
 public class NotificationService {
 
   private final List<NotificationChannel> channels;
-  private final SellerService sellerService;
+  private final UserRepository userRepository;
+  private final SellerMapper sellerMapper;
   private final DemandService demandService;
 
   public Notification createAndSendNotification(NotificationRequest request) {
@@ -31,10 +37,22 @@ public class NotificationService {
   }
 
   private Notification buildNotification(NotificationRequest request) {
+    var jSeller =
+        (JSeller)
+            userRepository
+                .findJUserById(request.getSellerId())
+                .orElseThrow(
+                    () ->
+                        new UserNotFoundException(
+                            format(
+                                "No seller with id=%s not found", forJava(request.getSellerId()))));
+    var seller = sellerMapper.toSeller(jSeller);
+
     return Notification.builder()
         .id(randomUUID().toString())
-        .seller(sellerService.getSellerById(request.getSellerId()))
-        .demand(demandService.getDemandById(request.getDemandId()))
+        .seller(seller)
+        .notificationRequestedId(request.getNotificationRequestedId())
+        .demand(demandService.getDemandByIdWithoutAuthFilter(request.getDemandId()))
         .message(request.getMessage())
         .notificationType(request.getNotificationType())
         .read(false)

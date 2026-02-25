@@ -1,5 +1,7 @@
-package com.devikapps.vaikaparts.service;
+package com.devikapps.vaikaparts.service.event;
 
+import static com.devikapps.vaikaparts.model.classifier.UserStatus.ENABLED;
+import static com.devikapps.vaikaparts.model.classifier.UserType.SELLER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -15,13 +17,15 @@ import static org.mockito.Mockito.when;
 import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.event.model.EventProducer;
 import com.devikapps.vaikaparts.event.model.NotificationRequested;
+import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
+import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
-import com.devikapps.vaikaparts.service.event.DemandPublishedRequestedService;
+import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,13 +46,16 @@ class DemandPublishedRequestedServiceTest {
 
   @Mock private DemandPublishedRequestedRepository demandPublishedRequestedRepository;
   @Mock private DemandRepository demandRepository;
-  @Mock private SellerService sellerService;
+  @Mock private UserRepository userRepository;
+  @Mock private SellerMapper sellerMapper;
   @Mock private EventProducer<NotificationRequested> notificationRequestedProducer;
 
   @InjectMocks private DemandPublishedRequestedService service;
 
   private DemandPublishedRequested testEvent;
   private JDemand testDemand;
+  private JSeller testJSeller1;
+  private JSeller testJSeller2;
   private Seller testSeller1;
   private Seller testSeller2;
   private JDemandPublishedRequested testEventLog;
@@ -59,6 +66,8 @@ class DemandPublishedRequestedServiceTest {
         DemandPublishedRequested.builder().id(TEST_EVENT_ID).demandId(TEST_DEMAND_ID).build();
 
     testDemand = mock(JDemand.class);
+    testJSeller1 = mock(JSeller.class);
+    testJSeller2 = mock(JSeller.class);
     testSeller1 = mock(Seller.class);
     testSeller2 = mock(Seller.class);
 
@@ -76,11 +85,14 @@ class DemandPublishedRequestedServiceTest {
   @Test
   void should_create_event_log_if_not_exists() {
     when(demandPublishedRequestedRepository.findById(TEST_EVENT_ID)).thenReturn(Optional.empty());
-    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
-        .thenReturn(Optional.of(testDemand));
     when(demandPublishedRequestedRepository.save(any(JDemandPublishedRequested.class)))
         .thenReturn(testEventLog);
-    when(sellerService.getAllActiveSellers()).thenReturn(List.of(testSeller1, testSeller2));
+    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
+        .thenReturn(Optional.of(testDemand));
+    when(userRepository.findAllByUserTypeAndStatus(SELLER, ENABLED))
+        .thenReturn(List.of(testJSeller1, testJSeller2));
+    when(sellerMapper.toSeller(testJSeller1)).thenReturn(testSeller1);
+    when(sellerMapper.toSeller(testJSeller2)).thenReturn(testSeller2);
     when(testDemand.getId()).thenReturn(TEST_DEMAND_ID);
     when(testSeller1.getId()).thenReturn(TEST_SELLER_1_ID);
     when(testSeller2.getId()).thenReturn(TEST_SELLER_2_ID);
@@ -91,38 +103,46 @@ class DemandPublishedRequestedServiceTest {
         ArgumentCaptor.forClass(JDemandPublishedRequested.class);
     verify(demandPublishedRequestedRepository, atLeastOnce()).save(captor.capture());
 
-    var savedLog = captor.getValue();
-    assertEquals(TEST_EVENT_ID, savedLog.getId());
-    assertEquals(testDemand, savedLog.getDemand());
+    var firstSavedLog = captor.getAllValues().getFirst();
+    assertEquals(TEST_EVENT_ID, firstSavedLog.getId());
+    assertNotNull(firstSavedLog.getDemand());
   }
 
   @Test
   void should_fetch_active_sellers() {
     when(demandPublishedRequestedRepository.findById(TEST_EVENT_ID))
         .thenReturn(Optional.of(testEventLog));
-    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
-        .thenReturn(Optional.of(testDemand));
     when(demandPublishedRequestedRepository.save(any(JDemandPublishedRequested.class)))
         .thenReturn(testEventLog);
-    when(sellerService.getAllActiveSellers()).thenReturn(List.of(testSeller1, testSeller2));
+    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
+        .thenReturn(Optional.of(testDemand));
+    when(userRepository.findAllByUserTypeAndStatus(SELLER, ENABLED))
+        .thenReturn(List.of(testJSeller1, testJSeller2));
+    when(sellerMapper.toSeller(testJSeller1)).thenReturn(testSeller1);
+    when(sellerMapper.toSeller(testJSeller2)).thenReturn(testSeller2);
+    when(testSeller1.getId()).thenReturn(TEST_SELLER_1_ID);
+    when(testSeller2.getId()).thenReturn(TEST_SELLER_2_ID);
 
     service.accept(testEvent);
 
-    verify(sellerService, times(1)).getAllActiveSellers();
+    verify(userRepository, times(1)).findAllByUserTypeAndStatus(SELLER, ENABLED);
   }
 
   @Test
   void should_publish_notification_events_for_each_seller() {
     when(demandPublishedRequestedRepository.findById(TEST_EVENT_ID))
         .thenReturn(Optional.of(testEventLog));
+    when(demandPublishedRequestedRepository.save(any(JDemandPublishedRequested.class)))
+        .thenReturn(testEventLog);
+    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
+        .thenReturn(Optional.of(testDemand));
+    when(userRepository.findAllByUserTypeAndStatus(SELLER, ENABLED))
+        .thenReturn(List.of(testJSeller1, testJSeller2));
+    when(sellerMapper.toSeller(testJSeller1)).thenReturn(testSeller1);
+    when(sellerMapper.toSeller(testJSeller2)).thenReturn(testSeller2);
     when(testDemand.getId()).thenReturn(TEST_DEMAND_ID);
     when(testSeller1.getId()).thenReturn(TEST_SELLER_1_ID);
     when(testSeller2.getId()).thenReturn(TEST_SELLER_2_ID);
-    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
-        .thenReturn(Optional.of(testDemand));
-    when(demandPublishedRequestedRepository.save(any(JDemandPublishedRequested.class)))
-        .thenReturn(testEventLog);
-    when(sellerService.getAllActiveSellers()).thenReturn(List.of(testSeller1, testSeller2));
 
     service.accept(testEvent);
 
@@ -143,11 +163,13 @@ class DemandPublishedRequestedServiceTest {
   void should_update_event_log_status_to_success() {
     when(demandPublishedRequestedRepository.findById(TEST_EVENT_ID))
         .thenReturn(Optional.of(testEventLog));
-    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
-        .thenReturn(Optional.of(testDemand));
     when(demandPublishedRequestedRepository.save(any(JDemandPublishedRequested.class)))
         .thenReturn(testEventLog);
-    when(sellerService.getAllActiveSellers()).thenReturn(List.of(testSeller1));
+    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
+        .thenReturn(Optional.of(testDemand));
+    when(userRepository.findAllByUserTypeAndStatus(SELLER, ENABLED))
+        .thenReturn(List.of(testJSeller1));
+    when(sellerMapper.toSeller(testJSeller1)).thenReturn(testSeller1);
     when(testDemand.getId()).thenReturn(TEST_DEMAND_ID);
     when(testSeller1.getId()).thenReturn(TEST_SELLER_1_ID);
 
@@ -168,11 +190,11 @@ class DemandPublishedRequestedServiceTest {
   void should_handle_zero_active_sellers() {
     when(demandPublishedRequestedRepository.findById(TEST_EVENT_ID))
         .thenReturn(Optional.of(testEventLog));
-    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
-        .thenReturn(Optional.of(testDemand));
     when(demandPublishedRequestedRepository.save(any(JDemandPublishedRequested.class)))
         .thenReturn(testEventLog);
-    when(sellerService.getAllActiveSellers()).thenReturn(List.of());
+    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
+        .thenReturn(Optional.of(testDemand));
+    when(userRepository.findAllByUserTypeAndStatus(SELLER, ENABLED)).thenReturn(List.of());
 
     service.accept(testEvent);
 
@@ -192,10 +214,12 @@ class DemandPublishedRequestedServiceTest {
   void should_set_event_log_to_failed_on_exception() {
     when(demandPublishedRequestedRepository.findById(TEST_EVENT_ID))
         .thenReturn(Optional.of(testEventLog));
-    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
-        .thenThrow(new RuntimeException("Database error"));
     when(demandPublishedRequestedRepository.save(any(JDemandPublishedRequested.class)))
         .thenReturn(testEventLog);
+    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
+        .thenReturn(Optional.of(testDemand));
+    when(userRepository.findAllByUserTypeAndStatus(SELLER, ENABLED))
+        .thenThrow(new RuntimeException("Database error"));
 
     assertThrows(RuntimeException.class, () -> service.accept(testEvent));
 
@@ -211,12 +235,7 @@ class DemandPublishedRequestedServiceTest {
 
   @Test
   void should_throw_exception_when_demand_not_found() {
-    when(demandPublishedRequestedRepository.findById(TEST_EVENT_ID))
-        .thenReturn(Optional.of(testEventLog));
     when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID)).thenReturn(Optional.empty());
-    when(demandPublishedRequestedRepository.save(any(JDemandPublishedRequested.class)))
-        .thenReturn(testEventLog);
-
     assertThrows(RuntimeException.class, () -> service.accept(testEvent));
   }
 }

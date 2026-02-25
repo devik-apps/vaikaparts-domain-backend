@@ -5,8 +5,11 @@ import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.NotificationRequest;
 import com.devikapps.vaikaparts.event.model.NotificationRequested;
+import com.devikapps.vaikaparts.exception.UserNotFoundException;
+import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
+import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
@@ -31,6 +34,7 @@ public class NotificationRequestedService implements Consumer<NotificationReques
   private final NotificationRequestedRepository notificationRequestedRepository;
   private final DemandPublishedRequestedRepository demandPublishedRequestedRepository;
   private final DemandRepository demandRepository;
+  private final SellerMapper sellerMapper;
   private final UserRepository userRepository;
   private final NotificationService notificationService;
 
@@ -49,8 +53,9 @@ public class NotificationRequestedService implements Consumer<NotificationReques
     try {
       updateEventLogStatus(eventLog, ProcessStatus.PROCESSING);
 
-      var demand = fetchDemand(event.getDemandId());
+      var demand = eventLog.getDemand();
       var notificationRequest = buildNotificationRequest(demand, event.getSellerId());
+      notificationRequest.setNotificationRequestedId(event.getId());
 
       notificationService.createAndSendNotification(notificationRequest);
 
@@ -83,7 +88,7 @@ public class NotificationRequestedService implements Consumer<NotificationReques
     return JNotificationRequested.builder()
         .id(event.getId())
         .demandPublishedRequested(parent)
-        .seller(seller)
+        .seller(sellerMapper.toPersistence(seller))
         .demand(demand)
         .notificationType(NotificationType.DEMAND_PUBLISHED)
         .status(ProcessStatus.PENDING)
@@ -109,21 +114,21 @@ public class NotificationRequestedService implements Consumer<NotificationReques
             });
   }
 
-  private JSeller fetchSeller(String sellerId) {
-    return userRepository
-        .findById(sellerId)
-        .filter(user -> user instanceof JSeller)
-        .map(user -> (JSeller) user)
-        .orElseThrow(
-            () -> {
-              log.error("Seller not found: {}", forJava(sellerId));
-              return new IllegalStateException("Seller not found: " + sellerId);
-            });
+  private Seller fetchSeller(String sellerId) {
+    var jSeller =
+        (JSeller)
+            userRepository
+                .findJUserById(sellerId)
+                .orElseThrow(
+                    () ->
+                        new UserNotFoundException(
+                            format("No seller with id=%s not found", forJava(sellerId))));
+    return sellerMapper.toSeller((jSeller));
   }
 
   private JDemand fetchDemand(String demandId) {
     return demandRepository
-        .findByIdWithRelations(demandId)
+        .findById(demandId)
         .orElseThrow(
             () -> {
               log.error("Demand not found: {}", forJava(demandId));

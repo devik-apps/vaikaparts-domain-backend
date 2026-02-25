@@ -1,26 +1,31 @@
 package com.devikapps.vaikaparts.service.event;
 
+import static com.devikapps.vaikaparts.model.classifier.UserStatus.ENABLED;
+import static com.devikapps.vaikaparts.model.classifier.UserType.SELLER;
 import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.event.model.EventProducer;
 import com.devikapps.vaikaparts.event.model.NotificationRequested;
+import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
+import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
-import com.devikapps.vaikaparts.service.SellerService;
+import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Service
@@ -29,7 +34,8 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
 
   private final DemandPublishedRequestedRepository demandPublishedRequestedRepository;
   private final DemandRepository demandRepository;
-  private final SellerService sellerService;
+  private final UserRepository userRepository;
+  private final SellerMapper sellerMapper;
   private final EventProducer<NotificationRequested> notificationRequestedProducer;
 
   @Override
@@ -41,22 +47,24 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
         forJava(event.getDemandId()),
         event.getAttemptNb());
 
-    var eventLog = createOrUpdateEventLog(event);
+    var demand = fetchDemand(event.getDemandId());
+    var eventLog = fetchOrCreateEventLog(event, demand);
 
     try {
-      updateEventLogStatus(eventLog, ProcessStatus.PROCESSING);
+      updateEventLogStatus(eventLog);
 
-      var demand = fetchDemand(event.getDemandId());
       var sellers = fetchActiveSellers();
-
       eventLog.setTotalSellersToNotify(sellers.size());
       demandPublishedRequestedRepository.save(eventLog);
 
       publishNotificationRequests(event, demand, sellers);
 
-      updateEventLogStatus(eventLog, ProcessStatus.SUCCESS);
+      eventLog.setStatus(ProcessStatus.SUCCESS);
+      eventLog.setAttemptNb(event.getAttemptNb());
+      eventLog.setErrorMessage(null);
       eventLog.setNotificationsSentCount(sellers.size());
       eventLog.setCompletedAt(LocalDateTime.now());
+      eventLog.setUpdatedAt(LocalDateTime.now());
       demandPublishedRequestedRepository.save(eventLog);
 
       log.info(
@@ -69,30 +77,50 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
     }
   }
 
-  private JDemandPublishedRequested createOrUpdateEventLog(DemandPublishedRequested event) {
+  private JDemandPublishedRequested fetchOrCreateEventLog(
+      DemandPublishedRequested event, JDemand demand) {
     return demandPublishedRequestedRepository
         .findById(event.getId())
-        .orElseGet(() -> createNewEventLog(event));
+        .orElseGet(
+            () -> {
+              var now = LocalDateTime.now();
+              var newLog =
+                  JDemandPublishedRequested.builder()
+                      .id(event.getId())
+                      .demand(demand)
+                      .status(ProcessStatus.PENDING)
+                      .attemptNb(event.getAttemptNb())
+                      .totalSellersToNotify(0)
+                      .notificationsSentCount(0)
+                      .createdAt(now)
+                      .updatedAt(now)
+                      .build();
+              return demandPublishedRequestedRepository.save(newLog);
+            });
   }
 
-  private JDemandPublishedRequested createNewEventLog(DemandPublishedRequested event) {
-    var demand = fetchDemand(event.getDemandId());
-    var now = LocalDateTime.now();
-
-    return JDemandPublishedRequested.builder()
-        .id(event.getId())
-        .demand(demand)
-        .status(ProcessStatus.PENDING)
-        .attemptNb(event.getAttemptNb())
-        .totalSellersToNotify(0)
-        .notificationsSentCount(0)
-        .createdAt(now)
-        .updatedAt(now)
-        .build();
+  private JDemandPublishedRequested fetchOrCreateEventLog(DemandPublishedRequested event) {
+    return demandPublishedRequestedRepository
+        .findById(event.getId())
+        .orElseGet(
+            () -> {
+              var now = LocalDateTime.now();
+              var newLog =
+                  JDemandPublishedRequested.builder()
+                      .id(event.getId())
+                      .status(ProcessStatus.PENDING)
+                      .attemptNb(event.getAttemptNb())
+                      .totalSellersToNotify(0)
+                      .notificationsSentCount(0)
+                      .createdAt(now)
+                      .updatedAt(now)
+                      .build();
+              return demandPublishedRequestedRepository.save(newLog);
+            });
   }
 
-  private void updateEventLogStatus(JDemandPublishedRequested eventLog, ProcessStatus status) {
-    eventLog.setStatus(status);
+  private void updateEventLogStatus(JDemandPublishedRequested eventLog) {
+    eventLog.setStatus(ProcessStatus.PROCESSING);
     eventLog.setUpdatedAt(LocalDateTime.now());
     demandPublishedRequestedRepository.save(eventLog);
   }
@@ -108,7 +136,10 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
   }
 
   private List<Seller> fetchActiveSellers() {
-    var sellers = sellerService.getAllActiveSellers();
+    var sellers =
+        userRepository.findAllByUserTypeAndStatus(SELLER, ENABLED).stream()
+            .map(u -> sellerMapper.toSeller((JSeller) u))
+            .toList();
 
     log.info("Found {} active sellers to notify", sellers.size());
     return sellers;
@@ -117,23 +148,39 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
   private void publishNotificationRequests(
       DemandPublishedRequested parentEvent, JDemand demand, List<Seller> sellers) {
 
-    var notificationEvents = new ArrayList<NotificationRequested>();
-
-    for (Seller seller : sellers) {
-      var notificationEvent =
-          NotificationRequested.builder()
-              .id(randomUUID().toString())
-              .demandPublishedRequestedId(parentEvent.getId())
-              .sellerId(seller.getId())
-              .demandId(demand.getId())
-              .build();
-
-      notificationEvents.add(notificationEvent);
+    if (sellers.isEmpty()) {
+      return;
     }
 
-    if (!notificationEvents.isEmpty()) {
+    var notificationEvents =
+        sellers.stream()
+            .map(
+                seller ->
+                    NotificationRequested.builder()
+                        .id(randomUUID().toString())
+                        .demandPublishedRequestedId(parentEvent.getId())
+                        .sellerId(seller.getId())
+                        .demandId(demand.getId())
+                        .build())
+            .toList();
+
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+      TransactionSynchronizationManager.registerSynchronization(
+          new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+              notificationRequestedProducer.accept(notificationEvents);
+              log.info(
+                  "Published {} NotificationRequested events after transaction commit",
+                  notificationEvents.size());
+            }
+          });
+    } else {
+      log.warn(
+          "No active transaction synchronization. Publishing {} NotificationRequested events"
+              + " immediately.",
+          notificationEvents.size());
       notificationRequestedProducer.accept(notificationEvents);
-      log.info("Published {} NotificationRequested events", notificationEvents.size());
     }
   }
 
