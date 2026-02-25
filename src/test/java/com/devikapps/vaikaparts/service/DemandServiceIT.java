@@ -13,15 +13,19 @@ import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPart
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
 import com.devikapps.vaikaparts.model.Location;
+import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.classifier.PartCategory;
 import com.devikapps.vaikaparts.model.classifier.PartCondition;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
+import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.exchange.Offer;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
+import com.devikapps.vaikaparts.repository.NotificationRepository;
+import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
@@ -35,6 +39,7 @@ import java.time.LocalDateTime;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import lombok.val;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,6 +73,8 @@ class DemandServiceIT extends FacadeIT {
   @Autowired private OfferRepository offerRepository;
   @Autowired private UserRepository userRepository;
   @Autowired private ValueObjectMapper vom;
+  @Autowired private NotificationRepository notificationRepository;
+  @Autowired private NotificationRequestedRepository notificationRequestedRepository;
 
   private JResearcher testResearcher;
 
@@ -80,6 +87,8 @@ class DemandServiceIT extends FacadeIT {
   @AfterEach
   void tearDown() {
     SecurityContextHolder.clearContext();
+    notificationRepository.deleteAll();
+    notificationRequestedRepository.deleteAll();
     demandPublishedRequestedRepository.deleteAll();
     offerRepository.deleteAll();
     demandRepository.deleteAll();
@@ -556,6 +565,117 @@ class DemandServiceIT extends FacadeIT {
             () -> demandService.getOffersForDemand("non-existent-id", DEFAULT_PAGE, DEFAULT_SIZE));
 
     assertTrue(exception.getMessage().contains("not found or access denied"));
+  }
+
+  @Test
+  void should_notify_all_sellers_when_demand_is_published() throws InterruptedException {
+    val seller1 = createTestSeller("seller-a");
+    val seller2 = createTestSeller("seller-b");
+    val seller3 = createTestSeller("seller-c");
+
+    val restPart = buildTestRestPart();
+    val createdDemand = demandService.createDemand(TEST_DESCRIPTION, restPart);
+
+    assertNotNull(createdDemand.getId());
+    assertEquals(TEST_DESCRIPTION, createdDemand.getDescription());
+    assertEquals(PostStatus.DRAFT, createdDemand.getStatus());
+    assertEquals(TEST_RESEARCHER_ID, createdDemand.getResearcher().getId());
+    assertEquals(TEST_RESEARCHER_NAME, createdDemand.getResearcher().getName());
+    assertEquals(TEST_EMAIL, createdDemand.getResearcher().getEmail());
+    assertEquals(TEST_PART_NAME, createdDemand.getPart().getName());
+    assertEquals(TEST_CAR_BRAND, createdDemand.getPart().getCarBrand());
+    assertEquals(TEST_CAR_MODEL, createdDemand.getPart().getCarModel());
+    assertEquals(Year.of(TEST_CAR_YEAR), createdDemand.getPart().getCarYear());
+    assertEquals(PartCategory.FOG_LIGHTS, createdDemand.getPart().getPartCategory());
+    assertNotNull(createdDemand.getCreatedAt());
+    assertNotNull(createdDemand.getUpdatedAt());
+    assertNull(createdDemand.getCanceledAt());
+    assertNull(createdDemand.getSuspendedAt());
+
+    val savedDraft = demandRepository.findById(createdDemand.getId());
+    assertTrue(savedDraft.isPresent());
+    assertEquals(PostStatus.DRAFT, savedDraft.get().getStatus());
+    assertEquals(TEST_DESCRIPTION, savedDraft.get().getDescription());
+    assertEquals(TEST_RESEARCHER_ID, savedDraft.get().getResearcher().getId());
+    assertNotNull(savedDraft.get().getPart());
+    assertEquals(TEST_PART_NAME, savedDraft.get().getPart().getPartName());
+    assertEquals(TEST_CAR_BRAND, savedDraft.get().getPart().getCarBrand());
+    assertEquals(TEST_CAR_MODEL, savedDraft.get().getPart().getCarModel());
+    assertEquals(TEST_CAR_YEAR, savedDraft.get().getPart().getCarYear());
+    assertEquals(PartCategory.FOG_LIGHTS, savedDraft.get().getPart().getPartCategory());
+    assertNull(savedDraft.get().getCanceledAt());
+    assertNull(savedDraft.get().getSuspendedAt());
+
+    val updatedAtBeforePublish = createdDemand.getUpdatedAt();
+    val publishedDemand =
+        demandService.updateDemandStatus(createdDemand.getId(), PostStatus.PUBLISHED);
+
+    assertEquals(createdDemand.getId(), publishedDemand.getId());
+    assertEquals(PostStatus.PUBLISHED, publishedDemand.getStatus());
+    assertNull(publishedDemand.getCanceledAt());
+    assertNull(publishedDemand.getSuspendedAt());
+    assertTrue(
+        publishedDemand.getUpdatedAt().isAfter(updatedAtBeforePublish)
+            || publishedDemand.getUpdatedAt().equals(updatedAtBeforePublish));
+
+    val savedPublished = demandRepository.findById(createdDemand.getId());
+    assertTrue(savedPublished.isPresent());
+    assertEquals(PostStatus.PUBLISHED, savedPublished.get().getStatus());
+    assertNull(savedPublished.get().getCanceledAt());
+    assertNull(savedPublished.get().getSuspendedAt());
+    assertNotNull(savedPublished.get().getUpdatedAt());
+
+    Thread.sleep(5000);
+
+    val notifications = notificationRepository.findAll();
+    assertEquals(3, notifications.size());
+
+    val notifiedSellerIds =
+        notifications.stream().map(n -> n.getSeller().getId()).collect(Collectors.toSet());
+    assertTrue(notifiedSellerIds.contains(seller1.getId()));
+    assertTrue(notifiedSellerIds.contains(seller2.getId()));
+    assertTrue(notifiedSellerIds.contains(seller3.getId()));
+
+    notifications.forEach(
+        notification -> {
+          assertEquals(createdDemand.getId(), notification.getDemand().getId());
+          assertEquals(NotificationType.DEMAND_PUBLISHED, notification.getNotificationType());
+          assertFalse(notification.isRead());
+          assertNull(notification.getReadAt());
+          assertNotNull(notification.getCreatedAt());
+          assertNotNull(notification.getId());
+          assertNotNull(notification.getNotificationRequested());
+          assertNotNull(notification.getNotificationRequested().getId());
+          assertNotNull(notification.getMessage());
+          assertFalse(notification.getMessage().isBlank());
+        });
+
+    val eventLogs = demandPublishedRequestedRepository.findAll();
+    assertEquals(1, eventLogs.size());
+    val eventLog = eventLogs.getFirst();
+    assertEquals(createdDemand.getId(), eventLog.getDemand().getId());
+    assertEquals(ProcessStatus.SUCCESS, eventLog.getStatus());
+    assertEquals(3, eventLog.getTotalSellersToNotify());
+    assertEquals(3, eventLog.getNotificationsSentCount());
+    assertNotNull(eventLog.getCompletedAt());
+    assertNull(eventLog.getErrorMessage());
+
+    val notificationRequestedLogs = notificationRequestedRepository.findAll();
+    assertEquals(3, notificationRequestedLogs.size());
+
+    val notificationRequestedSellerIds =
+        notificationRequestedLogs.stream()
+            .map(log -> log.getSeller().getId())
+            .collect(Collectors.toSet());
+    assertTrue(notificationRequestedSellerIds.contains(seller1.getId()));
+    assertTrue(notificationRequestedSellerIds.contains(seller2.getId()));
+    assertTrue(notificationRequestedSellerIds.contains(seller3.getId()));
+
+    notificationRequestedLogs.forEach(
+        log -> {
+          assertEquals(eventLog.getId(), log.getDemandPublishedRequested().getId());
+          assertEquals(createdDemand.getId(), log.getDemand().getId());
+        });
   }
 
   private void authenticateResearcher() {
