@@ -18,7 +18,7 @@ import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
 import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
-import com.devikapps.vaikaparts.service.NotificationService;
+import com.devikapps.vaikaparts.service.notification.NotificationService;
 import java.time.LocalDateTime;
 import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;

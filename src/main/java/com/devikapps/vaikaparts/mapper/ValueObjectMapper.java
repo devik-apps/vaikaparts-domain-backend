@@ -15,7 +15,7 @@ public interface ValueObjectMapper {
 
   default String getNotificationRequestedId(JNotification jNotification) {
     if (jNotification == null) return null;
-    return jNotification.getId();
+    return jNotification.getNotificationRequested().getId();
   }
 
   default Location map(JLocation jLocation) {

@@ -32,6 +32,7 @@ import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
+import com.devikapps.vaikaparts.service.notification.NotificationService;
 import java.time.LocalDateTime;
 import java.time.Year;
 import java.util.ArrayList;

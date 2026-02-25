@@ -26,6 +26,8 @@ import com.devikapps.vaikaparts.repository.event.JNotification;
 import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
+import com.devikapps.vaikaparts.service.notification.InAppNotificationChannel;
+import com.devikapps.vaikaparts.service.notification.NotificationWebSocketService;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;

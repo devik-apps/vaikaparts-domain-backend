@@ -31,6 +31,7 @@ import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
+import com.devikapps.vaikaparts.service.notification.InAppNotificationChannel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

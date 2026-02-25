@@ -1,4 +1,4 @@
-package com.devikapps.vaikaparts.service;
+package com.devikapps.vaikaparts.service.notification;
 
 import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.IN_APP;
 import static java.lang.String.format;
@@ -14,6 +14,7 @@ import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.event.JNotification;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
+import com.devikapps.vaikaparts.service.NotificationChannel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

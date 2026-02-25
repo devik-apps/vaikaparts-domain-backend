@@ -1,4 +1,4 @@
-package com.devikapps.vaikaparts.service;
+package com.devikapps.vaikaparts.service.notification;
 
 import static org.owasp.encoder.Encode.forJava;
 

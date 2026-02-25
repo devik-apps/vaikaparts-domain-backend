@@ -15,13 +15,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.NotificationRequest;
+import com.devikapps.vaikaparts.mapper.NotificationMapper;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.notification.Notification;
 import com.devikapps.vaikaparts.model.user.Seller;
+import com.devikapps.vaikaparts.repository.NotificationRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
+import com.devikapps.vaikaparts.service.notification.NotificationService;
+import com.devikapps.vaikaparts.service.util.Paginator;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +49,10 @@ class NotificationServiceTest {
   @Mock private DemandService demandService;
   @Mock private UserRepository userRepository;
   @Mock private SellerMapper sellerMapper;
+  @Mock private Paginator paginator;
+  @Mock private SellerService sellerService;
+  @Mock private NotificationMapper notificationMapper;
+  @Mock private NotificationRepository notificationRepository;
 
   private NotificationService notificationService;
 
@@ -52,7 +60,15 @@ class NotificationServiceTest {
   void setUp() {
     when(inAppChannel.isEnabled()).thenReturn(true);
     notificationService =
-        new NotificationService(List.of(inAppChannel), userRepository, sellerMapper, demandService);
+        new NotificationService(
+            List.of(inAppChannel),
+            userRepository,
+            sellerMapper,
+            demandService,
+            notificationRepository,
+            paginator,
+            sellerService,
+            notificationMapper);
   }
 
   @Test
@@ -129,7 +145,14 @@ class NotificationServiceTest {
 
     notificationService =
         new NotificationService(
-            List.of(failingChannel, inAppChannel), userRepository, sellerMapper, demandService);
+            List.of(failingChannel, inAppChannel),
+            userRepository,
+            sellerMapper,
+            demandService,
+            notificationRepository,
+            paginator,
+            sellerService,
+            notificationMapper);
 
     assertDoesNotThrow(() -> notificationService.createAndSendNotification(buildTestRequest()));
 
@@ -150,7 +173,14 @@ class NotificationServiceTest {
 
     notificationService =
         new NotificationService(
-            List.of(inAppChannel, emailChannel), userRepository, sellerMapper, demandService);
+            List.of(inAppChannel, emailChannel),
+            userRepository,
+            sellerMapper,
+            demandService,
+            notificationRepository,
+            paginator,
+            sellerService,
+            notificationMapper);
 
     notificationService.createAndSendNotification(buildTestRequest());
 
