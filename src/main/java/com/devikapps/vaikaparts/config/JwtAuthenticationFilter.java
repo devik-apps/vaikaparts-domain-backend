@@ -89,6 +89,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         || path.startsWith("/webhooks")
         || path.startsWith("/doc")
         || path.startsWith("/swagger-ui")
+        || path.startsWith("/ws")
         || path.startsWith("/v3/api-docs");
   }
 }

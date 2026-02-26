@@ -36,6 +36,7 @@ public class SecurityConf {
   private static final String V_3_API_DOCS = "/v3/api-docs/**";
   private static final String V_3_API_DOCS_YAML = "/v3/api-docs.yaml";
   private static final String SPB_WEBHOOK = "/v1/webhooks/**";
+  private static final String WEBSOCKET = "/ws/**";
 
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
@@ -53,6 +54,7 @@ public class SecurityConf {
                     SWAGGER_UI_ENDPOINT,
                     V_3_API_DOCS,
                     V_3_API_DOCS_YAML,
+                    WEBSOCKET,
                     SPB_WEBHOOK))
         .cors(cors -> cors.configurationSource(corsConfigurationSource()))
         .authorizeHttpRequests(
@@ -74,6 +76,8 @@ public class SecurityConf {
                         V_3_API_DOCS_YAML)
                     .permitAll()
                     .requestMatchers(SPB_WEBHOOK)
+                    .permitAll()
+                    .requestMatchers(WEBSOCKET)
                     .permitAll()
                     .anyRequest()
                     .authenticated())
