@@ -4,7 +4,7 @@ import static java.lang.String.format;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.NotificationRequest;
-import com.devikapps.vaikaparts.event.model.NotificationRequested;
+import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.exception.UserNotFoundException;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
@@ -14,8 +14,8 @@ import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
+import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
-import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.service.notification.NotificationService;
@@ -29,7 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class NotificationRequestedService implements Consumer<NotificationRequested> {
+public class DemandPublishedNotificationRequestedService
+    implements Consumer<DemandPublishedNotificationRequested> {
 
   private final NotificationRequestedRepository notificationRequestedRepository;
   private final DemandPublishedRequestedRepository demandPublishedRequestedRepository;
@@ -40,7 +41,7 @@ public class NotificationRequestedService implements Consumer<NotificationReques
 
   @Override
   @Transactional
-  public void accept(NotificationRequested event) {
+  public void accept(DemandPublishedNotificationRequested event) {
     log.info(
         "Processing NotificationRequested event: {}, seller: {}, demand: {}, attempt: {}",
         forJava(event.getId()),
@@ -73,19 +74,21 @@ public class NotificationRequestedService implements Consumer<NotificationReques
     }
   }
 
-  private JNotificationRequested createOrUpdateEventLog(NotificationRequested event) {
+  private JDemandPublishedNotificationRequested createOrUpdateEventLog(
+      DemandPublishedNotificationRequested event) {
     return notificationRequestedRepository
         .findById(event.getId())
         .orElseGet(() -> createNewEventLog(event));
   }
 
-  private JNotificationRequested createNewEventLog(NotificationRequested event) {
+  private JDemandPublishedNotificationRequested createNewEventLog(
+      DemandPublishedNotificationRequested event) {
     var parent = fetchParentEventLog(event.getDemandPublishedRequestedId());
     var seller = fetchSeller(event.getSellerId());
     var demand = fetchDemand(event.getDemandId());
     var now = LocalDateTime.now();
 
-    return JNotificationRequested.builder()
+    return JDemandPublishedNotificationRequested.builder()
         .id(event.getId())
         .demandPublishedRequested(parent)
         .seller(sellerMapper.toPersistence(seller))
@@ -98,7 +101,8 @@ public class NotificationRequestedService implements Consumer<NotificationReques
         .build();
   }
 
-  private void updateEventLogStatus(JNotificationRequested eventLog, ProcessStatus status) {
+  private void updateEventLogStatus(
+      JDemandPublishedNotificationRequested eventLog, ProcessStatus status) {
     eventLog.setStatus(status);
     eventLog.setUpdatedAt(LocalDateTime.now());
     notificationRequestedRepository.save(eventLog);
@@ -155,7 +159,9 @@ public class NotificationRequestedService implements Consumer<NotificationReques
   }
 
   private void handleEventProcessingError(
-      JNotificationRequested eventLog, NotificationRequested event, Exception e) {
+      JDemandPublishedNotificationRequested eventLog,
+      DemandPublishedNotificationRequested event,
+      Exception e) {
 
     log.error(
         "Failed to process NotificationRequested: {}, seller: {}, attempt: {}",

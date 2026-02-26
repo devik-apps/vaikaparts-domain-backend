@@ -17,7 +17,7 @@ import lombok.Setter;
 @Setter
 @Builder
 @EqualsAndHashCode
-public class Notification {
+public class DemandPublishedNotification {
   private String id;
   private String notificationRequestedId;
   private Seller seller;

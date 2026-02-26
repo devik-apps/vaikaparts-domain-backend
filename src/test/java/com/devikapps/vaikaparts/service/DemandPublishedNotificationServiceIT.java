@@ -21,13 +21,13 @@ import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
+import com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
-import com.devikapps.vaikaparts.repository.NotificationRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
+import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
-import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
@@ -44,7 +44,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 @Slf4j
-class NotificationServiceIT extends FacadeIT {
+class DemandPublishedNotificationServiceIT extends FacadeIT {
 
   private static final String TEST_SELLER_ID = "seller-123";
   private static final String TEST_SELLER_NAME = "John Seller";
@@ -68,7 +68,7 @@ class NotificationServiceIT extends FacadeIT {
       "{\"action\":\"VIEW_DEMAND\",\"demandId\":\"demand-789\"}";
 
   @Autowired private NotificationService notificationService;
-  @Autowired private NotificationRepository notificationRepository;
+  @Autowired private DemandPublishedNotificationRepository demandPublishedNotificationRepository;
   @Autowired private UserRepository userRepository;
   @Autowired private DemandRepository demandRepository;
   @Autowired private NotificationRequestedRepository notificationRequestedRepository;
@@ -78,7 +78,7 @@ class NotificationServiceIT extends FacadeIT {
   private JSeller testSeller;
   private JResearcher testResearcher;
   private JDemand testDemand;
-  private JNotificationRequested testNotificationRequested;
+  private JDemandPublishedNotificationRequested testNotificationRequested;
 
   @BeforeEach
   void setUp() {
@@ -90,7 +90,7 @@ class NotificationServiceIT extends FacadeIT {
 
   @AfterEach
   void tearDown() {
-    notificationRepository.deleteAll();
+    demandPublishedNotificationRepository.deleteAll();
     notificationRequestedRepository.deleteAll();
     jDemandPublishedRequestedRepository.deleteAll();
     demandRepository.deleteAll();
@@ -129,7 +129,7 @@ class NotificationServiceIT extends FacadeIT {
 
     val notification = notificationService.createAndSendNotification(request);
 
-    val savedNotification = notificationRepository.findById(notification.getId());
+    val savedNotification = demandPublishedNotificationRepository.findById(notification.getId());
     assertTrue(savedNotification.isPresent());
     assertEquals(notification.getId(), savedNotification.get().getId());
     assertEquals(
@@ -165,7 +165,7 @@ class NotificationServiceIT extends FacadeIT {
     assertEquals(testNotificationRequested.getId(), notification1.getNotificationRequestedId());
     assertEquals(notificationRequested2.getId(), notification2.getNotificationRequestedId());
 
-    val allNotifications = notificationRepository.findAll();
+    val allNotifications = demandPublishedNotificationRepository.findAll();
     assertEquals(2, allNotifications.size());
   }
 
@@ -213,7 +213,7 @@ class NotificationServiceIT extends FacadeIT {
       assertEquals(type, notification.getNotificationType());
     }
 
-    val allNotifications = notificationRepository.findAll();
+    val allNotifications = demandPublishedNotificationRepository.findAll();
     assertEquals(NotificationType.values().length, allNotifications.size());
   }
 
@@ -234,7 +234,7 @@ class NotificationServiceIT extends FacadeIT {
     assertNotNull(notification);
     assertNull(notification.getClickAction());
 
-    val savedNotification = notificationRepository.findById(notification.getId());
+    val savedNotification = demandPublishedNotificationRepository.findById(notification.getId());
     assertTrue(savedNotification.isPresent());
     assertNull(savedNotification.get().getClickAction());
   }
@@ -249,7 +249,7 @@ class NotificationServiceIT extends FacadeIT {
     assertFalse(notification.isRead());
     assertNull(notification.getReadAt());
 
-    val savedNotification = notificationRepository.findById(notification.getId());
+    val savedNotification = demandPublishedNotificationRepository.findById(notification.getId());
     assertTrue(savedNotification.isPresent());
     assertFalse(savedNotification.get().isRead());
     assertNull(savedNotification.get().getReadAt());
@@ -285,7 +285,8 @@ class NotificationServiceIT extends FacadeIT {
         .build();
   }
 
-  private JNotificationRequested createTestNotificationRequested(JSeller seller, JDemand demand) {
+  private JDemandPublishedNotificationRequested createTestNotificationRequested(
+      JSeller seller, JDemand demand) {
     val jDemandPublishedRequested =
         jDemandPublishedRequestedRepository.save(
             JDemandPublishedRequested.builder()
@@ -300,7 +301,7 @@ class NotificationServiceIT extends FacadeIT {
                 .build());
 
     return notificationRequestedRepository.save(
-        JNotificationRequested.builder()
+        JDemandPublishedNotificationRequested.builder()
             .id("nr-" + currentTimeMillis())
             .demandPublishedRequested(jDemandPublishedRequested)
             .seller(seller)

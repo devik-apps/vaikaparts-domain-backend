@@ -15,7 +15,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @Builder
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class NotificationRequested extends InfraEvent {
+public class DemandPublishedNotificationRequested extends InfraEvent {
 
   private static final Duration MAX_CONSUMER_DURATION = ofMinutes(2L);
   private static final Duration MAX_CONSUMER_BACKOFF = ofSeconds(15L);

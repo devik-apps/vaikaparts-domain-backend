@@ -22,9 +22,9 @@ import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.exchange.Offer;
+import com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
-import com.devikapps.vaikaparts.repository.NotificationRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
@@ -73,7 +73,7 @@ class DemandServiceIT extends FacadeIT {
   @Autowired private OfferRepository offerRepository;
   @Autowired private UserRepository userRepository;
   @Autowired private ValueObjectMapper vom;
-  @Autowired private NotificationRepository notificationRepository;
+  @Autowired private DemandPublishedNotificationRepository demandPublishedNotificationRepository;
   @Autowired private NotificationRequestedRepository notificationRequestedRepository;
 
   private JResearcher testResearcher;
@@ -87,7 +87,7 @@ class DemandServiceIT extends FacadeIT {
   @AfterEach
   void tearDown() {
     SecurityContextHolder.clearContext();
-    notificationRepository.deleteAll();
+    demandPublishedNotificationRepository.deleteAll();
     notificationRequestedRepository.deleteAll();
     demandPublishedRequestedRepository.deleteAll();
     offerRepository.deleteAll();
@@ -627,7 +627,7 @@ class DemandServiceIT extends FacadeIT {
 
     Thread.sleep(5000);
 
-    val notifications = notificationRepository.findAll();
+    val notifications = demandPublishedNotificationRepository.findAll();
     assertEquals(3, notifications.size());
 
     val notifiedSellerIds =

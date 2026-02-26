@@ -16,14 +16,14 @@ import static org.mockito.Mockito.when;
 import com.devikapps.vaikaparts.exception.NotificationDeliveryException;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
-import com.devikapps.vaikaparts.model.notification.Notification;
+import com.devikapps.vaikaparts.model.notification.DemandPublishedNotification;
 import com.devikapps.vaikaparts.model.user.Seller;
+import com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
-import com.devikapps.vaikaparts.repository.NotificationRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
-import com.devikapps.vaikaparts.repository.event.JNotification;
-import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
+import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotification;
+import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.service.notification.InAppNotificationChannel;
@@ -38,7 +38,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class InAppNotificationChannelTest {
+class InAppDemandPublishedNotificationChannelTest {
 
   private static final String TEST_NOTIFICATION_ID = "notification-123";
   private static final String TEST_NOTIFICATION_REQUESTED_ID = "notification-requested-001";
@@ -46,7 +46,7 @@ class InAppNotificationChannelTest {
   private static final String TEST_DEMAND_ID = "demand-789";
   private static final String TEST_MESSAGE = "New demand available";
 
-  @Mock private NotificationRepository notificationRepository;
+  @Mock private DemandPublishedNotificationRepository demandPublishedNotificationRepository;
   @Mock private NotificationRequestedRepository notificationRequestedRepository;
   @Mock private DemandRepository demandRepository;
   @Mock private UserRepository userRepository;
@@ -54,25 +54,25 @@ class InAppNotificationChannelTest {
 
   @InjectMocks private InAppNotificationChannel inAppChannel;
 
-  private Notification testNotification;
-  private JNotificationRequested jNotificationRequested;
+  private DemandPublishedNotification testDemandPublishedNotification;
+  private JDemandPublishedNotificationRequested jDemandPublishedNotificationRequested;
   private JSeller jSeller;
   private JDemand jDemand;
-  private JNotification testJNotification;
+  private JDemandPublishedNotification testJDemandPublishedNotification;
 
   @BeforeEach
   void setUp() {
-    jNotificationRequested =
-        JNotificationRequested.builder().id(TEST_NOTIFICATION_REQUESTED_ID).build();
+    jDemandPublishedNotificationRequested =
+        JDemandPublishedNotificationRequested.builder().id(TEST_NOTIFICATION_REQUESTED_ID).build();
 
     jSeller = JSeller.builder().id(TEST_SELLER_ID).build();
 
     jDemand = JDemand.builder().id(TEST_DEMAND_ID).build();
 
-    testJNotification =
-        JNotification.builder()
+    testJDemandPublishedNotification =
+        JDemandPublishedNotification.builder()
             .id(TEST_NOTIFICATION_ID)
-            .notificationRequested(jNotificationRequested)
+            .notificationRequested(jDemandPublishedNotificationRequested)
             .seller(jSeller)
             .demand(jDemand)
             .message(TEST_MESSAGE)
@@ -81,53 +81,61 @@ class InAppNotificationChannelTest {
             .createdAt(LocalDateTime.now())
             .build();
 
-    testNotification = buildTestNotification();
+    testDemandPublishedNotification = buildTestNotification();
   }
 
   @Test
   void should_save_notification_to_database() {
     mockRepositoryReferences();
-    when(notificationRepository.save(any(JNotification.class))).thenReturn(testJNotification);
+    when(demandPublishedNotificationRepository.save(any(JDemandPublishedNotification.class)))
+        .thenReturn(testJDemandPublishedNotification);
 
-    inAppChannel.send(testNotification);
+    inAppChannel.send(testDemandPublishedNotification);
 
     verify(notificationRequestedRepository, times(1))
         .getReferenceById(TEST_NOTIFICATION_REQUESTED_ID);
     verify(userRepository, times(1)).findJUserById(TEST_SELLER_ID);
     verify(demandRepository, times(1)).getReferenceById(TEST_DEMAND_ID);
-    verify(notificationRepository, times(1)).save(any(JNotification.class));
+    verify(demandPublishedNotificationRepository, times(1))
+        .save(any(JDemandPublishedNotification.class));
   }
 
   @Test
   void should_send_via_websocket() {
     mockRepositoryReferences();
-    when(notificationRepository.save(any(JNotification.class))).thenReturn(testJNotification);
+    when(demandPublishedNotificationRepository.save(any(JDemandPublishedNotification.class)))
+        .thenReturn(testJDemandPublishedNotification);
 
-    inAppChannel.send(testNotification);
+    inAppChannel.send(testDemandPublishedNotification);
 
-    verify(webSocketService, times(1)).sendNotificationToSeller(TEST_SELLER_ID, testNotification);
+    verify(webSocketService, times(1))
+        .sendNotificationToSeller(TEST_SELLER_ID, testDemandPublishedNotification);
   }
 
   @Test
   void should_not_fail_if_websocket_throws_exception() {
     mockRepositoryReferences();
-    when(notificationRepository.save(any(JNotification.class))).thenReturn(testJNotification);
+    when(demandPublishedNotificationRepository.save(any(JDemandPublishedNotification.class)))
+        .thenReturn(testJDemandPublishedNotification);
     doThrow(new RuntimeException("WebSocket error"))
         .when(webSocketService)
-        .sendNotificationToSeller(anyString(), any(Notification.class));
+        .sendNotificationToSeller(anyString(), any(DemandPublishedNotification.class));
 
-    assertDoesNotThrow(() -> inAppChannel.send(testNotification));
+    assertDoesNotThrow(() -> inAppChannel.send(testDemandPublishedNotification));
 
-    verify(notificationRepository, times(1)).save(any(JNotification.class));
+    verify(demandPublishedNotificationRepository, times(1))
+        .save(any(JDemandPublishedNotification.class));
   }
 
   @Test
   void should_throw_exception_if_database_save_fails() {
     mockRepositoryReferences();
-    when(notificationRepository.save(any(JNotification.class)))
+    when(demandPublishedNotificationRepository.save(any(JDemandPublishedNotification.class)))
         .thenThrow(new RuntimeException("Database error"));
 
-    assertThrows(NotificationDeliveryException.class, () -> inAppChannel.send(testNotification));
+    assertThrows(
+        NotificationDeliveryException.class,
+        () -> inAppChannel.send(testDemandPublishedNotification));
 
     verify(webSocketService, never()).sendNotificationToSeller(anyString(), any());
   }
@@ -144,13 +152,13 @@ class InAppNotificationChannelTest {
 
   private void mockRepositoryReferences() {
     when(notificationRequestedRepository.getReferenceById(TEST_NOTIFICATION_REQUESTED_ID))
-        .thenReturn(jNotificationRequested);
+        .thenReturn(jDemandPublishedNotificationRequested);
     when(userRepository.findJUserById(TEST_SELLER_ID)).thenReturn(Optional.of(jSeller));
     when(demandRepository.getReferenceById(TEST_DEMAND_ID)).thenReturn(jDemand);
   }
 
-  private Notification buildTestNotification() {
-    return Notification.builder()
+  private DemandPublishedNotification buildTestNotification() {
+    return DemandPublishedNotification.builder()
         .id(TEST_NOTIFICATION_ID)
         .notificationRequestedId(TEST_NOTIFICATION_REQUESTED_ID)
         .seller(Seller.builder().id(TEST_SELLER_ID).build())

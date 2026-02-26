@@ -30,13 +30,13 @@ import org.hibernate.type.SqlTypes;
 @Setter
 @Builder
 @EqualsAndHashCode(of = "id")
-public class JNotification {
+public class JDemandPublishedNotification {
 
   @Id private String id;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "notification_requested_id", nullable = false)
-  private JNotificationRequested notificationRequested;
+  private JDemandPublishedNotificationRequested notificationRequested;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "seller_id", nullable = false)

@@ -5,9 +5,9 @@ import static com.devikapps.vaikaparts.model.classifier.UserType.SELLER;
 import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
+import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.event.model.EventProducer;
-import com.devikapps.vaikaparts.event.model.NotificationRequested;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.user.Seller;
@@ -36,7 +36,7 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
   private final DemandRepository demandRepository;
   private final UserRepository userRepository;
   private final SellerMapper sellerMapper;
-  private final EventProducer<NotificationRequested> notificationRequestedProducer;
+  private final EventProducer<DemandPublishedNotificationRequested> notificationRequestedProducer;
 
   @Override
   @Transactional
@@ -156,7 +156,7 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
         sellers.stream()
             .map(
                 seller ->
-                    NotificationRequested.builder()
+                    DemandPublishedNotificationRequested.builder()
                         .id(randomUUID().toString())
                         .demandPublishedRequestedId(parentEvent.getId())
                         .sellerId(seller.getId())

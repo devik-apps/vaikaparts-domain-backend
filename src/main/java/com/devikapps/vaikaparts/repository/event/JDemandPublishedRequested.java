@@ -70,5 +70,5 @@ public class JDemandPublishedRequested {
 
   @OneToMany(mappedBy = "demandPublishedRequested", fetch = FetchType.LAZY)
   @Builder.Default
-  private List<JNotificationRequested> notificationRequests = new ArrayList<>();
+  private List<JDemandPublishedNotificationRequested> notificationRequests = new ArrayList<>();
 }

@@ -14,9 +14,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.event.model.EventProducer;
-import com.devikapps.vaikaparts.event.model.NotificationRequested;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.user.Seller;
@@ -48,7 +48,7 @@ class DemandPublishedRequestedServiceTest {
   @Mock private DemandRepository demandRepository;
   @Mock private UserRepository userRepository;
   @Mock private SellerMapper sellerMapper;
-  @Mock private EventProducer<NotificationRequested> notificationRequestedProducer;
+  @Mock private EventProducer<DemandPublishedNotificationRequested> notificationRequestedProducer;
 
   @InjectMocks private DemandPublishedRequestedService service;
 
@@ -146,7 +146,8 @@ class DemandPublishedRequestedServiceTest {
 
     service.accept(testEvent);
 
-    ArgumentCaptor<List<NotificationRequested>> captor = ArgumentCaptor.forClass(List.class);
+    ArgumentCaptor<List<DemandPublishedNotificationRequested>> captor =
+        ArgumentCaptor.forClass(List.class);
     verify(notificationRequestedProducer, times(1)).accept(captor.capture());
 
     var publishedEvents = captor.getValue();

@@ -34,7 +34,7 @@ import org.hibernate.type.SqlTypes;
 @Setter
 @Builder
 @EqualsAndHashCode(of = "id")
-public class JNotificationRequested {
+public class JDemandPublishedNotificationRequested {
 
   @Id
   @Column(name = "id", nullable = false)
@@ -79,5 +79,5 @@ public class JNotificationRequested {
 
   @OneToMany(mappedBy = "notificationRequested", fetch = FetchType.LAZY)
   @Builder.Default
-  private List<JNotification> notifications = new ArrayList<>();
+  private List<JDemandPublishedNotification> notifications = new ArrayList<>();
 }

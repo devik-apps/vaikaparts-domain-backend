@@ -9,8 +9,8 @@ import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.exception.UserNotFoundException;
 import com.devikapps.vaikaparts.mapper.NotificationMapper;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
-import com.devikapps.vaikaparts.model.notification.Notification;
-import com.devikapps.vaikaparts.repository.NotificationRepository;
+import com.devikapps.vaikaparts.model.notification.DemandPublishedNotification;
+import com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.service.DemandService;
@@ -36,12 +36,12 @@ public class NotificationService {
   private final UserRepository userRepository;
   private final SellerMapper sellerMapper;
   private final DemandService demandService;
-  private final NotificationRepository notificationRepository;
+  private final DemandPublishedNotificationRepository demandPublishedNotificationRepository;
   private final Paginator paginator;
   private final SellerService sellerService;
   private final NotificationMapper notificationMapper;
 
-  public Notification createAndSendNotification(NotificationRequest request) {
+  public DemandPublishedNotification createAndSendNotification(NotificationRequest request) {
     log.info("Creating notification for seller: {}", forJava(request.getSellerId()));
 
     var notification = buildNotification(request);
@@ -51,7 +51,7 @@ public class NotificationService {
     return notification;
   }
 
-  public Page<Notification> fetchAllNotification(Integer page, Integer size) {
+  public Page<DemandPublishedNotification> fetchAllNotification(Integer page, Integer size) {
     var pagination = paginator.apply(page, size);
     var currentActiveSeller = sellerService.getCurrentSeller();
     var fPage = pagination.get("page");
@@ -61,26 +61,44 @@ public class NotificationService {
     log.info(
         "Fetching all notification of current active seller with page={}, size={}", fPage, fSize);
 
-    return notificationRepository
+    return demandPublishedNotificationRepository
         .findBySellerIdOrderByCreatedAtDesc(currentActiveSeller.getId(), pageable)
         .map(notificationMapper::toDomain);
   }
 
-  public Notification getNotification(@NotNull @NotBlank String notificationId) {
+  public DemandPublishedNotification getNotification(@NotNull @NotBlank String notificationId) {
     var currentActiveSeller = sellerService.getCurrentSeller();
     var notification =
-        notificationRepository
+        demandPublishedNotificationRepository
             .findByIdAndSellerId(notificationId, currentActiveSeller.getId())
             .orElseThrow(
                 () ->
                     new ResourceNotFoundException(
                         format(
-                            "No authentication found with given id=%s", forJava(notificationId))));
+                            "No notification found with given id=%s to fetch",
+                            forJava(notificationId))));
 
     return notificationMapper.toDomain(notification);
   }
 
-  private Notification buildNotification(NotificationRequest request) {
+  public DemandPublishedNotification markAsRead(@NotNull @NotBlank String notificationId) {
+    var currentActiveSeller = sellerService.getCurrentSeller();
+    var notification =
+        demandPublishedNotificationRepository
+            .findByIdAndSellerId(notificationId, currentActiveSeller.getId())
+            .orElseThrow(
+                () ->
+                    new ResourceNotFoundException(
+                        format(
+                            "No notification found with given id=%s to mark as read",
+                            forJava(notificationId))));
+    notification.setRead(true);
+    notification.setReadAt(LocalDateTime.now());
+    demandPublishedNotificationRepository.save(notification);
+    return notificationMapper.toDomain(notification);
+  }
+
+  private DemandPublishedNotification buildNotification(NotificationRequest request) {
     var jSeller =
         (JSeller)
             userRepository
@@ -92,7 +110,7 @@ public class NotificationService {
                                 "No seller with id=%s not found", forJava(request.getSellerId()))));
     var seller = sellerMapper.toSeller(jSeller);
 
-    return Notification.builder()
+    return DemandPublishedNotification.builder()
         .id(randomUUID().toString())
         .seller(seller)
         .notificationRequestedId(request.getNotificationRequestedId())
@@ -105,14 +123,14 @@ public class NotificationService {
         .build();
   }
 
-  private void sendThroughChannels(Notification notification) {
+  private void sendThroughChannels(DemandPublishedNotification demandPublishedNotification) {
     channels.stream()
         .filter(NotificationChannel::isEnabled)
         .forEach(
             channel -> {
               try {
                 log.debug("Sending notification via channel: {}", channel.getChannelType());
-                channel.send(notification);
+                channel.send(demandPublishedNotification);
               } catch (Exception e) {
                 log.error(
                     "Failed to send notification via channel: {}", channel.getChannelType(), e);

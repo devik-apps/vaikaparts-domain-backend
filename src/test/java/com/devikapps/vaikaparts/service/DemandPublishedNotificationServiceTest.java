@@ -19,9 +19,9 @@ import com.devikapps.vaikaparts.mapper.NotificationMapper;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
-import com.devikapps.vaikaparts.model.notification.Notification;
+import com.devikapps.vaikaparts.model.notification.DemandPublishedNotification;
 import com.devikapps.vaikaparts.model.user.Seller;
-import com.devikapps.vaikaparts.repository.NotificationRepository;
+import com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.service.notification.NotificationService;
@@ -36,7 +36,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class NotificationServiceTest {
+class DemandPublishedNotificationServiceTest {
 
   private static final String TEST_NOTIFICATION_REQUESTED_ID = "notification-requested-123";
   private static final String TEST_SELLER_ID = "seller-123";
@@ -52,7 +52,7 @@ class NotificationServiceTest {
   @Mock private Paginator paginator;
   @Mock private SellerService sellerService;
   @Mock private NotificationMapper notificationMapper;
-  @Mock private NotificationRepository notificationRepository;
+  @Mock private DemandPublishedNotificationRepository demandPublishedNotificationRepository;
 
   private NotificationService notificationService;
 
@@ -65,7 +65,7 @@ class NotificationServiceTest {
             userRepository,
             sellerMapper,
             demandService,
-            notificationRepository,
+            demandPublishedNotificationRepository,
             paginator,
             sellerService,
             notificationMapper);
@@ -107,7 +107,8 @@ class NotificationServiceTest {
 
     notificationService.createAndSendNotification(request);
 
-    ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+    ArgumentCaptor<DemandPublishedNotification> captor =
+        ArgumentCaptor.forClass(DemandPublishedNotification.class);
     verify(inAppChannel, times(1)).send(captor.capture());
 
     var sentNotification = captor.getValue();
@@ -127,7 +128,7 @@ class NotificationServiceTest {
 
     notificationService.createAndSendNotification(buildTestRequest());
 
-    verify(inAppChannel, never()).send(any(Notification.class));
+    verify(inAppChannel, never()).send(any(DemandPublishedNotification.class));
   }
 
   @Test
@@ -149,15 +150,15 @@ class NotificationServiceTest {
             userRepository,
             sellerMapper,
             demandService,
-            notificationRepository,
+            demandPublishedNotificationRepository,
             paginator,
             sellerService,
             notificationMapper);
 
     assertDoesNotThrow(() -> notificationService.createAndSendNotification(buildTestRequest()));
 
-    verify(failingChannel, times(1)).send(any(Notification.class));
-    verify(inAppChannel, times(1)).send(any(Notification.class));
+    verify(failingChannel, times(1)).send(any(DemandPublishedNotification.class));
+    verify(inAppChannel, times(1)).send(any(DemandPublishedNotification.class));
   }
 
   @Test
@@ -177,15 +178,15 @@ class NotificationServiceTest {
             userRepository,
             sellerMapper,
             demandService,
-            notificationRepository,
+            demandPublishedNotificationRepository,
             paginator,
             sellerService,
             notificationMapper);
 
     notificationService.createAndSendNotification(buildTestRequest());
 
-    verify(inAppChannel, times(1)).send(any(Notification.class));
-    verify(emailChannel, times(1)).send(any(Notification.class));
+    verify(inAppChannel, times(1)).send(any(DemandPublishedNotification.class));
+    verify(emailChannel, times(1)).send(any(DemandPublishedNotification.class));
   }
 
   private NotificationRequest buildTestRequest() {
