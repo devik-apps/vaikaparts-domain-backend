@@ -14,7 +14,6 @@ import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotification;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
-import com.devikapps.vaikaparts.service.NotificationChannel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

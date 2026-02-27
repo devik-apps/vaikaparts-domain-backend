@@ -14,7 +14,6 @@ import com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.service.DemandService;
-import com.devikapps.vaikaparts.service.NotificationChannel;
 import com.devikapps.vaikaparts.service.SellerService;
 import com.devikapps.vaikaparts.service.util.Paginator;
 import jakarta.validation.constraints.NotBlank;
@@ -26,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -51,6 +51,7 @@ public class NotificationService {
     return notification;
   }
 
+  @Transactional(readOnly = true)
   public Page<DemandPublishedNotification> fetchAllNotification(Integer page, Integer size) {
     var pagination = paginator.apply(page, size);
     var currentActiveSeller = sellerService.getCurrentSeller();
@@ -66,6 +67,7 @@ public class NotificationService {
         .map(notificationMapper::toDomain);
   }
 
+  @Transactional(readOnly = true)
   public DemandPublishedNotification getNotification(@NotNull @NotBlank String notificationId) {
     var currentActiveSeller = sellerService.getCurrentSeller();
     var notification =
@@ -81,7 +83,10 @@ public class NotificationService {
     return notificationMapper.toDomain(notification);
   }
 
+  @Transactional
   public DemandPublishedNotification markAsRead(@NotNull @NotBlank String notificationId) {
+    log.info(
+        "Processing marking notification with notification id={} as read", forJava(notificationId));
     var currentActiveSeller = sellerService.getCurrentSeller();
     var notification =
         demandPublishedNotificationRepository
@@ -92,10 +97,14 @@ public class NotificationService {
                         format(
                             "No notification found with given id=%s to mark as read",
                             forJava(notificationId))));
+
+    log.info("Notification read state : {}", notification.isRead());
     notification.setRead(true);
     notification.setReadAt(LocalDateTime.now());
-    demandPublishedNotificationRepository.save(notification);
-    return notificationMapper.toDomain(notification);
+
+    var persisted = demandPublishedNotificationRepository.save(notification);
+    log.info("Notification read state after processing : {}", persisted.isRead());
+    return notificationMapper.toDomain(persisted);
   }
 
   private DemandPublishedNotification buildNotification(NotificationRequest request) {

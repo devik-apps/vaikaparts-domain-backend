@@ -21,6 +21,7 @@ import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
+import com.devikapps.vaikaparts.model.notification.DemandPublishedNotification;
 import com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
@@ -42,9 +43,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @Slf4j
-class DemandPublishedNotificationServiceIT extends FacadeIT {
+class NotificationServiceIT extends FacadeIT {
 
   private static final String TEST_SELLER_ID = "seller-123";
   private static final String TEST_SELLER_NAME = "John Seller";
@@ -95,6 +98,248 @@ class DemandPublishedNotificationServiceIT extends FacadeIT {
     jDemandPublishedRequestedRepository.deleteAll();
     demandRepository.deleteAll();
     userRepository.deleteAll();
+  }
+
+  private void authenticateSeller() {
+    val authentication =
+        new UsernamePasswordAuthenticationToken(TEST_SELLER_SUPABASE_ID, null, new ArrayList<>());
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+  }
+
+  @Test
+  void should_fetch_all_notifications_for_current_seller() {
+    authenticateSeller();
+    try {
+      val request1 =
+          buildRequest(testSeller.getId(), testDemand.getId(), testNotificationRequested.getId());
+      val notifRequested2 = createTestNotificationRequested(testSeller, testDemand);
+      val request2 = buildRequest(testSeller.getId(), testDemand.getId(), notifRequested2.getId());
+      notificationService.createAndSendNotification(request1);
+      notificationService.createAndSendNotification(request2);
+
+      val page = notificationService.fetchAllNotification(0, 10);
+
+      assertEquals(2, page.getTotalElements());
+      assertEquals(2, page.getContent().size());
+      assertEquals(1, page.getTotalPages());
+      assertFalse(page.getContent().isEmpty());
+      page.getContent()
+          .forEach(
+              n -> {
+                assertEquals(testSeller.getId(), n.getSeller().getId());
+                assertFalse(n.isRead());
+                assertNotNull(n.getId());
+                assertNotNull(n.getCreatedAt());
+                assertEquals(NotificationType.DEMAND_PUBLISHED, n.getNotificationType());
+              });
+      assertTrue(
+          page.getContent().get(0).getCreatedAt().isAfter(page.getContent().get(1).getCreatedAt())
+              || page.getContent()
+                  .get(0)
+                  .getCreatedAt()
+                  .isEqual(page.getContent().get(1).getCreatedAt()));
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+  }
+
+  @Test
+  void should_not_fetch_notifications_of_another_seller() {
+    authenticateSeller();
+    try {
+      val otherSeller = createAnotherSeller();
+      val otherNotifRequested = createTestNotificationRequested(otherSeller, testDemand);
+      notificationService.createAndSendNotification(
+          buildRequest(otherSeller.getId(), testDemand.getId(), otherNotifRequested.getId()));
+      notificationService.createAndSendNotification(
+          buildRequest(testSeller.getId(), testDemand.getId(), testNotificationRequested.getId()));
+
+      val page = notificationService.fetchAllNotification(0, 10);
+
+      assertEquals(1, page.getTotalElements());
+      assertEquals(testSeller.getId(), page.getContent().getFirst().getSeller().getId());
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+  }
+
+  @Test
+  void should_fetch_notifications_with_pagination() {
+    authenticateSeller();
+    try {
+      for (int i = 0; i < 5; i++) {
+        val nr = createTestNotificationRequested(testSeller, testDemand);
+        notificationService.createAndSendNotification(
+            buildRequest(testSeller.getId(), testDemand.getId(), nr.getId()));
+      }
+
+      val page0 = notificationService.fetchAllNotification(0, 2);
+      val page1 = notificationService.fetchAllNotification(1, 2);
+      val page2 = notificationService.fetchAllNotification(2, 2);
+
+      assertEquals(5, page0.getTotalElements());
+      assertEquals(3, page0.getTotalPages());
+      assertEquals(2, page0.getContent().size());
+      assertEquals(2, page1.getContent().size());
+      assertEquals(1, page2.getContent().size());
+
+      val page0Ids = page0.getContent().stream().map(DemandPublishedNotification::getId).toList();
+      val page1Ids = page1.getContent().stream().map(DemandPublishedNotification::getId).toList();
+      assertTrue(page0Ids.stream().noneMatch(page1Ids::contains));
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+  }
+
+  @Test
+  void should_fetch_empty_page_when_no_notifications() {
+    authenticateSeller();
+    try {
+      val page = notificationService.fetchAllNotification(0, 10);
+
+      assertEquals(0, page.getTotalElements());
+      assertTrue(page.getContent().isEmpty());
+      assertEquals(0, page.getTotalPages());
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+  }
+
+  @Test
+  void should_get_notification_by_id() {
+    authenticateSeller();
+    try {
+      val created =
+          notificationService.createAndSendNotification(
+              buildRequest(
+                  testSeller.getId(), testDemand.getId(), testNotificationRequested.getId()));
+
+      val fetched = notificationService.getNotification(created.getId());
+
+      assertEquals(created.getId(), fetched.getId());
+      assertEquals(testNotificationRequested.getId(), fetched.getNotificationRequestedId());
+      assertEquals(testSeller.getId(), fetched.getSeller().getId());
+      assertEquals(TEST_SELLER_NAME, fetched.getSeller().getName());
+      assertEquals(testDemand.getId(), fetched.getDemand().getId());
+      assertEquals(TEST_MESSAGE, fetched.getMessage());
+      assertEquals(NotificationType.DEMAND_PUBLISHED, fetched.getNotificationType());
+      assertFalse(fetched.isRead());
+      assertNull(fetched.getReadAt());
+      assertEquals(TEST_CLICK_ACTION, fetched.getClickAction());
+      assertNotNull(fetched.getCreatedAt());
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+  }
+
+  @Test
+  void should_throw_when_getting_notification_not_owned_by_current_seller() {
+    authenticateSeller();
+    try {
+      val otherSeller = createAnotherSeller();
+      val otherNr = createTestNotificationRequested(otherSeller, testDemand);
+      val otherNotification =
+          notificationService.createAndSendNotification(
+              buildRequest(otherSeller.getId(), testDemand.getId(), otherNr.getId()));
+
+      val notificationId = otherNotification.getId();
+      val ex =
+          assertThrows(
+              ResourceNotFoundException.class,
+              () -> notificationService.getNotification(notificationId));
+
+      assertTrue(ex.getMessage().contains(notificationId));
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+  }
+
+  @Test
+  void should_throw_when_getting_non_existent_notification() {
+    authenticateSeller();
+    try {
+      val ex =
+          assertThrows(
+              ResourceNotFoundException.class,
+              () -> notificationService.getNotification("non-existent-id"));
+
+      assertTrue(ex.getMessage().contains("non-existent-id"));
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+  }
+
+  @Test
+  void should_mark_notification_as_read() {
+    authenticateSeller();
+    try {
+      val created =
+          notificationService.createAndSendNotification(
+              buildRequest(
+                  testSeller.getId(), testDemand.getId(), testNotificationRequested.getId()));
+      assertFalse(created.isRead());
+      assertNull(created.getReadAt());
+
+      val marked = notificationService.markAsRead(created.getId());
+
+      assertTrue(marked.isRead());
+      assertNotNull(marked.getReadAt());
+      assertEquals(created.getId(), marked.getId());
+      assertEquals(testSeller.getId(), marked.getSeller().getId());
+      assertEquals(testDemand.getId(), marked.getDemand().getId());
+      assertEquals(TEST_MESSAGE, marked.getMessage());
+
+      val persisted =
+          demandPublishedNotificationRepository.findByIdAndSellerId(
+              created.getId(), created.getSeller().getId());
+      assertTrue(persisted.isPresent());
+      assertTrue(persisted.get().isRead());
+      assertNotNull(persisted.get().getReadAt());
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+  }
+
+  @Test
+  void should_throw_when_marking_as_read_notification_not_owned_by_current_seller() {
+    authenticateSeller();
+    try {
+      val otherSeller = createAnotherSeller();
+      val otherNr = createTestNotificationRequested(otherSeller, testDemand);
+      val otherNotification =
+          notificationService.createAndSendNotification(
+              buildRequest(otherSeller.getId(), testDemand.getId(), otherNr.getId()));
+
+      val notificationId = otherNotification.getId();
+      val ex =
+          assertThrows(
+              ResourceNotFoundException.class,
+              () -> notificationService.markAsRead(notificationId));
+
+      assertTrue(ex.getMessage().contains(notificationId));
+
+      val persisted = demandPublishedNotificationRepository.findById(notificationId);
+      assertTrue(persisted.isPresent());
+      assertFalse(persisted.get().isRead());
+      assertNull(persisted.get().getReadAt());
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+  }
+
+  @Test
+  void should_throw_when_marking_non_existent_notification_as_read() {
+    authenticateSeller();
+    try {
+      val ex =
+          assertThrows(
+              ResourceNotFoundException.class,
+              () -> notificationService.markAsRead("non-existent-id"));
+
+      assertTrue(ex.getMessage().contains("non-existent-id"));
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
   }
 
   @Test
@@ -187,10 +432,9 @@ class DemandPublishedNotificationServiceIT extends FacadeIT {
     val request =
         buildRequest(testSeller.getId(), "non-existent-demand", testNotificationRequested.getId());
 
-    ResourceNotFoundException exception =
-        assertThrows(
-            ResourceNotFoundException.class,
-            () -> notificationService.createAndSendNotification(request));
+    assertThrows(
+        ResourceNotFoundException.class,
+        () -> notificationService.createAndSendNotification(request));
   }
 
   @Test
@@ -352,21 +596,6 @@ class DemandPublishedNotificationServiceIT extends FacadeIT {
             .name(TEST_RESEARCHER_NAME)
             .email(TEST_RESEARCHER_EMAIL)
             .phoneNumber("+1234567890")
-            .profileImgKey("")
-            .location(vom.map(Location.getDefault()))
-            .userType(UserType.RESEARCHER)
-            .status(UserStatus.ENABLED)
-            .build());
-  }
-
-  private JResearcher createAnotherResearcher() {
-    return userRepository.save(
-        JResearcher.builder()
-            .id("researcher-" + currentTimeMillis())
-            .supabaseUserId("supabase-researcher-" + currentTimeMillis())
-            .name("Another Researcher")
-            .email("another-researcher-" + currentTimeMillis() + "@test.com")
-            .phoneNumber("+9876543210")
             .profileImgKey("")
             .location(vom.map(Location.getDefault()))
             .userType(UserType.RESEARCHER)
