@@ -301,6 +301,8 @@ class NotificationServiceTest {
     when(demandPublishedNotificationRepository.findByIdAndSellerId(
             TEST_NOTIFICATION_ID, TEST_SELLER_ID))
         .thenReturn(Optional.of(jNotification));
+    when(demandPublishedNotificationRepository.save(jNotification))
+        .thenReturn(JDemandPublishedNotification.builder().read(true).build());
     when(notificationMapper.toDomain(jNotification)).thenReturn(markedDomain);
 
     var result = notificationService.markAsRead(TEST_NOTIFICATION_ID);
