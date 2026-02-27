@@ -1,5 +1,6 @@
 package com.devikapps.vaikaparts.service;
 
+import static com.devikapps.vaikaparts.model.classifier.UserStatus.ENABLED;
 import static java.lang.String.format;
 import static org.owasp.encoder.Encode.forJava;
 
@@ -16,7 +17,10 @@ import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.repository.model.user.JUser;
 import com.devikapps.vaikaparts.service.util.Paginator;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.net.URL;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -64,6 +68,11 @@ public class UserService {
       case SELLER -> sellerMapper.toSeller((JSeller) user);
       case MANAGER -> managerMapper.toManager((JManager) user);
     };
+  }
+
+  @Transactional(readOnly = true)
+  public List<JUser> findAllActiveUserByUserType(UserType userType) {
+    return userRepository.findAllByUserTypeAndStatus(userType, ENABLED);
   }
 
   @Transactional
@@ -117,7 +126,20 @@ public class UserService {
             () -> {
               log.error("User not found for Supabase ID : {}", forJava(supabaseUserId));
               return new UserNotFoundException(
-                  format("User not found for Supabase ID: %s", supabaseUserId));
+                  format("User not found for Supabase ID: %s", forJava(supabaseUserId)));
+            });
+  }
+
+  @Transactional(readOnly = true)
+  public JUser findUserById(@NotBlank @NotNull String id) {
+    log.debug("Fetching user with id={}", forJava(id));
+
+    return userRepository
+        .findJUserById(id)
+        .orElseThrow(
+            () -> {
+              log.error("User with id={} not found", forJava(id));
+              return new UserNotFoundException(format("User with id=%s not found.", forJava(id)));
             });
   }
 

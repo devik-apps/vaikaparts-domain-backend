@@ -136,6 +136,8 @@ tags:
     description: Analytics and reporting
   - name: Storage
     description: File upload operations
+  - name: Notifications
+    description: All about notifications
 paths:
   /:
     get:
@@ -1137,177 +1139,15 @@ paths:
           description: Refund request deadline expired or invalid state
         '403':
           $ref: '#/components/responses/Forbidden'
-  /premium/initiate-subscription:
-    post:
-      operationId: initiatePremiumSubscription
-      tags: [Premium]
-      summary: Initiate premium subscription
-      description: |
-        Creates a premium subscription request for the current seller. Returns a payment reference for use with the Payment Service. Upon payment confirmation, premium features are automatically activated.
-
-        **Authorization**: Seller role required
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [subscriptionPlan]
-              properties:
-                subscriptionPlan:
-                  $ref: '#/components/schemas/PremiumPlan'
-      responses:
-        '201':
-          description: Subscription initiated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PremiumSubscription'
-        '403':
-          description: Only sellers may subscribe to premium
-  /premium/my-subscription:
+  /v1/notifications:
     get:
-      operationId: getMyPremiumSubscription
-      tags: [Premium]
-      summary: Retrieve current premium subscription
-      description: |
-        Returns the current seller's premium subscription status including plan details, expiration date, and enabled features.
-
-        **Authorization**: Seller role required
-      responses:
-        '200':
-          description: Subscription details retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PremiumSubscription'
-        '404':
-          description: No active subscription found
-        '403':
-          description: Authenticated user is not a seller
-  /premium/cancel-subscription:
-    post:
-      operationId: cancelPremiumSubscription
-      tags: [Premium]
-      summary: Cancel premium subscription
-      description: |
-        Cancels the current seller's premium subscription. Premium features remain active until the current billing period expires.
-
-        **Authorization**: Seller role required
-      responses:
-        '200':
-          description: Subscription cancelled successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PremiumSubscription'
-        '404':
-          description: No active subscription found
-        '403':
-          $ref: '#/components/responses/Forbidden'
-  /ratings:
-    post:
-      operationId: createRating
-      tags: [Ratings]
-      summary: Submit seller rating
-      description: |
-        Creates a rating for a seller following a completed contact unlock transaction. Ratings can only be submitted once per contact unlock and must be submitted after the Researcher confirms receipt of the automotive part.
-
-        **Authorization**: Researcher role required
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RatingCreateRequest'
-      responses:
-        '201':
-          description: Rating submitted successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Rating'
-        '400':
-          description: Invalid unlock reference or rating already exists
-        '403':
-          $ref: '#/components/responses/Forbidden'
-  /ratings/seller/{sellerId}:
-    get:
-      operationId: getSellerRatings
-      tags: [Ratings]
-      summary: Retrieve seller ratings
-      description: |
-        Returns a paginated list of ratings for a specific seller including aggregate statistics.
-
-        **Public Access**: This endpoint does not require authentication
-      security: []
-      parameters:
-        - name: sellerId
-          in: path
-          required: true
-          description: Unique identifier of the seller
-          schema:
-            $ref: '#/components/schemas/UUID'
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/SizeParam'
-      responses:
-        '200':
-          description: Ratings retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RatingPageResponse'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /notifications/preferences:
-    get:
-      operationId: getNotificationPreferences
+      operationId: fetchNotifications
       tags: [Notifications]
-      summary: Retrieve notification preferences
-      description: Returns the current user's notification preferences including enabled event types and delivery channels.
-      responses:
-        '200':
-          description: Preferences retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationPreferences'
-    patch:
-      operationId: updateNotificationPreferences
-      tags: [Notifications]
-      summary: Update notification preferences
-      description: Modifies the current user's notification preferences for event types and delivery channels.
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NotificationPreferences'
-      responses:
-        '200':
-          description: Preferences updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationPreferences'
-  /notifications:
-    get:
-      operationId: getMyNotifications
-      tags: [Notifications]
-      summary: Retrieve user notifications
-      description: Returns a paginated list of notifications for the current user with optional filtering by read status and notification type.
+      summary: Retrieve seller notifications
+      description: Returns a paginated list of notifications for the current active seller.
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
-        - name: unreadOnly
-          in: query
-          description: Return only unread notifications
-          schema:
-            type: boolean
-            default: false
-        - name: type
-          in: query
-          description: Filter by notification type
-          schema:
-            $ref: '#/components/schemas/NotificationType'
       responses:
         '200':
           description: Notifications retrieved successfully
@@ -1315,9 +1155,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/NotificationPageResponse'
-  /notifications/{notificationId}/mark-read:
+  /v1/notifications/mark-as-read/{notificationId}:
     patch:
-      operationId: markNotificationRead
+      operationId: markAsRead
       tags: [Notifications]
       summary: Mark notification as read
       description: Updates the read status of a specific notification.
@@ -1329,68 +1169,36 @@ paths:
           schema:
             $ref: '#/components/schemas/UUID'
       responses:
-        '204':
+        '202':
           description: Notification marked as read
+          content:
+            appliction/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
         '404':
           $ref: '#/components/responses/NotFound'
-  /notifications/mark-all-read:
-    post:
-      operationId: markAllNotificationsRead
+  /v1/notifications/{notificationId}:
+    get:
+      operationId: getNotification
       tags: [Notifications]
-      summary: Mark all notifications as read
-      description: Updates the read status of all notifications for the current user.
-      responses:
-        '204':
-          description: All notifications marked as read
-  /statistics/platform:
-    get:
-      operationId: getPlatformStatistics
-      tags: [Statistics]
-      summary: Retrieve platform-wide statistics
-      description: |
-        Returns aggregate statistics for the entire platform including user counts, transaction volumes, and popular categories.
-
-        **Authorization**: Manager role required
+      summary: Get notification with given id
+      description: This endpoints allows sellers to fetch the notifications object with the given id.
       parameters:
-        - name: startDate
-          in: query
-          description: Start date for statistics period
+        - name: notificationId
+          in: path
+          required: true
+          description: Unique identifier of the notification
           schema:
-            $ref: '#/components/schemas/DateTime'
-        - name: endDate
-          in: query
-          description: End date for statistics period
-          schema:
-            $ref: '#/components/schemas/DateTime'
+            $ref: '#/components/schemas/UUID'
       responses:
-        '200':
-          description: Platform statistics retrieved successfully
+        '202':
+          description: Fetched notification with the corresponding given id
           content:
-            application/json:
+            appliction/json:
               schema:
-                $ref: '#/components/schemas/PlatformStatistics'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-  /statistics/dashboard:
-    get:
-      operationId: getDashboard
-      tags: [Statistics]
-      summary: Retrieve role-specific dashboard
-      description: |
-        Returns dashboard data tailored to the current user's role:
-        - **Researchers**: Demand statistics and offer summaries
-        - **Sellers**: Offer performance and unlock metrics
-        - **Managers**: Platform overview and recent activity
-      responses:
-        '200':
-          description: Dashboard data retrieved successfully
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: '#/components/schemas/ResearcherDashboard'
-                  - $ref: '#/components/schemas/SellerDashboard'
-                  - $ref: '#/components/schemas/ManagerDashboard'
+                $ref: "#/components/schemas/Notification"
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   securitySchemes:
     supabaseAuth:
@@ -1521,7 +1329,7 @@ components:
       description: Premium subscription billing period
     NotificationType:
       type: string
-      enum: [NEW_OFFER, DEMAND_MATCH, PAYMENT_SUCCESS, UNLOCK_CONFIRMED, RATING_RECEIVED, PREMIUM_EXPIRING, SYSTEM]
+      enum: [DEMAND_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED, DEMAND_CANCELED, SYSTEM_ANNOUNCEMENT]
       description: Notification event type
     NotificationChannel:
       type: string
@@ -2319,26 +2127,26 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/UUID'
-        userId:
-          $ref: '#/components/schemas/UUID'
-        type:
-          $ref: '#/components/schemas/NotificationType'
-        title:
+        seller:
+          $ref: '#/components/schemas/Seller'
+        notification_requested_id:
           type: string
-          description: Notification headline
+          description: Notification event id
         message:
           type: string
           description: Notification body text
-        relatedEntityId:
-          $ref: '#/components/schemas/UUID'
-          description: Associated entity identifier
-        relatedEntityType:
-          type: string
-          enum: [DEMAND, OFFER, UNLOCK, RATING]
-        isRead:
+        demand:
+          $ref: '#/components/schemas/Demand'
+        notification_type:
+          $ref: '#/components/schemas/NotificationType'
+        read:
           type: boolean
           default: false
-        createdAt:
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+        click_action:
+          example: {"action": "VIEW_DEMAND", "demandId": "demand-ctrl-789"}
+        read_at:
           $ref: '#/components/schemas/DateTime'
     SellerPublicStatistics:
       type: object
@@ -2624,8 +2432,6 @@ components:
         - $ref: '#/components/schemas/PageResponse'
         - type: object
           properties:
-            unreadCount:
-              type: integer
             content:
               type: array
               items:

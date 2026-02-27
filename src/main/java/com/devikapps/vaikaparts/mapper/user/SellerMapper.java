@@ -13,6 +13,8 @@ import org.mapstruct.Mapping;
 public interface SellerMapper {
 
   @Mapping(target = "profileImgKey", ignore = true)
+  @Mapping(target = "notificationRequestedLogs", ignore = true)
+  @Mapping(target = "notifications", ignore = true)
   JSeller toPersistence(Seller seller);
 
   @Mapping(target = "profileImgUrl", source = "profileImgKey", qualifiedByName = "getPresignedUrl")

@@ -2,6 +2,7 @@ package com.devikapps.vaikaparts.mapper;
 
 import com.devikapps.vaikaparts.model.LatLon;
 import com.devikapps.vaikaparts.model.Location;
+import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotification;
 import com.devikapps.vaikaparts.repository.model.JLatLon;
 import com.devikapps.vaikaparts.repository.model.JLocation;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
@@ -11,6 +12,12 @@ import org.mapstruct.Mapper;
 @Mapper(componentModel = "spring")
 public interface ValueObjectMapper {
   int DEFAULT_YEAR = 1900;
+
+  default String getNotificationRequestedId(
+      JDemandPublishedNotification jDemandPublishedNotification) {
+    if (jDemandPublishedNotification == null) return null;
+    return jDemandPublishedNotification.getNotificationRequested().getId();
+  }
 
   default Location map(JLocation jLocation) {
     if (jLocation == null) return null;

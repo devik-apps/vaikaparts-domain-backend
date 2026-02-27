@@ -4,13 +4,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPart;
+import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
+import com.devikapps.vaikaparts.event.model.EventProducer;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.file.FilenameSanitizer;
@@ -35,6 +39,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -61,9 +66,9 @@ class DemandServiceTest {
   @Mock private ResearcherService researcherService;
   @Mock private BucketComponent bucketComponent;
   @Mock private Paginator paginator;
-
   @Mock private FilenameSanitizer filenameSanitizer;
   @Mock private ImageUploader imageUploader;
+  @Mock private EventProducer<DemandPublishedRequested> demandPublishedRequestedProducer;
 
   @InjectMocks private DemandService demandService;
 
@@ -96,6 +101,7 @@ class DemandServiceTest {
     assertNotNull(result);
     assertEquals(TEST_DESCRIPTION, result.getDescription());
     assertEquals(PostStatus.DRAFT, result.getStatus());
+    assertEquals(TEST_RESEARCHER_ID, result.getResearcher().getId());
     verify(demandRepository, times(1)).save(any(JDemand.class));
     verify(researcherService, times(1)).getCurrentResearcher();
   }
@@ -133,6 +139,7 @@ class DemandServiceTest {
   @Test
   void should_update_demand_status_to_published() {
     testJDemand.setStatus(PostStatus.DRAFT);
+
     when(researcherService.getCurrentResearcher()).thenReturn(testResearcher);
     when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
         .thenReturn(Optional.of(testJDemand));
@@ -142,10 +149,60 @@ class DemandServiceTest {
     Demand result = demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.PUBLISHED);
 
     assertNotNull(result);
-    verify(demandRepository, times(1)).save(testJDemand);
     assertEquals(PostStatus.PUBLISHED, testJDemand.getStatus());
     assertNull(testJDemand.getCanceledAt());
     assertNull(testJDemand.getSuspendedAt());
+    verify(demandRepository, times(1)).save(testJDemand);
+    verify(demandPublishedRequestedProducer, times(1)).accept(anyList());
+  }
+
+  @Test
+  void should_publish_event_when_demand_first_published() {
+    testJDemand.setStatus(PostStatus.DRAFT);
+
+    when(researcherService.getCurrentResearcher()).thenReturn(testResearcher);
+    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
+        .thenReturn(Optional.of(testJDemand));
+    when(demandRepository.save(testJDemand)).thenReturn(testJDemand);
+    when(demandMapper.toDomain(testJDemand)).thenReturn(testDemand);
+
+    demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.PUBLISHED);
+
+    ArgumentCaptor<List<DemandPublishedRequested>> captor = ArgumentCaptor.forClass(List.class);
+    verify(demandPublishedRequestedProducer, times(1)).accept(captor.capture());
+
+    List<DemandPublishedRequested> events = captor.getValue();
+    assertEquals(1, events.size());
+    assertEquals(TEST_DEMAND_ID, events.getFirst().getDemandId());
+    assertNotNull(events.getFirst().getId());
+  }
+
+  @Test
+  void should_not_publish_event_when_notifications_already_sent() {
+    testJDemand.setStatus(PostStatus.SUSPENDED);
+
+    when(researcherService.getCurrentResearcher()).thenReturn(testResearcher);
+    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
+        .thenReturn(Optional.of(testJDemand));
+    when(demandRepository.save(testJDemand)).thenReturn(testJDemand);
+    when(demandMapper.toDomain(testJDemand)).thenReturn(testDemand);
+
+    demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.PUBLISHED);
+  }
+
+  @Test
+  void should_not_publish_event_when_transitioning_to_non_published_status() {
+    testJDemand.setStatus(PostStatus.DRAFT);
+
+    when(researcherService.getCurrentResearcher()).thenReturn(testResearcher);
+    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
+        .thenReturn(Optional.of(testJDemand));
+    when(demandRepository.save(testJDemand)).thenReturn(testJDemand);
+    when(demandMapper.toDomain(testJDemand)).thenReturn(testDemand);
+
+    demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.SUSPENDED);
+
+    verify(demandPublishedRequestedProducer, never()).accept(anyList());
   }
 
   @Test
@@ -160,9 +217,9 @@ class DemandServiceTest {
     Demand result = demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.CANCELED);
 
     assertNotNull(result);
-    verify(demandRepository, times(1)).save(testJDemand);
     assertEquals(PostStatus.CANCELED, testJDemand.getStatus());
     assertNotNull(testJDemand.getCanceledAt());
+    verify(demandRepository, times(1)).save(testJDemand);
   }
 
   @Test
@@ -177,9 +234,9 @@ class DemandServiceTest {
     Demand result = demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.SUSPENDED);
 
     assertNotNull(result);
-    verify(demandRepository, times(1)).save(testJDemand);
     assertEquals(PostStatus.SUSPENDED, testJDemand.getStatus());
     assertNotNull(testJDemand.getSuspendedAt());
+    verify(demandRepository, times(1)).save(testJDemand);
   }
 
   @Test
@@ -189,10 +246,12 @@ class DemandServiceTest {
     when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
         .thenReturn(Optional.of(testJDemand));
 
-    assertThrows(
-        IllegalStateException.class,
-        () -> demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.PUBLISHED));
+    IllegalStateException exception =
+        assertThrows(
+            IllegalStateException.class,
+            () -> demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.PUBLISHED));
 
+    assertTrue(exception.getMessage().contains("already in PUBLISHED status"));
     verify(demandRepository, never()).save(any(JDemand.class));
   }
 
@@ -203,10 +262,12 @@ class DemandServiceTest {
     when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
         .thenReturn(Optional.of(testJDemand));
 
-    assertThrows(
-        IllegalStateException.class,
-        () -> demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.PUBLISHED));
+    IllegalStateException exception =
+        assertThrows(
+            IllegalStateException.class,
+            () -> demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.PUBLISHED));
 
+    assertTrue(exception.getMessage().contains("Cannot update status of a canceled demand"));
     verify(demandRepository, never()).save(any(JDemand.class));
   }
 
@@ -217,10 +278,12 @@ class DemandServiceTest {
     when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
         .thenReturn(Optional.of(testJDemand));
 
-    assertThrows(
-        IllegalStateException.class,
-        () -> demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.DRAFT));
+    IllegalStateException exception =
+        assertThrows(
+            IllegalStateException.class,
+            () -> demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.DRAFT));
 
+    assertTrue(exception.getMessage().contains("can only transition to PUBLISHED status"));
     verify(demandRepository, never()).save(any(JDemand.class));
   }
 
@@ -229,9 +292,12 @@ class DemandServiceTest {
     when(researcherService.getCurrentResearcher()).thenReturn(testResearcher);
     when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID)).thenReturn(Optional.empty());
 
-    assertThrows(
-        ResourceNotFoundException.class,
-        () -> demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.PUBLISHED));
+    ResourceNotFoundException exception =
+        assertThrows(
+            ResourceNotFoundException.class,
+            () -> demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.PUBLISHED));
+
+    assertTrue(exception.getMessage().contains("not found or access denied"));
   }
 
   @Test
@@ -243,9 +309,12 @@ class DemandServiceTest {
     when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
         .thenReturn(Optional.of(testJDemand));
 
-    assertThrows(
-        ResourceNotFoundException.class,
-        () -> demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.PUBLISHED));
+    ResourceNotFoundException exception =
+        assertThrows(
+            ResourceNotFoundException.class,
+            () -> demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.PUBLISHED));
+
+    assertTrue(exception.getMessage().contains("not found or access denied"));
   }
 
   @Test
@@ -268,6 +337,7 @@ class DemandServiceTest {
     assertNotNull(result);
     assertEquals(1, result.getTotalElements());
     assertEquals(testDemand, result.getContent().getFirst());
+    assertEquals(TEST_DEMAND_ID, result.getContent().getFirst().getId());
     verify(demandRepository, times(1))
         .findByResearcherIdAndStatus(TEST_RESEARCHER_ID, PostStatus.PUBLISHED, pageable);
   }
@@ -288,6 +358,7 @@ class DemandServiceTest {
 
     assertNotNull(result);
     assertEquals(1, result.getTotalElements());
+    assertEquals(testDemand, result.getContent().getFirst());
     verify(demandRepository, times(1))
         .findByResearcherIdWithRelations(TEST_RESEARCHER_ID, pageable);
   }
@@ -303,6 +374,7 @@ class DemandServiceTest {
 
     assertNotNull(result);
     assertEquals(TEST_DEMAND_ID, result.getId());
+    assertEquals(TEST_DESCRIPTION, result.getDescription());
     verify(demandRepository, times(1)).findByIdWithRelations(TEST_DEMAND_ID);
   }
 

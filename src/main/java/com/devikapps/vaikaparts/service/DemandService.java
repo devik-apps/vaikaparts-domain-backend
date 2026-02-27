@@ -5,6 +5,8 @@ import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPart;
+import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
+import com.devikapps.vaikaparts.event.model.EventProducer;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.mapper.exchange.DemandMapper;
@@ -49,6 +51,7 @@ public class DemandService {
   private final Paginator paginator;
   private final BucketComponent bucketComponent;
   private final ImageUploader imageUploader;
+  private final EventProducer<DemandPublishedRequested> demandPublishedRequestedProducer;
 
   @Transactional
   public Demand createDemand(String description, RestPart restPart) {
@@ -102,9 +105,15 @@ public class DemandService {
     var jDemand = findDemandByIdAndResearcher(demandId, currentResearcher.getId());
 
     validateStatusTransition(jDemand.getStatus(), newStatus);
+
+    boolean shouldNotifySellers = shouldPublishNotifications(newStatus);
+
     applyStatusUpdate(jDemand, newStatus);
 
     var updatedJDemand = demandRepository.save(jDemand);
+
+    if (shouldNotifySellers) publishDemandPublishedEvent(updatedJDemand);
+
     log.info(
         "Successfully updated demand {} to status {}",
         forJava(demandId),
@@ -174,6 +183,21 @@ public class DemandService {
     return demandMapper.toDomain(jDemand);
   }
 
+  @Transactional(readOnly = true)
+  public Demand getDemandByIdWithoutAuthFilter(String demandId) {
+    log.info("Fetching demand with id={}", forJava(demandId));
+    var jDemand =
+        demandRepository
+            .findByIdWithRelations(demandId)
+            .orElseThrow(
+                () ->
+                    new ResourceNotFoundException(
+                        format("No demand with id=%s was found.", forJava(demandId))));
+
+    log.info("Successfully retrieved demand with demand id={}", forJava(demandId));
+    return demandMapper.toDomain(jDemand);
+  }
+
   private JDemand findDemandByIdAndResearcher(String demandId, String researcherId) {
     return demandRepository
         .findByIdWithRelations(demandId)
@@ -223,6 +247,22 @@ public class DemandService {
         "Status transition validated: {} -> {}",
         forJava(currentStatus.toString()),
         forJava(newStatus.toString()));
+  }
+
+  private boolean shouldPublishNotifications(PostStatus newStatus) {
+    return newStatus == PostStatus.PUBLISHED;
+  }
+
+  private void publishDemandPublishedEvent(JDemand jDemand) {
+    var event =
+        DemandPublishedRequested.builder()
+            .id(randomUUID().toString())
+            .demandId(jDemand.getId())
+            .build();
+
+    demandPublishedRequestedProducer.accept(List.of(event));
+
+    log.info("Published DemandPublishedRequested event for demand: {}", forJava(jDemand.getId()));
   }
 
   @SneakyThrows

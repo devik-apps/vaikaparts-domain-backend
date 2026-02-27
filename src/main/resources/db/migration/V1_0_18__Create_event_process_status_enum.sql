@@ -1,0 +1,1 @@
+CREATE TYPE process_status AS ENUM ('PENDING', 'PROCESSING', 'SUCCESS', 'FAILED');
