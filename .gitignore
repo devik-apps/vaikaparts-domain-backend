@@ -40,7 +40,7 @@ out/
 .codesight
 semgrep.sarif
 
-
+# clients
 src/test/generated/.openapi-generator/
 src/test/generated/pom.xml
 src/test/generated/README.md
