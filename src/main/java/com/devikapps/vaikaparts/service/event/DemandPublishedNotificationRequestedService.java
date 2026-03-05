@@ -5,6 +5,7 @@ import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.NotificationRequest;
 import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested;
+import com.devikapps.vaikaparts.exception.DemandPublishedNotificationRequestedException;
 import com.devikapps.vaikaparts.exception.UserNotFoundException;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
@@ -177,6 +178,7 @@ public class DemandPublishedNotificationRequestedService
     eventLog.setCompletedAt(LocalDateTime.now());
     notificationRequestedRepository.save(eventLog);
 
-    throw new RuntimeException("NotificationRequested processing failed", e);
+    throw new DemandPublishedNotificationRequestedException(
+        "NotificationRequested processing failed", e);
   }
 }

@@ -5,6 +5,7 @@ import static java.lang.String.format;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
+import com.devikapps.vaikaparts.service.util.StatusAware;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -40,7 +41,7 @@ import org.hibernate.type.SqlTypes;
 @Getter
 @Setter
 @SuperBuilder
-public class JDemand {
+public class JDemand implements StatusAware {
   @Id private String id;
 
   private String description;

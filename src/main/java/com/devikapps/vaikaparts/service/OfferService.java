@@ -1,5 +1,8 @@
 package com.devikapps.vaikaparts.service;
 
+import static com.devikapps.vaikaparts.service.util.Paginator.PAGE_FIELD;
+import static com.devikapps.vaikaparts.service.util.Paginator.SIZE_FIELD;
+import static com.devikapps.vaikaparts.service.util.StatusSwitcher.updateStatus;
 import static java.lang.String.format;
 import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
@@ -38,9 +41,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class OfferService {
 
+  public static final String CREATED_AT_FIELD = "createdAt";
   private static final Duration PRESIGN_DURATION = Duration.ofDays(7);
   private static final String PART_INFO_BUCKET_PREFIX = "part-infos/";
-
   private final OfferRepository offerRepository;
   private final DemandRepository demandRepository;
   private final OfferMapper offerMapper;
@@ -127,7 +130,9 @@ public class OfferService {
     var pagination = paginator.apply(page, size);
     var pageable =
         PageRequest.of(
-            pagination.get("page"), pagination.get("size"), Sort.by("createdAt").descending());
+            pagination.get(PAGE_FIELD),
+            pagination.get(SIZE_FIELD),
+            Sort.by(CREATED_AT_FIELD).descending());
 
     var currentSeller = sellerService.getCurrentSeller();
     var sellerId = currentSeller.getId();
@@ -149,7 +154,9 @@ public class OfferService {
     var pagination = paginator.apply(page, size);
     var pageable =
         PageRequest.of(
-            pagination.get("page"), pagination.get("size"), Sort.by("createdAt").descending());
+            pagination.get(PAGE_FIELD),
+            pagination.get(SIZE_FIELD),
+            Sort.by(CREATED_AT_FIELD).descending());
 
     var currentSeller = sellerService.getCurrentSeller();
     var sellerId = currentSeller.getId();
@@ -178,7 +185,9 @@ public class OfferService {
     var pagination = paginator.apply(page, size);
     var pageable =
         PageRequest.of(
-            pagination.get("page"), pagination.get("size"), Sort.by("createdAt").descending());
+            pagination.get(PAGE_FIELD),
+            pagination.get(SIZE_FIELD),
+            Sort.by(CREATED_AT_FIELD).descending());
 
     var jOffers = offerRepository.findByDemandId(demandId, pageable);
     log.info("Found {} offers for demand {}", jOffers.getTotalElements(), forJava(demandId));
@@ -258,17 +267,7 @@ public class OfferService {
   }
 
   private void applyStatusUpdate(JOffer jOffer, PostStatus newStatus) {
-    var now = LocalDateTime.now();
-    jOffer.setUpdatedAt(now);
-    jOffer.setStatus(newStatus);
-    switch (newStatus) {
-      case CANCELED -> jOffer.setCanceledAt(now);
-      case SUSPENDED -> jOffer.setSuspendedAt(now);
-      case PUBLISHED -> {
-        jOffer.setCanceledAt(null);
-        jOffer.setSuspendedAt(null);
-      }
-    }
+    updateStatus(jOffer, newStatus);
   }
 
   @SneakyThrows

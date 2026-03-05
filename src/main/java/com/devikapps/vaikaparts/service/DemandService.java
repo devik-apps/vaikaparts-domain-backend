@@ -1,5 +1,8 @@
 package com.devikapps.vaikaparts.service;
 
+import static com.devikapps.vaikaparts.service.util.Paginator.PAGE_FIELD;
+import static com.devikapps.vaikaparts.service.util.Paginator.SIZE_FIELD;
+import static com.devikapps.vaikaparts.service.util.StatusSwitcher.updateStatus;
 import static java.lang.String.format;
 import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
@@ -40,9 +43,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class DemandService {
 
+  public static final String CREATED_AT_FIELD = "createdAt";
   private static final Duration PRESIGN_DURATION = Duration.ofDays(7);
   private static final String PARTS_BUCKET_PREFIX = "parts/";
-
   private final DemandRepository demandRepository;
   private final DemandMapper demandMapper;
   private final ResearcherService researcherService;
@@ -85,7 +88,9 @@ public class DemandService {
     var pagination = paginator.apply(page, size);
     var pageable =
         PageRequest.of(
-            pagination.get("page"), pagination.get("size"), Sort.by("createdAt").descending());
+            pagination.get(PAGE_FIELD),
+            pagination.get(SIZE_FIELD),
+            Sort.by(CREATED_AT_FIELD).descending());
 
     Page<JOffer> jOffers = offerRepository.findByDemandId(jDemand.getId(), pageable);
 
@@ -127,7 +132,9 @@ public class DemandService {
     var pagination = paginator.apply(page, size);
     var pageable =
         PageRequest.of(
-            pagination.get("page"), pagination.get("size"), Sort.by("createdAt").descending());
+            pagination.get(PAGE_FIELD),
+            pagination.get(SIZE_FIELD),
+            Sort.by(CREATED_AT_FIELD).descending());
 
     log.info(
         "Fetching demands with status: {} for authenticated researcher",
@@ -154,7 +161,9 @@ public class DemandService {
     var pagination = paginator.apply(page, size);
     var pageable =
         PageRequest.of(
-            pagination.get("page"), pagination.get("size"), Sort.by("createdAt").descending());
+            pagination.get(PAGE_FIELD),
+            pagination.get(SIZE_FIELD),
+            Sort.by(CREATED_AT_FIELD).descending());
 
     log.info("Fetching all demands for authenticated researcher");
 
@@ -303,17 +312,6 @@ public class DemandService {
   }
 
   private void applyStatusUpdate(JDemand jDemand, PostStatus newStatus) {
-    var now = LocalDateTime.now();
-    jDemand.setStatus(newStatus);
-    jDemand.setUpdatedAt(now);
-
-    switch (newStatus) {
-      case CANCELED -> jDemand.setCanceledAt(now);
-      case SUSPENDED -> jDemand.setSuspendedAt(now);
-      case PUBLISHED -> {
-        jDemand.setCanceledAt(null);
-        jDemand.setSuspendedAt(null);
-      }
-    }
+    updateStatus(jDemand, newStatus);
   }
 }

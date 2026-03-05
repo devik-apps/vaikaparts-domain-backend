@@ -1,5 +1,7 @@
 package com.devikapps.vaikaparts.service;
 
+import static com.devikapps.vaikaparts.model.classifier.UserType.RESEARCHER;
+import static com.devikapps.vaikaparts.model.classifier.UserType.SELLER;
 import static java.time.LocalDateTime.now;
 import static java.time.LocalDateTime.ofInstant;
 import static java.util.UUID.randomUUID;
@@ -126,7 +128,7 @@ public class UserSyncService {
         .orElseGet(
             () -> {
               log.debug("No user_type in metadata, defaulting to RESEARCHER");
-              return UserType.RESEARCHER;
+              return RESEARCHER;
             });
   }
 
@@ -218,7 +220,7 @@ public class UserSyncService {
         .phoneNumber(phoneNumber)
         .profileImgKey("")
         .location(vom.map(finalLocation))
-        .userType(UserType.RESEARCHER)
+        .userType(RESEARCHER)
         .status(UserStatus.ENABLED)
         .createdAt(createdAt)
         .updatedAt(updatedAt)
@@ -246,7 +248,7 @@ public class UserSyncService {
         .phoneNumber(phoneNumber)
         .profileImgKey("")
         .garageName(garageName)
-        .userType(UserType.SELLER)
+        .userType(SELLER)
         .status(UserStatus.ENABLED)
         .location(vom.map(finalLocation))
         .latLon(vom.map(finalLatLon))
@@ -305,10 +307,8 @@ public class UserSyncService {
   }
 
   private void updateLocationFields(JUser user, Map<String, Object> metadata) {
-    switch (user.getUserType()) {
-      case RESEARCHER -> updateResearcherLocation(user, metadata);
-      case SELLER -> updateSellerLocationAndLatLon(user, metadata);
-    }
+    if (user.getUserType() == RESEARCHER) updateResearcherLocation(user, metadata);
+    else if (user.getUserType() == SELLER) updateSellerLocationAndLatLon(user, metadata);
   }
 
   private void updateResearcherLocation(JUser user, Map<String, Object> metadata) {

@@ -50,6 +50,9 @@ import org.springframework.stereotype.Component;
 @InfraGenerated
 public class Paginator implements BiFunction<Integer, Integer, Map<String, Integer>> {
 
+  public static final String PAGE_FIELD = "page";
+  public static final String SIZE_FIELD = "size";
+
   /** Default page number when none is specified. */
   private static final int DEFAULT_PAGE = 0;
 

@@ -4,6 +4,7 @@ import static java.lang.String.format;
 
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
+import com.devikapps.vaikaparts.service.util.StatusAware;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -36,7 +37,7 @@ import org.hibernate.type.SqlTypes;
 @Getter
 @Setter
 @SuperBuilder
-public class JOffer {
+public class JOffer implements StatusAware {
   @Id private String id;
 
   private String description;

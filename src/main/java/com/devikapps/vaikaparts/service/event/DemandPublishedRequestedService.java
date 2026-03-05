@@ -8,6 +8,7 @@ import static org.owasp.encoder.Encode.forJava;
 import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.event.model.EventProducer;
+import com.devikapps.vaikaparts.exception.DemandPublishedRequestedException;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.user.Seller;
@@ -88,26 +89,6 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
                   JDemandPublishedRequested.builder()
                       .id(event.getId())
                       .demand(demand)
-                      .status(ProcessStatus.PENDING)
-                      .attemptNb(event.getAttemptNb())
-                      .totalSellersToNotify(0)
-                      .notificationsSentCount(0)
-                      .createdAt(now)
-                      .updatedAt(now)
-                      .build();
-              return demandPublishedRequestedRepository.save(newLog);
-            });
-  }
-
-  private JDemandPublishedRequested fetchOrCreateEventLog(DemandPublishedRequested event) {
-    return demandPublishedRequestedRepository
-        .findById(event.getId())
-        .orElseGet(
-            () -> {
-              var now = LocalDateTime.now();
-              var newLog =
-                  JDemandPublishedRequested.builder()
-                      .id(event.getId())
                       .status(ProcessStatus.PENDING)
                       .attemptNb(event.getAttemptNb())
                       .totalSellersToNotify(0)
@@ -200,6 +181,6 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
     eventLog.setCompletedAt(LocalDateTime.now());
     demandPublishedRequestedRepository.save(eventLog);
 
-    throw new RuntimeException("DemandPublishedRequested processing failed", e);
+    throw new DemandPublishedRequestedException("DemandPublishedRequested processing failed", e);
   }
 }
