@@ -1,0 +1,3661 @@
+openapi: 3.1.0
+info:
+  contact:
+    email: vaikaparts@gmail.com
+    name: Devik'Apps Development Team
+    url: https://devikapps.com
+  description: |
+    ## Overview
+
+    The VaikaParts Core Domain API provides the foundational business logic and data management capabilities for the VaikaParts automotive parts marketplace platform. This API serves as the central domain service responsible for managing user profiles, auto parts demands, seller offers, contact exchange workflows, and notification systems.
+
+    ## Architecture
+
+    This API represents the core domain microservice within the VaikaParts distributed system architecture. It handles business logic and data persistence while integrating with external services through well-defined interfaces:
+
+    - **Authentication Provider**: Supabase Auth via JWT token validation and webhook integration
+    - **Payment Processing**: External Payment Service via webhook callbacks
+    - **Storage**: S3-compatible object storage for profile photos and attachment URLs
+    - **Messaging**: Event-driven notification system supporting multiple channels
+
+    ## Domain Model
+
+    The core domain encompasses the following primary entities:
+
+    ### Users
+    - **Researchers**: End users searching for automotive parts
+    - **Sellers**: Vendors offering automotive parts for sale
+    - **Managers**: Administrative users with platform oversight capabilities
+
+    ### Business Entities
+    - **Demands**: Researcher requests for specific automotive parts
+    - **Offers**: Seller responses to Researcher demands with pricing and availability
+    - **Parts**: Structured automotive part specifications
+    - **Contact Unlocks**: Paid contact information exchange transactions
+    - **Ratings**: Seller performance and reliability feedback
+    - **Premium Subscriptions**: Enhanced seller features and notifications
+
+    ## Privacy and Data Protection
+
+    The API implements a privacy-first architecture where personally identifiable information (PII) is conditionally exposed based on business rules:
+
+    ### Anonymous Profile Model
+
+    By default, all user profiles are presented in an anonymized format:
+    - Profile photographs are masked or replaced with placeholder images
+    - Location data is generalized to city and region level only
+    - Contact information (names, phone numbers, addresses) is withheld
+    - Only aggregate statistics and ratings are publicly visible
+
+    ### Contact Information Disclosure
+
+    Full contact details are revealed exclusively under the following conditions:
+    - A Researcher has completed payment for a specific contact unlock transaction
+    - The unlock status has been confirmed by the Payment Service
+    - The requesting user is authorized to access the information
+    - Administrative users with appropriate permissions
+
+    Each contact unlock transaction is scoped to a single offer. Subsequent offers from the same seller require separate unlock transactions, ensuring fair monetization and privacy protection.
+
+    ## Business Workflow
+
+    ### Standard Transaction Flow
+
+    1. **Demand Creation**: Researcher creates a demand specifying part requirements
+    2. **Seller Notification**: System notifies relevant sellers based on matching criteria
+    3. **Offer Submission**: Sellers respond with offers including pricing and conditions
+    4. **Offer Review**: Researcher reviews anonymous offers with masked seller information
+    5. **Contact Unlock Initiation**: Researcher selects an offer and initiates unlock request
+    6. **Payment Processing**: External Payment Service handles transaction
+    7. **Contact Revelation**: Upon payment confirmation, full contact details are revealed
+    8. **Transaction Confirmation**: Researcher confirms receipt and satisfaction within 48 hours
+    9. **Rating Submission**: Researcher rates seller performance
+
+    ### Premium Seller Features
+
+    Sellers may subscribe to premium tiers offering:
+    - Priority placement in seller notification queues
+    - Extended notification channel access (SMS, email in addition to push)
+    - Premium badge display on anonymous profiles
+    - Enhanced visibility in offer listings
+
+    ## Integration Points
+
+    ### Supabase Authentication
+
+    The API validates JWT tokens issued by Supabase Auth and receives user lifecycle events via webhooks:
+    - User creation triggers profile initialization
+    - User updates synchronize metadata
+    - User deletion triggers account deactivation
+
+    ### Payment Service Integration
+
+    The Payment Service communicates transaction outcomes via authenticated webhooks:
+    - Contact unlock payment confirmation
+    - Premium subscription activation and renewal
+    - Refund processing notifications
+
+    ## Support
+
+    For technical support, integration assistance, or to report issues, contact the development team at vaikaparts@gmail.com.
+  title: VaikaParts Core Domain API
+  version: 1.0.0
+servers:
+  - description: Pre-production environment
+    url: https://vaikaparts-domain-backend.onrender.com
+  - description: Local development environment
+    url: http://localhost:9090
+security:
+  - supabaseAuth: []
+tags:
+  - description: System health and monitoring endpoints
+    name: Health
+  - description: External service integration webhooks
+    name: Webhooks
+  - description: User profile management operations
+    name: Users
+  - description: Researcher-specific operations
+    name: Researchers
+  - description: Seller-specific operations
+    name: Sellers
+  - description: Administrative operations
+    name: Managers
+  - description: Automotive parts demand management
+    name: Demands
+  - description: Seller offer management
+    name: Offers
+  - description: File upload operations
+    name: Storage
+  - description: All about notifications
+    name: Notifications
+paths:
+  /:
+    get:
+      operationId: rootRedirect
+      responses:
+        "302":
+          description: Redirects to /doc
+          headers:
+            Location:
+              description: URL to redirect
+              explode: false
+              schema:
+                example: /doc
+                type: string
+              style: simple
+      summary: Redirect root path to Swagger UI
+      tags:
+        - Docs
+      x-accepts:
+        - application/json
+  /ping:
+    get:
+      operationId: pong
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                example: pong
+                type: string
+          description: A message showing that the server is alive
+      summary: Check if the server is alive
+      tags:
+        - Health
+      x-accepts:
+        - application/json
+  /health/bucket:
+    get:
+      description: |
+        This endpoint uploads a randomly generated text file to the storage bucket,  verifies its content by downloading it, and returns a presigned URL for the file.
+      operationId: healthBucketCheck
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                example: https://unfaked-bucket.s3.amazonaws.com/health/uuid.txt?X-Amz-Signature=...
+                type: string
+          description: "Successfully uploaded, verified, and presigned file."
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/healthBucketCheck_500_response"
+          description: Uploaded and downloaded content mismatch or other error occurred.
+      summary: "Check bucket health by uploading, downloading, and presigning a file"
+      tags:
+        - Health
+      x-accepts:
+        - application/json
+  /health/email:
+    get:
+      description: Sends a test email to verify email service functionality
+      operationId: sendHealthEmail
+      parameters:
+        - description: Email address to send the health check email to
+          explode: true
+          in: query
+          name: to
+          required: true
+          schema:
+            format: email
+            type: string
+          style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                example: Email sent successfully
+                type: string
+          description: Email sent successfully
+        "400":
+          content:
+            application/json:
+              example:
+                timestamp: 2025-11-04T10:30:00Z
+                status: 400
+                error: Bad Request
+                message: Invalid email address format
+                path: /health/email
+                errorCode: BAD_FORM
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Invalid email address format
+      security: []
+      summary: Send health check email
+      tags:
+        - Health
+      x-accepts:
+        - application/json
+  /health/message:
+    get:
+      description: |
+        This endpoint triggers one or more dummy events through the event producer  for testing the messaging system (e.g., RabbitMQ or Kafka).
+      operationId: triggerDummyEvents
+      parameters:
+        - description: Number of events to trigger (1–500)
+          explode: true
+          in: query
+          name: nbEvent
+          required: false
+          schema:
+            default: 1
+            maximum: 500
+            minimum: 1
+            type: integer
+          style: form
+        - description: Duration (in seconds) to simulate event processing
+          explode: true
+          in: query
+          name: waitInSeconds
+          required: false
+          schema:
+            default: 2
+            minimum: 1
+            type: integer
+          style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                example:
+                  - c91f2c9b-9c8e-4e7f-84e2-09c95edff3e4
+                  - 51af4d2b-745a-465d-b9a2-bf0b1c1ffb23
+                items:
+                  type: string
+                type: array
+          description: List of UUIDs corresponding to triggered dummy events
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/triggerDummyEvents_400_response"
+          description: "Invalid parameter values (e.g., nbEvent not in 1–500)"
+      summary: Trigger dummy health check events
+      tags:
+        - Health
+      x-accepts:
+        - application/json
+  /health/db:
+    get:
+      description: Returns a paginated list of Dummy entities.
+      parameters:
+        - description: Page number (0-based)
+          explode: true
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 0
+            type: integer
+          style: form
+        - description: Page size
+          explode: true
+          in: query
+          name: size
+          required: false
+          schema:
+            default: 10
+            type: integer
+          style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/_health_db_get_200_response"
+          description: Successful database health check
+      summary: Health check for the dummy database
+      tags:
+        - Health
+      x-accepts:
+        - application/json
+  /v1/webhooks/spb/auth:
+    post:
+      description: |
+        Receives database lifecycle events from Supabase Database Webhooks and synchronizes user profile data with the VaikaParts domain model.
+
+        This endpoint handles all Supabase Database webhook events for the public.profiles table:
+        - **INSERT**: Creates a new Researcher, Seller, or Manager profile based on user_metadata.user_type
+        - **UPDATE**: Synchronizes metadata changes to the existing user profile
+        - **DELETE**: Soft-deletes the user profile by setting status to DISABLED
+
+        The user type (RESEARCHER, SELLER, MANAGER) is determined from the record.user_metadata.user_type field.
+        If not specified, defaults to RESEARCHER.
+
+        **Authentication**: Requests must include a valid Supabase webhook signature or secret token in the Authorization header.
+      operationId: supabaseProfileWebhook
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupabaseDatabaseWebhook"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/supabaseProfileWebhook_200_response"
+          description: Webhook processed successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: Invalid webhook signature or authorization token
+        "500":
+          description: Internal server error during webhook processing
+      security:
+        - supabaseWebhookSignature: []
+      summary: Supabase Database webhook handler for profiles table
+      tags:
+        - Webhooks
+      x-content-type: application/json
+      x-accepts:
+        - application/json
+  /users/me:
+    get:
+      description: Returns the complete profile of the currently authenticated user based on the Supabase JWT token provided in the request.
+      operationId: getCurrentUser
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/getCurrentUser_200_response"
+          description: User profile retrieved successfully
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+      summary: Retrieve current authenticated user profile
+      tags:
+        - Users
+      x-accepts:
+        - application/json
+  /users/me/profile-photo:
+    delete:
+      description: Deletes the current profile photograph from storage and removes the URL from the user profile.
+      operationId: deleteProfilePhoto
+      responses:
+        "204":
+          description: Profile photograph deleted successfully
+      summary: Remove user profile photograph
+      tags:
+        - Users
+        - Storage
+      x-accepts:
+        - application/json
+    post:
+      description: |
+        Uploads a profile photograph to S3 storage and updates the user profile with the resulting URL. The photograph will be displayed in an anonymized format (blurred or masked) in public contexts until a contact unlock transaction is completed.
+
+        **File Requirements**:
+        - Formats: JPEG, PNG
+        - Maximum size: 5 MB
+        - Recommended dimensions: 400x400 pixels minimum
+      operationId: uploadProfilePhoto
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/uploadProfilePhoto_request"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/uploadProfilePhoto_200_response"
+          description: Profile photograph uploaded successfully
+        "400":
+          description: Invalid file format or size exceeds limit
+      summary: Upload user profile photograph
+      tags:
+        - Users
+        - Storage
+      x-content-type: multipart/form-data
+      x-accepts:
+        - application/json
+  /researchers:
+    get:
+      description: |
+        Returns a paginated list of all Researcher profiles in the system.
+
+        **Authorization**: Manager role required.
+      operationId: getResearchers
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/SizeParam"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResearcherPageResponse"
+          description: Researcher list retrieved successfully.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+      summary: List all Researcher profiles
+      tags:
+        - Researchers
+      x-accepts:
+        - application/json
+  /researchers/me:
+    get:
+      description: Returns the complete profile of the currently authenticated Researcher.
+      operationId: getCurrentResearcher
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Researcher"
+          description: Researcher profile retrieved successfully.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Authenticated user is not a Researcher.
+      summary: Retrieve the currently authenticated Researcher profile
+      tags:
+        - Researchers
+      x-accepts:
+        - application/json
+  /researchers/{researcherId}:
+    get:
+      description: |
+        Returns the complete profile of a specific Researcher identified by UUID.
+
+        **Authorization**: Manager role required
+      operationId: getResearcherById
+      parameters:
+        - description: Unique identifier of the Researcher
+          explode: false
+          in: path
+          name: researcherId
+          required: true
+          schema:
+            $ref: "#/components/schemas/UUID"
+          style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Researcher"
+          description: Researcher profile retrieved successfully
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+      summary: Retrieve Researcher profile by ID
+      tags:
+        - Researchers
+      x-accepts:
+        - application/json
+  /sellers/me:
+    get:
+      description: |
+        Returns the complete profile of the currently authenticated Seller including
+        all contact details.
+
+        **Authorization**: Seller role required.
+      operationId: getCurrentSeller
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Seller"
+          description: Seller profile retrieved successfully.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Authenticated user is not a Seller.
+      summary: Retrieve the currently authenticated Seller profile
+      tags:
+        - Sellers
+      x-accepts:
+        - application/json
+  /sellers:
+    get:
+      description: |
+        Returns a paginated list of all Seller profiles in the system.
+
+        **Authorization**: Manager role required.
+      operationId: getSellers
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/SizeParam"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SellerPageResponse"
+          description: Seller list retrieved successfully.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+      summary: List all Seller profiles
+      tags:
+        - Sellers
+      x-accepts:
+        - application/json
+  /managers/me:
+    get:
+      description: |
+        Returns the complete profile of the currently authenticated Manager.
+
+        **Authorization**: Manager role required.
+      operationId: getCurrentManager
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Manager"
+          description: Manager profile retrieved successfully.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Authenticated user is not a Manager.
+      summary: Retrieve the currently authenticated Manager profile
+      tags:
+        - Managers
+      x-accepts:
+        - application/json
+  /managers:
+    get:
+      description: |
+        Returns a paginated list of all Manager profiles in the system.
+
+        **Authorization**: Manager role required.
+      operationId: getManagers
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/SizeParam"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManagerPageResponse"
+          description: Manager list retrieved successfully.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+      summary: List all Manager profiles
+      tags:
+        - Managers
+      x-accepts:
+        - application/json
+  /v1/demands:
+    get:
+      description: |
+        Returns a paginated list of demands belonging to the authenticated Researcher.
+        Results may be narrowed by lifecycle status.
+
+        **Authorization**: Researcher role required.
+      operationId: getResearcherDemands
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/SizeParam"
+        - description: Filter by demand lifecycle status. Omit to return all statuses.
+          explode: true
+          in: query
+          name: status
+          required: false
+          schema:
+            $ref: "#/components/schemas/DemandStatus"
+          style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemandPageResponse"
+          description: Demand list retrieved successfully.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+      summary: List researcher demands with optional status filtering
+      tags:
+        - Demands
+      x-accepts:
+        - application/json
+    post:
+      description: |
+        Creates a new demand on behalf of the authenticated Researcher. The request
+        is submitted as `multipart/form-data`. Part fields are bound using Spring
+        dot-notation (`part.name`, `part.carBrand`, etc.). Images are optional and
+        bound under `part.images`; maximum 5 files per demand.
+
+        **Authorization**: Researcher role required.
+      operationId: createDemand
+      requestBody:
+        content:
+          multipart/form-data:
+            encoding:
+              part.images:
+                contentType: "image/jpeg, image/png, image/webp"
+                style: form
+            schema:
+              $ref: "#/components/schemas/DemandCreateRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Demand"
+          description: Demand created successfully.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+      summary: Create a new automotive parts demand
+      tags:
+        - Demands
+      x-content-type: multipart/form-data
+      x-accepts:
+        - application/json
+  /v1/demands/{demandId}:
+    get:
+      description: |
+        Returns the full detail view for a single demand. Access is restricted to
+        the owning Researcher — requests for demands belonging to another principal
+        return 404 to prevent information disclosure.
+
+        **Authorization**: Researcher role required.
+      operationId: getDemandById
+      parameters:
+        - description: Unique identifier of the demand.
+          explode: false
+          in: path
+          name: demandId
+          required: true
+          schema:
+            type: string
+          style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Demand"
+          description: Demand retrieved successfully.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Retrieve a demand by its identifier
+      tags:
+        - Demands
+      x-accepts:
+        - application/json
+  /v1/demands/{demandId}/status:
+    patch:
+      description: |
+        Transitions the demand to a new lifecycle status. Only permitted
+        status transitions are accepted; invalid transitions return 400.
+
+        **Authorization**: Researcher role required.
+      operationId: updateDemandStatus
+      parameters:
+        - description: Unique identifier of the demand.
+          explode: false
+          in: path
+          name: demandId
+          required: true
+          schema:
+            type: string
+          style: simple
+        - description: Target lifecycle status to apply to the demand.
+          explode: true
+          in: query
+          name: status
+          required: true
+          schema:
+            $ref: "#/components/schemas/DemandStatus"
+          style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Demand"
+          description: Demand status updated successfully.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Update the lifecycle status of a demand
+      tags:
+        - Demands
+      x-accepts:
+        - application/json
+  /v1/demands/{demandId}/offers:
+    get:
+      description: |
+        Returns a paginated list of all offers submitted in response to the
+        specified demand. Access is restricted to the demand owner.
+
+        **Authorization**: Researcher role required.
+      operationId: getOffersForDemand
+      parameters:
+        - description: Unique identifier of the demand.
+          explode: false
+          in: path
+          name: demandId
+          required: true
+          schema:
+            type: string
+          style: simple
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/SizeParam"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferPageResponse"
+          description: Offer list retrieved successfully.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Retrieve paginated offers submitted for a specific demand
+      tags:
+        - Demands
+        - Offers
+      x-accepts:
+        - application/json
+  /v1/offers:
+    get:
+      description: |
+        Returns a paginated list of offers submitted by the currently authenticated
+        seller. Results may be narrowed by lifecycle status.
+
+        **Authorization**: Seller role required.
+      operationId: getSellerOffers
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/SizeParam"
+        - description: Filter by offer lifecycle status. Omit to return all statuses.
+          explode: true
+          in: query
+          name: status
+          required: false
+          schema:
+            $ref: "#/components/schemas/OfferStatus"
+          style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferPageResponse"
+          description: Offer list retrieved successfully.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+      summary: List offers submitted by the authenticated seller
+      tags:
+        - Offers
+      x-accepts:
+        - application/json
+    post:
+      description: |
+        Creates a new offer on behalf of the authenticated seller. The request is
+        submitted as `multipart/form-data`. Part info fields are bound using Spring
+        dot-notation (`part_info.name`, `part_info.car_brand`, etc.). Images are
+        optional and bound under `part_info.images`; maximum 5 files per offer.
+
+        **Authorization**: Seller role required.
+      operationId: createOffer
+      requestBody:
+        content:
+          multipart/form-data:
+            encoding:
+              part_info.images:
+                contentType: "image/jpeg, image/png, image/webp"
+                style: form
+            schema:
+              $ref: "#/components/schemas/OfferCreateRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Offer"
+          description: Offer created successfully.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          description: Demand not found.
+      summary: Submit a new offer in response to a demand
+      tags:
+        - Offers
+      x-content-type: multipart/form-data
+      x-accepts:
+        - application/json
+  /v1/offers/{offerId}:
+    get:
+      description: |
+        Returns the full detail view for a single offer. Access is restricted to
+        the owning seller — requests for offers belonging to another principal
+        return 404 to prevent information disclosure.
+
+        **Authorization**: Seller role required.
+      operationId: getOfferById
+      parameters:
+        - description: Unique identifier of the offer.
+          explode: false
+          in: path
+          name: offerId
+          required: true
+          schema:
+            type: string
+          style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Offer"
+          description: Offer retrieved successfully.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Retrieve an offer by its identifier
+      tags:
+        - Offers
+      x-accepts:
+        - application/json
+  /v1/offers/{offerId}/status:
+    patch:
+      description: |
+        Transitions the offer to a new lifecycle status. Only permitted
+        status transitions are accepted; invalid transitions return 400.
+
+        **Authorization**: Seller role required.
+      operationId: updateOfferStatus
+      parameters:
+        - description: Unique identifier of the offer.
+          explode: false
+          in: path
+          name: offerId
+          required: true
+          schema:
+            type: string
+          style: simple
+        - description: Target lifecycle status to apply to the offer.
+          explode: true
+          in: query
+          name: status
+          required: true
+          schema:
+            $ref: "#/components/schemas/OfferStatus"
+          style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Offer"
+          description: Offer status updated successfully.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Update the lifecycle status of an offer
+      tags:
+        - Offers
+      x-accepts:
+        - application/json
+  /v1/offers/demand/{demandId}:
+    get:
+      description: |
+        Returns a paginated list of offers submitted in response to the specified
+        demand, as visible to the authenticated seller.
+
+        **Authorization**: Seller role required.
+      operationId: getOffersByDemandId
+      parameters:
+        - description: Unique identifier of the demand.
+          explode: false
+          in: path
+          name: demandId
+          required: true
+          schema:
+            type: string
+          style: simple
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/SizeParam"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfferPageResponse"
+          description: Offer list retrieved successfully.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Retrieve paginated offers associated with a specific demand
+      tags:
+        - Offers
+      x-accepts:
+        - application/json
+  /v1/notifications:
+    get:
+      description: Returns a paginated list of notifications for the current active seller.
+      operationId: fetchNotifications
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/SizeParam"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPageResponse"
+          description: Notifications retrieved successfully
+      summary: Retrieve seller notifications
+      tags:
+        - Notifications
+      x-accepts:
+        - application/json
+  /v1/notifications/mark-as-read/{notificationId}:
+    patch:
+      description: Updates the read status of a specific notification.
+      operationId: markAsRead
+      parameters:
+        - description: Unique identifier of the notification
+          explode: false
+          in: path
+          name: notificationId
+          required: true
+          schema:
+            $ref: "#/components/schemas/UUID"
+          style: simple
+      responses:
+        "202":
+          content:
+            appliction/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+          description: Notification marked as read
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Mark notification as read
+      tags:
+        - Notifications
+      x-accepts:
+        - application/json
+        - appliction/json
+  /v1/notifications/{notificationId}:
+    get:
+      description: This endpoints allows sellers to fetch the notifications object with the given id.
+      operationId: getNotification
+      parameters:
+        - description: Unique identifier of the notification
+          explode: false
+          in: path
+          name: notificationId
+          required: true
+          schema:
+            $ref: "#/components/schemas/UUID"
+          style: simple
+      responses:
+        "202":
+          content:
+            appliction/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+          description: Fetched notification with the corresponding given id
+        "404":
+          $ref: "#/components/responses/NotFound"
+      summary: Get notification with given id
+      tags:
+        - Notifications
+      x-accepts:
+        - application/json
+        - appliction/json
+components:
+  parameters:
+    PageParam:
+      description: Zero-indexed page number for pagination
+      explode: true
+      in: query
+      name: page
+      required: false
+      schema:
+        default: 0
+        minimum: 0
+        type: integer
+      style: form
+    SizeParam:
+      description: Number of items per page
+      explode: true
+      in: query
+      name: size
+      required: false
+      schema:
+        default: 10
+        maximum: 100
+        minimum: 1
+        type: integer
+      style: form
+  responses:
+    BadRequest:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: Invalid request parameters or payload
+    Unauthorized:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: Missing or invalid authentication credentials
+    Forbidden:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: Insufficient permissions for requested operation
+    NotFound:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: Requested resource does not exist
+    Conflict:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+      description: Resource conflict or duplicate entity
+  schemas:
+    Dummy:
+      properties:
+        id:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        description:
+          type: string
+      required:
+        - description
+        - id
+    UUID:
+      description: RFC 4122 compliant UUID
+      example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+      format: uuid
+      pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+      type: string
+    DateTime:
+      description: ISO 8601 formatted date-time string
+      example: 2025-12-06T11:23:45Z
+      format: date-time
+      type: string
+    PhoneNumber:
+      description: E.164 formatted international phone number
+      example: "+261380012345"
+      pattern: "^\\+[1-9]\\d{1,14}$"
+      type: string
+    EmailAddress:
+      description: RFC 5322 compliant email address
+      example: jane.doe@example.mg
+      format: email
+      maxLength: 254
+      minLength: 5
+      pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+      type: string
+    Location:
+      description: Geographical location information
+      example:
+        address: address
+        city: ANTANANARIVO
+        region: ANALAMANGA
+      properties:
+        city:
+          example: ANTANANARIVO
+          type: string
+        region:
+          example: ANALAMANGA
+          type: string
+        address:
+          description: Detailed street address
+          type: string
+      required:
+        - address
+        - city
+        - region
+    LatLon:
+      description: Geographic coordinates
+      example:
+        lon: 47.5079
+        lat: -18.8792
+      properties:
+        lat:
+          example: -18.8792
+          format: double
+          maximum: 90
+          minimum: -90
+          type: number
+        lon:
+          example: 47.5079
+          format: double
+          maximum: 180
+          minimum: -180
+          type: number
+      required:
+        - lat
+        - lon
+    UserType:
+      description: User account type
+      enum:
+        - RESEARCHER
+        - SELLER
+        - MANAGER
+      type: string
+    UserStatus:
+      default: ENABLED
+      description: User account status
+      enum:
+        - ENABLED
+        - DISABLED
+        - SUSPENDED
+      type: string
+    ManagerRole:
+      description: Manager permission level
+      enum:
+        - ADMIN
+        - MANAGER
+      type: string
+    PartCondition:
+      description: Physical condition of automotive part
+      enum:
+        - NEW
+        - USED
+      type: string
+    OfferStatus:
+      description: Current state of offer lifecycle
+      enum:
+        - PENDING
+        - SELECTED
+        - REJECTED
+        - WITHDRAWN
+      type: string
+    ContactUnlockStatus:
+      description: Current state of contact unlock transaction
+      enum:
+        - PENDING_PAYMENT
+        - PAID
+        - CONFIRMED
+        - REFUND_REQUESTED
+        - REFUNDED
+        - DISPUTED
+      type: string
+    PremiumPlan:
+      description: Premium subscription billing period
+      enum:
+        - MONTHLY
+        - QUARTERLY
+        - YEARLY
+      type: string
+    NotificationType:
+      description: Notification event type
+      enum:
+        - DEMAND_PUBLISHED
+        - OFFER_ACCEPTED
+        - OFFER_REJECTED
+        - DEMAND_CANCELED
+        - SYSTEM_ANNOUNCEMENT
+      type: string
+    NotificationChannel:
+      description: Notification delivery channel
+      enum:
+        - IN_APP
+        - EMAIL
+        - SMS
+        - PUSH
+      type: string
+    SupabaseDatabaseWebhook:
+      description: Webhook payload from Supabase Database Webhooks
+      example:
+        schema: public
+        record: ""
+        old_record: ""
+        type: INSERT
+        table: profiles
+      properties:
+        type:
+          description: The type of database operation that triggered the webhook
+          enum:
+            - INSERT
+            - UPDATE
+            - DELETE
+          type: string
+        table:
+          description: The table name (always 'profiles' for this webhook)
+          example: profiles
+          type: string
+        schema:
+          description: The schema name (always 'public' for this webhook)
+          example: public
+          type: string
+        record:
+          allOf:
+            - $ref: "#/components/schemas/SupabaseProfileRecord"
+          description: The new/current record data (null for DELETE operations)
+          nullable: true
+        old_record:
+          allOf:
+            - $ref: "#/components/schemas/SupabaseProfileRecord"
+          description: "The previous record data (null for INSERT operations, present for UPDATE and DELETE)"
+          nullable: true
+      required:
+        - old_record
+        - record
+        - schema
+        - table
+        - type
+    SupabaseProfileRecord:
+      description: Profile record from public.profiles table
+      properties:
+        id:
+          description: Profile UUID (references auth.users.id)
+          format: uuid
+          type: string
+        email:
+          description: User email address
+          format: email
+          type: string
+        phone_number:
+          description: User phone number
+          type: string
+          nullable: true
+        name:
+          description: User display name
+          type: string
+          nullable: true
+        profile_img_url:
+          description: URL to user's profile image
+          format: uri
+          type: string
+          nullable: true
+        user_metadata:
+          $ref: "#/components/schemas/SupabaseProfileRecord_user_metadata"
+        app_metadata:
+          default: {}
+          description: Application metadata
+          type: object
+        created_at:
+          description: Profile creation timestamp
+          format: date-time
+          type: string
+        updated_at:
+          description: Profile last update timestamp
+          format: date-time
+          type: string
+        deleted_at:
+          description: Soft delete timestamp (null if not deleted)
+          format: date-time
+          type: string
+          nullable: true
+      required:
+        - created_at
+        - email
+        - id
+        - updated_at
+        - user_metadata
+    PaymentWebhookPayload:
+      description: Payload structure for Payment Service transaction webhooks
+      properties:
+        unlockId:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        paymentId:
+          description: Payment Service payment identifier
+          type: string
+        transactionId:
+          description: Mobile money provider transaction reference
+          type: string
+        amount:
+          description: Transaction amount in MGA
+          format: double
+          type: number
+        paymentMethod:
+          enum:
+            - ORANGE_MONEY
+            - MVOLA
+            - AIRTEL_MONEY
+          type: string
+        status:
+          enum:
+            - SUCCESS
+            - FAILED
+          type: string
+        paidAt:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+      required:
+        - amount
+        - paymentId
+        - status
+        - transactionId
+        - unlockId
+    PremiumSubscriptionWebhookPayload:
+      description: Payload structure for premium subscription payment webhooks
+      properties:
+        sellerId:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        subscriptionId:
+          description: Payment Service subscription identifier
+          type: string
+        plan:
+          $ref: "#/components/schemas/PremiumPlan"
+        amount:
+          format: double
+          type: number
+        status:
+          enum:
+            - ACTIVATED
+            - RENEWED
+            - CANCELLED
+          type: string
+        paidAt:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        expiresAt:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+      required:
+        - paidAt
+        - plan
+        - sellerId
+        - status
+        - subscriptionId
+    BaseUser:
+      description: Common user profile attributes
+      properties:
+        id:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        supabase_user_id:
+          description: Supabase authentication system user identifier
+          type: string
+        name:
+          description: Full name of the user
+          type: string
+        phone_number:
+          description: E.164 formatted international phone number
+          example: "+261380012345"
+          pattern: "^\\+[1-9]\\d{1,14}$"
+          type: string
+        email:
+          description: RFC 5322 compliant email address
+          example: jane.doe@example.mg
+          format: email
+          maxLength: 254
+          minLength: 5
+          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+          type: string
+        profile_img_url:
+          description: S3 object URL for profile photograph
+          format: uri
+          type: string
+        user_type:
+          $ref: "#/components/schemas/UserType"
+        status:
+          $ref: "#/components/schemas/UserStatus"
+        created_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        updated_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+      required:
+        - created_at
+        - id
+        - name
+        - phone_number
+        - status
+        - supabase_user_id
+        - user_type
+    Researcher:
+      allOf:
+        - $ref: "#/components/schemas/BaseUser"
+        - description: Researcher user profile
+          properties:
+            location:
+              $ref: "#/components/schemas/Location"
+          required:
+            - location
+      example:
+        user_type: RESEARCHER
+        profile_img_url: https://openapi-generator.tech
+        updated_at: 2025-12-06T11:23:45Z
+        name: name
+        supabase_user_id: supabase_user_id
+        created_at: 2025-12-06T11:23:45Z
+        phone_number: "+261380012345"
+        location:
+          address: address
+          city: ANTANANARIVO
+          region: ANALAMANGA
+        id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+        email: jane.doe@example.mg
+        status: ENABLED
+    Seller:
+      allOf:
+        - $ref: "#/components/schemas/BaseUser"
+        - description: Seller user profile
+          properties:
+            garage_name:
+              description: Business or garage name
+              type: string
+            location:
+              $ref: "#/components/schemas/Location"
+            lat_lon:
+              $ref: "#/components/schemas/LatLon"
+          required:
+            - location
+      example:
+        profile_img_url: https://openapi-generator.tech
+        created_at: 2025-12-06T11:23:45Z
+        garage_name: garage_name
+        user_type: RESEARCHER
+        updated_at: 2025-12-06T11:23:45Z
+        name: name
+        supabase_user_id: supabase_user_id
+        phone_number: "+261380012345"
+        location:
+          address: address
+          city: ANTANANARIVO
+          region: ANALAMANGA
+        id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+        lat_lon:
+          lon: 47.5079
+          lat: -18.8792
+        email: jane.doe@example.mg
+        status: ENABLED
+    AnonymousSellerProfile:
+      description: Anonymized seller profile visible before contact unlock
+      properties:
+        id:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        masked_profile_photo_url:
+          description: Blurred or placeholder profile photograph URL
+          format: uri
+          type: string
+        garage_name:
+          description: Business name (visible only for premium sellers)
+          type: string
+          nullable: true
+        location:
+          $ref: "#/components/schemas/AnonymousSellerProfile_location"
+        average_rating:
+          format: float
+          type: number
+        total_ratings:
+          type: integer
+        successful_unlocks:
+          type: integer
+        is_premium:
+          description: Premium subscription status
+          type: boolean
+        member_since:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+      required:
+        - average_rating
+        - id
+        - location
+        - member_since
+    Manager:
+      allOf:
+        - $ref: "#/components/schemas/BaseUser"
+        - description: Manager user profile with administrative permissions
+          properties:
+            role:
+              $ref: "#/components/schemas/ManagerRole"
+          required:
+            - role
+      example:
+        user_type: RESEARCHER
+        role: ADMIN
+        profile_img_url: https://openapi-generator.tech
+        updated_at: 2025-12-06T11:23:45Z
+        name: name
+        supabase_user_id: supabase_user_id
+        created_at: 2025-12-06T11:23:45Z
+        phone_number: "+261380012345"
+        id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+        email: jane.doe@example.mg
+        status: ENABLED
+    PartCategory:
+      description: Automotive part category classification.
+      enum:
+        - ENGINE_PART
+        - TURBO_COMPRESSOR
+        - COOLING_SYSTEM
+        - FUEL_SYSTEM
+        - AIR_FILTER
+        - OIL_FILTER
+        - EXHAUST_PIPE
+        - CATALYTIC_CONVERTER
+        - CLUTCH_GEARBOX
+        - TRANSMISSION
+        - DRIVESHAFT
+        - DIFFERENTIAL
+        - STARTER
+        - ALTERNATOR
+        - BATTERY
+        - IGNITION_SYSTEM
+        - SPARK_PLUGS
+        - WIRING_HARNESS
+        - FUSES_RELAYS
+        - SENSORS_AND_PROBES
+        - ECU_COMPUTER
+        - DIRECTION_SUSPENSION
+        - SHOCK_ABSORBERS
+        - SPRINGS
+        - CONTROL_ARMS
+        - BALL_JOINTS
+        - STEERING_RACK
+        - POWER_STEERING_PUMP
+        - BRAKING
+        - BRAKE_PADS
+        - BRAKE_DISCS
+        - BRAKE_DRUMS
+        - BRAKE_CALIPERS
+        - MASTER_CYLINDER
+        - ABS_SYSTEM
+        - TIRE
+        - WHEELS_RIMS
+        - WHEEL_BEARINGS
+        - HEADLIGHTS
+        - TAIL_LIGHTS
+        - FOG_LIGHTS
+        - INDICATORS
+        - INTERIOR_LIGHTS
+        - BODY
+        - BUMPERS
+        - DOORS
+        - FENDERS
+        - HOOD_BONNET
+        - TRUNK_TAILGATE
+        - MIRRORS
+        - WINDSHIELD_WINDOWS
+        - WIPERS
+        - GRILLE
+        - PASSENGER_COMPARTMENT
+        - SEATS
+        - DASHBOARD
+        - STEERING_WHEEL
+        - PEDALS
+        - CARPETS_MATS
+        - AC_HEATER
+        - RADIATOR
+        - THERMOSTAT
+        - COOLING_FAN
+        - AC_COMPRESSOR
+        - ENGINE_OIL
+        - BRAKE_FLUID
+        - COOLANT
+        - TRANSMISSION_FLUID
+        - DISTRIBUTION
+        - TIMING_BELT
+        - TIMING_CHAIN
+        - ACCESSORIES
+        - UNIVERSAL_PARTS
+        - OTHER
+      example: FOG_LIGHTS
+      type: string
+    DemandStatus:
+      description: Lifecycle status of a demand.
+      enum:
+        - DRAFT
+        - PUBLISHED
+        - SUSPENDED
+        - PENDING
+        - CANCELED
+      example: PUBLISHED
+      type: string
+    Part:
+      description: Automotive part being sought by the Researcher.
+      example:
+        car_model: Corolla
+        part_category: FOG_LIGHTS
+        car_year: 2015
+        name: Headlight
+        car_brand: Toyota
+        image_urls:
+          - https://openapi-generator.tech
+          - https://openapi-generator.tech
+          - https://openapi-generator.tech
+          - https://openapi-generator.tech
+          - https://openapi-generator.tech
+      properties:
+        name:
+          description: Descriptive name of the part.
+          example: Headlight
+          type: string
+        car_brand:
+          description: Vehicle manufacturer.
+          example: Toyota
+          type: string
+        car_model:
+          description: Vehicle model designation.
+          example: Corolla
+          type: string
+        car_year:
+          description: Four-digit model year of the vehicle.
+          example: 2015
+          maximum: 2100
+          minimum: 1900
+          type: integer
+        part_category:
+          $ref: "#/components/schemas/PartCategory"
+        image_urls:
+          description: |
+            Publicly accessible URLs of reference photographs uploaded by the Researcher. Populated server-side after images are stored.
+          items:
+            format: uri
+            type: string
+          maxItems: 5
+          type: array
+      required:
+        - car_brand
+        - car_model
+        - car_year
+        - name
+        - part_category
+    Demand:
+      description: A Researcher's request for a specific automotive part.
+      example:
+        researcher:
+          user_type: RESEARCHER
+          profile_img_url: https://openapi-generator.tech
+          updated_at: 2025-12-06T11:23:45Z
+          name: name
+          supabase_user_id: supabase_user_id
+          created_at: 2025-12-06T11:23:45Z
+          phone_number: "+261380012345"
+          location:
+            address: address
+            city: ANTANANARIVO
+            region: ANALAMANGA
+          id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          email: jane.doe@example.mg
+          status: ENABLED
+        updated_at: 2025-12-06T11:23:45Z
+        canceled_at: 2025-12-06T11:23:45Z
+        attached_photos_urls:
+          - https://openapi-generator.tech
+          - https://openapi-generator.tech
+          - https://openapi-generator.tech
+          - https://openapi-generator.tech
+          - https://openapi-generator.tech
+        part:
+          car_model: Corolla
+          part_category: FOG_LIGHTS
+          car_year: 2015
+          name: Headlight
+          car_brand: Toyota
+          image_urls:
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+        description: Looking for headlight
+        created_at: 2025-12-06T11:23:45Z
+        id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+        status: PUBLISHED
+        suspended_at: 2025-12-06T11:23:45Z
+      properties:
+        id:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        description:
+          description: Additional context or specifications provided by the Researcher.
+          example: Looking for headlight
+          type: string
+        attached_photos_urls:
+          description: URLs of photographs attached to the demand.
+          items:
+            format: uri
+            type: string
+          maxItems: 5
+          type: array
+        researcher:
+          $ref: "#/components/schemas/Researcher"
+        part:
+          $ref: "#/components/schemas/Part"
+        status:
+          $ref: "#/components/schemas/DemandStatus"
+        created_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        updated_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        canceled_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        suspended_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+      required:
+        - created_at
+        - id
+        - part
+        - researcher
+        - status
+    DemandCreateRequest:
+      description: |
+        Payload for creating a new demand, submitted as multipart/form-data. Part fields use Spring dot-notation binding (e.g. `part.name`, `part.images`).
+      properties:
+        description:
+          description: Additional context or specifications for the sought part.
+          example: Looking for headlight
+          maxLength: 1000
+          type: string
+        part:
+          $ref: "#/components/schemas/PartCreateRequest"
+      required:
+        - description
+        - part
+    PartCreateRequest:
+      description: |
+        Part details submitted as part of the demand creation multipart request. Fields are bound using Spring dot-notation: `part.name`, `part.car_brand`, etc.
+      properties:
+        name:
+          description: Descriptive name of the part.
+          example: Headlight
+          type: string
+        car_brand:
+          description: Vehicle manufacturer.
+          example: Toyota
+          type: string
+        car_model:
+          description: Vehicle model designation.
+          example: Corolla
+          type: string
+        car_year:
+          description: Four-digit model year of the vehicle.
+          example: 2015
+          maximum: 2100
+          minimum: 1900
+          type: integer
+        part_category:
+          $ref: "#/components/schemas/PartCategory"
+        images:
+          description: |
+            Reference photographs of the sought part. Bound under the multipart field name `part.images`. Optional; maximum 5 files.
+          items:
+            format: binary
+            type: string
+          maxItems: 5
+          type: array
+      required:
+        - car_brand
+        - car_model
+        - car_year
+        - name
+        - part_category
+    Offer:
+      description: Seller response to a Researcher demand.
+      example:
+        updated_at: 2025-12-06T11:23:45Z
+        canceled_at: 2025-12-06T11:23:45Z
+        attached_photos_urls:
+          - https://openapi-generator.tech
+          - https://openapi-generator.tech
+          - https://openapi-generator.tech
+          - https://openapi-generator.tech
+          - https://openapi-generator.tech
+        description: description
+        created_at: 2025-12-06T11:23:45Z
+        id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+        parts_info:
+          condition: NEW
+          price: 0.23021358869347652
+          part:
+            car_model: Corolla
+            part_category: FOG_LIGHTS
+            car_year: 2015
+            name: Headlight
+            car_brand: Toyota
+            image_urls:
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+          description: description
+          id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+        demand:
+          researcher:
+            user_type: RESEARCHER
+            profile_img_url: https://openapi-generator.tech
+            updated_at: 2025-12-06T11:23:45Z
+            name: name
+            supabase_user_id: supabase_user_id
+            created_at: 2025-12-06T11:23:45Z
+            phone_number: "+261380012345"
+            location:
+              address: address
+              city: ANTANANARIVO
+              region: ANALAMANGA
+            id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            email: jane.doe@example.mg
+            status: ENABLED
+          updated_at: 2025-12-06T11:23:45Z
+          canceled_at: 2025-12-06T11:23:45Z
+          attached_photos_urls:
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+          part:
+            car_model: Corolla
+            part_category: FOG_LIGHTS
+            car_year: 2015
+            name: Headlight
+            car_brand: Toyota
+            image_urls:
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+          description: Looking for headlight
+          created_at: 2025-12-06T11:23:45Z
+          id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          status: PUBLISHED
+          suspended_at: 2025-12-06T11:23:45Z
+        seller_id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+        status: PENDING
+        suspended_at: 2025-12-06T11:23:45Z
+      properties:
+        id:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        description:
+          description: Part condition details and additional information.
+          maxLength: 1000
+          type: string
+        attached_photos_urls:
+          description: Photographs of the actual part.
+          items:
+            format: uri
+            type: string
+          maxItems: 5
+          type: array
+        seller_id:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        parts_info:
+          $ref: "#/components/schemas/PartInfo"
+        demand:
+          $ref: "#/components/schemas/Demand"
+        status:
+          $ref: "#/components/schemas/OfferStatus"
+        created_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        updated_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        canceled_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        suspended_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+      required:
+        - created_at
+        - demand
+        - id
+        - parts_info
+        - seller_id
+        - status
+    PartInfo:
+      description: "Information about the part offered by the seller, including pricing and condition."
+      example:
+        condition: NEW
+        price: 0.23021358869347652
+        part:
+          car_model: Corolla
+          part_category: FOG_LIGHTS
+          car_year: 2015
+          name: Headlight
+          car_brand: Toyota
+          image_urls:
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+        description: description
+        id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+      properties:
+        id:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        part:
+          $ref: "#/components/schemas/Part"
+        description:
+          description: Additional details about the part condition.
+          maxLength: 1000
+          type: string
+        price:
+          description: Offered price in Malagasy Ariary.
+          format: double
+          minimum: 0
+          type: number
+        condition:
+          $ref: "#/components/schemas/PartCondition"
+      required:
+        - condition
+        - id
+        - part
+        - price
+    OfferCreateRequest:
+      description: |
+        Payload for creating a new offer, submitted as multipart/form-data. Part info fields use Spring dot-notation binding (e.g. `part_info.name`, `part_info.images`).
+      properties:
+        demand_id:
+          description: Identifier of the demand this offer responds to.
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          type: string
+        description:
+          description: Additional context or condition details provided by the seller.
+          example: "Part is in excellent condition, tested before shipping."
+          maxLength: 1000
+          type: string
+        part_info:
+          $ref: "#/components/schemas/PartInfoCreateRequest"
+      required:
+        - demand_id
+        - description
+        - part_info
+    PartInfoCreateRequest:
+      description: |
+        Part information submitted as part of the offer creation multipart request. Fields are bound using Spring dot-notation: `part_info.name`, `part_info.car_brand`, etc.
+      properties:
+        name:
+          description: Descriptive name of the part.
+          example: Headlight
+          type: string
+        car_brand:
+          description: Vehicle manufacturer.
+          example: Toyota
+          type: string
+        car_model:
+          description: Vehicle model designation.
+          example: Corolla
+          type: string
+        car_year:
+          description: Four-digit model year of the vehicle.
+          example: 2015
+          maximum: 2100
+          minimum: 1900
+          type: integer
+        part_category:
+          $ref: "#/components/schemas/PartCategory"
+        condition:
+          $ref: "#/components/schemas/PartCondition"
+        price:
+          description: Offered price in Malagasy Ariary.
+          example: 150000
+          format: double
+          minimum: 0
+          type: number
+        images:
+          description: |
+            Photographs of the offered part. Bound under the multipart field name `part_info.images`. Optional; maximum 5 files.
+          items:
+            format: binary
+            type: string
+          maxItems: 5
+          type: array
+      required:
+        - car_brand
+        - car_model
+        - car_year
+        - condition
+        - name
+        - part_category
+        - price
+    OfferUpdateRequest:
+      description: Offer modification payload
+      properties:
+        price:
+          format: double
+          type: number
+        condition:
+          $ref: "#/components/schemas/PartCondition"
+        description:
+          maxLength: 1000
+          type: string
+        image_urls:
+          items:
+            format: uri
+            type: string
+          maxItems: 5
+          type: array
+    ContactUnlock:
+      description: Contact information unlock transaction
+      properties:
+        id:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        demand_id:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        offer_id:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        researcher_id:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        seller_id:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        researcher_contact:
+          $ref: "#/components/schemas/ContactUnlock_researcher_contact"
+        seller_contact:
+          $ref: "#/components/schemas/ContactUnlock_seller_contact"
+        status:
+          $ref: "#/components/schemas/ContactUnlockStatus"
+        contact_fee:
+          description: Unlock fee in Malagasy Ariary
+          format: double
+          type: number
+        payment_reference:
+          description: Payment Service reference identifier
+          type: string
+        transaction_id:
+          description: Mobile money transaction reference
+          type: string
+          nullable: true
+        paid_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        confirmed_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        confirmation_deadline:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        created_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        updated_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+      required:
+        - contact_fee
+        - created_at
+        - demand_id
+        - id
+        - offer_id
+        - researcher_id
+        - seller_id
+        - status
+    PremiumSubscription:
+      description: Seller premium subscription details
+      properties:
+        id:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        sellerId:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        plan:
+          $ref: "#/components/schemas/PremiumPlan"
+        status:
+          enum:
+            - ACTIVE
+            - EXPIRED
+            - CANCELLED
+          type: string
+        paymentReference:
+          description: Payment Service reference identifier
+          type: string
+        features:
+          $ref: "#/components/schemas/PremiumSubscription_features"
+        activatedAt:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        expiresAt:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        autoRenew:
+          default: true
+          type: boolean
+    Rating:
+      description: Seller performance rating
+      properties:
+        id:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        sellerId:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        ResearcherId:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        unlockId:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        rating:
+          description: Numeric rating score
+          maximum: 5
+          minimum: 1
+          type: integer
+        comment:
+          description: Optional written feedback
+          maxLength: 500
+          type: string
+        ResearcherName:
+          description: Public Researcher name for verification
+          type: string
+        createdAt:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+      required:
+        - ResearcherId
+        - createdAt
+        - id
+        - rating
+        - sellerId
+        - unlockId
+    RatingCreateRequest:
+      description: Rating creation payload
+      properties:
+        unlockId:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        rating:
+          maximum: 5
+          minimum: 1
+          type: integer
+        comment:
+          maxLength: 500
+          type: string
+      required:
+        - rating
+        - unlockId
+    NotificationPreferences:
+      description: User notification configuration
+      properties:
+        newOfferNotification:
+          default: true
+          description: Notify Researcher when offer is received
+          type: boolean
+        demandMatchNotification:
+          default: true
+          description: Notify seller when matching demand is created
+          type: boolean
+        paymentNotification:
+          default: true
+          type: boolean
+        unlockConfirmationNotification:
+          default: true
+          type: boolean
+        ratingNotification:
+          default: true
+          description: Notify seller when rated
+          type: boolean
+        premiumExpiryNotification:
+          default: true
+          description: Notify seller before subscription expiry
+          type: boolean
+        channels:
+          default:
+            - IN_APP
+            - PUSH
+          description: Enabled notification delivery channels (premium sellers have extended access)
+          items:
+            $ref: "#/components/schemas/NotificationChannel"
+          type: array
+    Notification:
+      description: User notification record
+      example:
+        seller:
+          profile_img_url: https://openapi-generator.tech
+          created_at: 2025-12-06T11:23:45Z
+          garage_name: garage_name
+          user_type: RESEARCHER
+          updated_at: 2025-12-06T11:23:45Z
+          name: name
+          supabase_user_id: supabase_user_id
+          phone_number: "+261380012345"
+          location:
+            address: address
+            city: ANTANANARIVO
+            region: ANALAMANGA
+          id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          lat_lon:
+            lon: 47.5079
+            lat: -18.8792
+          email: jane.doe@example.mg
+          status: ENABLED
+        notification_type: DEMAND_PUBLISHED
+        read: false
+        notification_requested_id: notification_requested_id
+        created_at: 2025-12-06T11:23:45Z
+        read_at: 2025-12-06T11:23:45Z
+        id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+        message: message
+        click_action: ""
+        demand:
+          researcher:
+            user_type: RESEARCHER
+            profile_img_url: https://openapi-generator.tech
+            updated_at: 2025-12-06T11:23:45Z
+            name: name
+            supabase_user_id: supabase_user_id
+            created_at: 2025-12-06T11:23:45Z
+            phone_number: "+261380012345"
+            location:
+              address: address
+              city: ANTANANARIVO
+              region: ANALAMANGA
+            id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            email: jane.doe@example.mg
+            status: ENABLED
+          updated_at: 2025-12-06T11:23:45Z
+          canceled_at: 2025-12-06T11:23:45Z
+          attached_photos_urls:
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+            - https://openapi-generator.tech
+          part:
+            car_model: Corolla
+            part_category: FOG_LIGHTS
+            car_year: 2015
+            name: Headlight
+            car_brand: Toyota
+            image_urls:
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+          description: Looking for headlight
+          created_at: 2025-12-06T11:23:45Z
+          id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          status: PUBLISHED
+          suspended_at: 2025-12-06T11:23:45Z
+      properties:
+        id:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        seller:
+          $ref: "#/components/schemas/Seller"
+        notification_requested_id:
+          description: Notification event id
+          type: string
+        message:
+          description: Notification body text
+          type: string
+        demand:
+          $ref: "#/components/schemas/Demand"
+        notification_type:
+          $ref: "#/components/schemas/NotificationType"
+        read:
+          default: false
+          type: boolean
+        created_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        click_action: {}
+        read_at:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+      required:
+        - id
+        - message
+    SellerPublicStatistics:
+      description: Public seller performance metrics
+      properties:
+        totalOffers:
+          type: integer
+        successfulUnlocks:
+          type: integer
+        averageRating:
+          format: float
+          type: number
+        totalRatings:
+          type: integer
+        responseTime:
+          $ref: "#/components/schemas/SellerPublicStatistics_responseTime"
+        joinedDate:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+    PlatformStatistics:
+      description: Platform-wide aggregate metrics
+      properties:
+        totalUsers:
+          type: integer
+        totalResearchers:
+          type: integer
+        totalSellers:
+          type: integer
+        totalDemands:
+          type: integer
+        activeDemands:
+          type: integer
+        totalOffers:
+          type: integer
+        totalContactUnlocks:
+          type: integer
+        paidUnlocks:
+          type: integer
+        popularCategories:
+          items:
+            $ref: "#/components/schemas/PlatformStatistics_popularCategories_inner"
+          type: array
+        topSellers:
+          items:
+            $ref: "#/components/schemas/PlatformStatistics_topSellers_inner"
+          type: array
+    ResearcherDashboard:
+      description: Researcher-specific dashboard metrics
+      properties:
+        totalDemands:
+          type: integer
+        activeDemands:
+          type: integer
+        totalOffersReceived:
+          type: integer
+        completedUnlocks:
+          type: integer
+        pendingConfirmations:
+          description: Unlocks awaiting Researcher confirmation
+          type: integer
+        recentDemands:
+          items:
+            $ref: "#/components/schemas/Demand"
+          maxItems: 5
+          type: array
+    SellerDashboard:
+      description: Seller-specific dashboard metrics
+      properties:
+        totalOffers:
+          type: integer
+        pendingOffers:
+          type: integer
+        selectedOffers:
+          type: integer
+        completedUnlocks:
+          type: integer
+        averageRating:
+          type: number
+        premiumStatus:
+          $ref: "#/components/schemas/SellerDashboard_premiumStatus"
+        recentOffers:
+          items:
+            $ref: "#/components/schemas/Offer"
+          maxItems: 5
+          type: array
+    ManagerDashboard:
+      description: Manager-specific dashboard overview
+      properties:
+        platformStats:
+          $ref: "#/components/schemas/PlatformStatistics"
+        recentActivity:
+          items:
+            $ref: "#/components/schemas/ManagerDashboard_recentActivity_inner"
+          maxItems: 20
+          type: array
+    PageResponse:
+      description: |
+        Paginated response wrapper matching the JSON serialization of org.springframework.data.domain.Page. The pagination metadata is nested under the `pageable` object, consistent with Spring Data defaults.
+      properties:
+        content:
+          description: Page content — the list of elements for the current page.
+          items: {}
+          type: array
+        pageable:
+          $ref: "#/components/schemas/PageResponse_pageable"
+        total_elements:
+          description: Total number of elements across all pages.
+          format: int64
+          type: integer
+        total_pages:
+          description: Total number of pages available.
+          type: integer
+        last:
+          description: Whether this is the last page.
+          type: boolean
+        first:
+          description: Whether this is the first page.
+          type: boolean
+        size:
+          description: Effective page size (number of elements requested per page).
+          type: integer
+        number:
+          description: Zero-based index of the current page.
+          type: integer
+        number_of_elements:
+          description: Number of elements on the current page.
+          type: integer
+        empty:
+          description: Whether the current page has no content.
+          type: boolean
+        sort:
+          $ref: "#/components/schemas/SortDescriptor"
+      required:
+        - content
+        - empty
+        - first
+        - last
+        - number
+        - number_of_elements
+        - pageable
+        - size
+        - total_elements
+        - total_pages
+    SortDescriptor:
+      description: Sort state descriptor returned by Spring Data.
+      example:
+        unsorted: true
+        sorted: true
+        empty: true
+      properties:
+        empty:
+          description: Whether no sort orders are applied.
+          type: boolean
+        sorted:
+          description: Whether at least one sort order is applied.
+          type: boolean
+        unsorted:
+          description: Whether no sort orders are applied (inverse of sorted).
+          type: boolean
+    ResearcherPageResponse:
+      allOf:
+        - $ref: "#/components/schemas/PageResponse"
+        - properties:
+            content:
+              items:
+                $ref: "#/components/schemas/Researcher"
+              type: array
+      example:
+        number: 7
+        last: true
+        size: 2
+        total_elements: 5
+        pageable:
+          paged: true
+          page_number: 0
+          offset: 1
+          unpaged: true
+          sort:
+            unsorted: true
+            sorted: true
+            empty: true
+          page_size: 6
+        total_pages: 5
+        sort:
+          unsorted: true
+          sorted: true
+          empty: true
+        number_of_elements: 9
+        content:
+          - user_type: RESEARCHER
+            profile_img_url: https://openapi-generator.tech
+            updated_at: 2025-12-06T11:23:45Z
+            name: name
+            supabase_user_id: supabase_user_id
+            created_at: 2025-12-06T11:23:45Z
+            phone_number: "+261380012345"
+            location:
+              address: address
+              city: ANTANANARIVO
+              region: ANALAMANGA
+            id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            email: jane.doe@example.mg
+            status: ENABLED
+          - user_type: RESEARCHER
+            profile_img_url: https://openapi-generator.tech
+            updated_at: 2025-12-06T11:23:45Z
+            name: name
+            supabase_user_id: supabase_user_id
+            created_at: 2025-12-06T11:23:45Z
+            phone_number: "+261380012345"
+            location:
+              address: address
+              city: ANTANANARIVO
+              region: ANALAMANGA
+            id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            email: jane.doe@example.mg
+            status: ENABLED
+        first: true
+        empty: true
+    SellerPageResponse:
+      allOf:
+        - $ref: "#/components/schemas/PageResponse"
+        - properties:
+            content:
+              items:
+                $ref: "#/components/schemas/Seller"
+              type: array
+      example:
+        number: 5
+        last: true
+        size: 1
+        total_elements: 0
+        pageable:
+          paged: true
+          page_number: 0
+          offset: 1
+          unpaged: true
+          sort:
+            unsorted: true
+            sorted: true
+            empty: true
+          page_size: 6
+        total_pages: 6
+        sort:
+          unsorted: true
+          sorted: true
+          empty: true
+        number_of_elements: 5
+        content:
+          - profile_img_url: https://openapi-generator.tech
+            created_at: 2025-12-06T11:23:45Z
+            garage_name: garage_name
+            user_type: RESEARCHER
+            updated_at: 2025-12-06T11:23:45Z
+            name: name
+            supabase_user_id: supabase_user_id
+            phone_number: "+261380012345"
+            location:
+              address: address
+              city: ANTANANARIVO
+              region: ANALAMANGA
+            id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            lat_lon:
+              lon: 47.5079
+              lat: -18.8792
+            email: jane.doe@example.mg
+            status: ENABLED
+          - profile_img_url: https://openapi-generator.tech
+            created_at: 2025-12-06T11:23:45Z
+            garage_name: garage_name
+            user_type: RESEARCHER
+            updated_at: 2025-12-06T11:23:45Z
+            name: name
+            supabase_user_id: supabase_user_id
+            phone_number: "+261380012345"
+            location:
+              address: address
+              city: ANTANANARIVO
+              region: ANALAMANGA
+            id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            lat_lon:
+              lon: 47.5079
+              lat: -18.8792
+            email: jane.doe@example.mg
+            status: ENABLED
+        first: true
+        empty: true
+    AnonymousSellerPageResponse:
+      allOf:
+        - $ref: "#/components/schemas/PageResponse"
+        - properties:
+            content:
+              items:
+                $ref: "#/components/schemas/AnonymousSellerProfile"
+              type: array
+    ManagerPageResponse:
+      allOf:
+        - $ref: "#/components/schemas/PageResponse"
+        - properties:
+            content:
+              items:
+                $ref: "#/components/schemas/Manager"
+              type: array
+      example:
+        number: 5
+        last: true
+        size: 1
+        total_elements: 0
+        pageable:
+          paged: true
+          page_number: 0
+          offset: 1
+          unpaged: true
+          sort:
+            unsorted: true
+            sorted: true
+            empty: true
+          page_size: 6
+        total_pages: 6
+        sort:
+          unsorted: true
+          sorted: true
+          empty: true
+        number_of_elements: 5
+        content:
+          - user_type: RESEARCHER
+            role: ADMIN
+            profile_img_url: https://openapi-generator.tech
+            updated_at: 2025-12-06T11:23:45Z
+            name: name
+            supabase_user_id: supabase_user_id
+            created_at: 2025-12-06T11:23:45Z
+            phone_number: "+261380012345"
+            id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            email: jane.doe@example.mg
+            status: ENABLED
+          - user_type: RESEARCHER
+            role: ADMIN
+            profile_img_url: https://openapi-generator.tech
+            updated_at: 2025-12-06T11:23:45Z
+            name: name
+            supabase_user_id: supabase_user_id
+            created_at: 2025-12-06T11:23:45Z
+            phone_number: "+261380012345"
+            id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            email: jane.doe@example.mg
+            status: ENABLED
+        first: true
+        empty: true
+    DemandPageResponse:
+      allOf:
+        - $ref: "#/components/schemas/PageResponse"
+        - properties:
+            content:
+              items:
+                $ref: "#/components/schemas/Demand"
+              type: array
+      example:
+        number: 5
+        last: true
+        size: 1
+        total_elements: 0
+        pageable:
+          paged: true
+          page_number: 0
+          offset: 1
+          unpaged: true
+          sort:
+            unsorted: true
+            sorted: true
+            empty: true
+          page_size: 6
+        total_pages: 6
+        sort:
+          unsorted: true
+          sorted: true
+          empty: true
+        number_of_elements: 5
+        content:
+          - researcher:
+              user_type: RESEARCHER
+              profile_img_url: https://openapi-generator.tech
+              updated_at: 2025-12-06T11:23:45Z
+              name: name
+              supabase_user_id: supabase_user_id
+              created_at: 2025-12-06T11:23:45Z
+              phone_number: "+261380012345"
+              location:
+                address: address
+                city: ANTANANARIVO
+                region: ANALAMANGA
+              id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+              email: jane.doe@example.mg
+              status: ENABLED
+            updated_at: 2025-12-06T11:23:45Z
+            canceled_at: 2025-12-06T11:23:45Z
+            attached_photos_urls:
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+            part:
+              car_model: Corolla
+              part_category: FOG_LIGHTS
+              car_year: 2015
+              name: Headlight
+              car_brand: Toyota
+              image_urls:
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+            description: Looking for headlight
+            created_at: 2025-12-06T11:23:45Z
+            id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            status: PUBLISHED
+            suspended_at: 2025-12-06T11:23:45Z
+          - researcher:
+              user_type: RESEARCHER
+              profile_img_url: https://openapi-generator.tech
+              updated_at: 2025-12-06T11:23:45Z
+              name: name
+              supabase_user_id: supabase_user_id
+              created_at: 2025-12-06T11:23:45Z
+              phone_number: "+261380012345"
+              location:
+                address: address
+                city: ANTANANARIVO
+                region: ANALAMANGA
+              id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+              email: jane.doe@example.mg
+              status: ENABLED
+            updated_at: 2025-12-06T11:23:45Z
+            canceled_at: 2025-12-06T11:23:45Z
+            attached_photos_urls:
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+            part:
+              car_model: Corolla
+              part_category: FOG_LIGHTS
+              car_year: 2015
+              name: Headlight
+              car_brand: Toyota
+              image_urls:
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+            description: Looking for headlight
+            created_at: 2025-12-06T11:23:45Z
+            id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            status: PUBLISHED
+            suspended_at: 2025-12-06T11:23:45Z
+        first: true
+        empty: true
+    OfferPageResponse:
+      allOf:
+        - $ref: "#/components/schemas/PageResponse"
+        - properties:
+            content:
+              items:
+                $ref: "#/components/schemas/Offer"
+              type: array
+      example:
+        number: 5
+        last: true
+        size: 1
+        total_elements: 0
+        pageable:
+          paged: true
+          page_number: 0
+          offset: 1
+          unpaged: true
+          sort:
+            unsorted: true
+            sorted: true
+            empty: true
+          page_size: 6
+        total_pages: 6
+        sort:
+          unsorted: true
+          sorted: true
+          empty: true
+        number_of_elements: 5
+        content:
+          - updated_at: 2025-12-06T11:23:45Z
+            canceled_at: 2025-12-06T11:23:45Z
+            attached_photos_urls:
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+            description: description
+            created_at: 2025-12-06T11:23:45Z
+            id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            parts_info:
+              condition: NEW
+              price: 0.23021358869347652
+              part:
+                car_model: Corolla
+                part_category: FOG_LIGHTS
+                car_year: 2015
+                name: Headlight
+                car_brand: Toyota
+                image_urls:
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+              description: description
+              id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            demand:
+              researcher:
+                user_type: RESEARCHER
+                profile_img_url: https://openapi-generator.tech
+                updated_at: 2025-12-06T11:23:45Z
+                name: name
+                supabase_user_id: supabase_user_id
+                created_at: 2025-12-06T11:23:45Z
+                phone_number: "+261380012345"
+                location:
+                  address: address
+                  city: ANTANANARIVO
+                  region: ANALAMANGA
+                id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+                email: jane.doe@example.mg
+                status: ENABLED
+              updated_at: 2025-12-06T11:23:45Z
+              canceled_at: 2025-12-06T11:23:45Z
+              attached_photos_urls:
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+              part:
+                car_model: Corolla
+                part_category: FOG_LIGHTS
+                car_year: 2015
+                name: Headlight
+                car_brand: Toyota
+                image_urls:
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+              description: Looking for headlight
+              created_at: 2025-12-06T11:23:45Z
+              id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+              status: PUBLISHED
+              suspended_at: 2025-12-06T11:23:45Z
+            seller_id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            status: PENDING
+            suspended_at: 2025-12-06T11:23:45Z
+          - updated_at: 2025-12-06T11:23:45Z
+            canceled_at: 2025-12-06T11:23:45Z
+            attached_photos_urls:
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+              - https://openapi-generator.tech
+            description: description
+            created_at: 2025-12-06T11:23:45Z
+            id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            parts_info:
+              condition: NEW
+              price: 0.23021358869347652
+              part:
+                car_model: Corolla
+                part_category: FOG_LIGHTS
+                car_year: 2015
+                name: Headlight
+                car_brand: Toyota
+                image_urls:
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+              description: description
+              id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            demand:
+              researcher:
+                user_type: RESEARCHER
+                profile_img_url: https://openapi-generator.tech
+                updated_at: 2025-12-06T11:23:45Z
+                name: name
+                supabase_user_id: supabase_user_id
+                created_at: 2025-12-06T11:23:45Z
+                phone_number: "+261380012345"
+                location:
+                  address: address
+                  city: ANTANANARIVO
+                  region: ANALAMANGA
+                id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+                email: jane.doe@example.mg
+                status: ENABLED
+              updated_at: 2025-12-06T11:23:45Z
+              canceled_at: 2025-12-06T11:23:45Z
+              attached_photos_urls:
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+              part:
+                car_model: Corolla
+                part_category: FOG_LIGHTS
+                car_year: 2015
+                name: Headlight
+                car_brand: Toyota
+                image_urls:
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+              description: Looking for headlight
+              created_at: 2025-12-06T11:23:45Z
+              id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+              status: PUBLISHED
+              suspended_at: 2025-12-06T11:23:45Z
+            seller_id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            status: PENDING
+            suspended_at: 2025-12-06T11:23:45Z
+        first: true
+        empty: true
+    ContactUnlockPageResponse:
+      allOf:
+        - $ref: "#/components/schemas/PageResponse"
+        - properties:
+            content:
+              items:
+                $ref: "#/components/schemas/ContactUnlock"
+              type: array
+    RatingPageResponse:
+      allOf:
+        - $ref: "#/components/schemas/PageResponse"
+        - properties:
+            averageRating:
+              format: float
+              type: number
+            totalRatings:
+              type: integer
+            content:
+              items:
+                $ref: "#/components/schemas/Rating"
+              type: array
+    NotificationPageResponse:
+      allOf:
+        - $ref: "#/components/schemas/PageResponse"
+        - properties:
+            content:
+              items:
+                $ref: "#/components/schemas/Notification"
+              type: array
+      example:
+        number: 5
+        last: true
+        size: 1
+        total_elements: 0
+        pageable:
+          paged: true
+          page_number: 0
+          offset: 1
+          unpaged: true
+          sort:
+            unsorted: true
+            sorted: true
+            empty: true
+          page_size: 6
+        total_pages: 6
+        sort:
+          unsorted: true
+          sorted: true
+          empty: true
+        number_of_elements: 5
+        content:
+          - seller:
+              profile_img_url: https://openapi-generator.tech
+              created_at: 2025-12-06T11:23:45Z
+              garage_name: garage_name
+              user_type: RESEARCHER
+              updated_at: 2025-12-06T11:23:45Z
+              name: name
+              supabase_user_id: supabase_user_id
+              phone_number: "+261380012345"
+              location:
+                address: address
+                city: ANTANANARIVO
+                region: ANALAMANGA
+              id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+              lat_lon:
+                lon: 47.5079
+                lat: -18.8792
+              email: jane.doe@example.mg
+              status: ENABLED
+            notification_type: DEMAND_PUBLISHED
+            read: false
+            notification_requested_id: notification_requested_id
+            created_at: 2025-12-06T11:23:45Z
+            read_at: 2025-12-06T11:23:45Z
+            id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            message: message
+            click_action: ""
+            demand:
+              researcher:
+                user_type: RESEARCHER
+                profile_img_url: https://openapi-generator.tech
+                updated_at: 2025-12-06T11:23:45Z
+                name: name
+                supabase_user_id: supabase_user_id
+                created_at: 2025-12-06T11:23:45Z
+                phone_number: "+261380012345"
+                location:
+                  address: address
+                  city: ANTANANARIVO
+                  region: ANALAMANGA
+                id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+                email: jane.doe@example.mg
+                status: ENABLED
+              updated_at: 2025-12-06T11:23:45Z
+              canceled_at: 2025-12-06T11:23:45Z
+              attached_photos_urls:
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+              part:
+                car_model: Corolla
+                part_category: FOG_LIGHTS
+                car_year: 2015
+                name: Headlight
+                car_brand: Toyota
+                image_urls:
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+              description: Looking for headlight
+              created_at: 2025-12-06T11:23:45Z
+              id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+              status: PUBLISHED
+              suspended_at: 2025-12-06T11:23:45Z
+          - seller:
+              profile_img_url: https://openapi-generator.tech
+              created_at: 2025-12-06T11:23:45Z
+              garage_name: garage_name
+              user_type: RESEARCHER
+              updated_at: 2025-12-06T11:23:45Z
+              name: name
+              supabase_user_id: supabase_user_id
+              phone_number: "+261380012345"
+              location:
+                address: address
+                city: ANTANANARIVO
+                region: ANALAMANGA
+              id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+              lat_lon:
+                lon: 47.5079
+                lat: -18.8792
+              email: jane.doe@example.mg
+              status: ENABLED
+            notification_type: DEMAND_PUBLISHED
+            read: false
+            notification_requested_id: notification_requested_id
+            created_at: 2025-12-06T11:23:45Z
+            read_at: 2025-12-06T11:23:45Z
+            id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+            message: message
+            click_action: ""
+            demand:
+              researcher:
+                user_type: RESEARCHER
+                profile_img_url: https://openapi-generator.tech
+                updated_at: 2025-12-06T11:23:45Z
+                name: name
+                supabase_user_id: supabase_user_id
+                created_at: 2025-12-06T11:23:45Z
+                phone_number: "+261380012345"
+                location:
+                  address: address
+                  city: ANTANANARIVO
+                  region: ANALAMANGA
+                id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+                email: jane.doe@example.mg
+                status: ENABLED
+              updated_at: 2025-12-06T11:23:45Z
+              canceled_at: 2025-12-06T11:23:45Z
+              attached_photos_urls:
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+                - https://openapi-generator.tech
+              part:
+                car_model: Corolla
+                part_category: FOG_LIGHTS
+                car_year: 2015
+                name: Headlight
+                car_brand: Toyota
+                image_urls:
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+                  - https://openapi-generator.tech
+              description: Looking for headlight
+              created_at: 2025-12-06T11:23:45Z
+              id: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+              status: PUBLISHED
+              suspended_at: 2025-12-06T11:23:45Z
+        first: true
+        empty: true
+    ErrorResponse:
+      description: Standard error response format
+      example:
+        path: path
+        errorCode: AUTHORIZATION_DENIED
+        details: "{}"
+        error: error
+        message: message
+        timestamp: 2025-12-06T11:23:45Z
+        status: 0
+      properties:
+        timestamp:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+        status:
+          description: HTTP status code
+          type: integer
+        error:
+          description: HTTP status reason phrase
+          type: string
+        message:
+          description: Human-readable error description
+          type: string
+        path:
+          description: Request path that generated the error
+          type: string
+        errorCode:
+          description: Application-specific error code
+          enum:
+            - AUTHORIZATION_DENIED
+            - ENTITY_NOT_FOUND
+            - CONSTRAINT_VIOLATION_ON_FIELDS
+            - DUPLICATE_ENTITY
+            - BAD_FORM
+            - MISSING_AUTHORIZATION
+            - INVALID_AUTHORIZATION_FORMAT
+            - INVALID_TOKEN
+            - TOKEN_NOT_FOUND
+            - USER_DEACTIVATED
+            - AUTHENTICATION_FAILED
+            - INTERNAL_SERVER_ERROR
+            - MISSING_REQUIRED_PARAMETER
+            - INVALID_PARAMETER
+            - MALFORMED_JSON
+            - METHOD_NOT_ALLOWED
+            - ALREADY_UNLOCKED
+            - UNLOCK_NOT_PAID
+            - REFUND_NOT_ELIGIBLE
+            - ONLY_ResearcherS_ALLOWED
+            - ONLY_SELLERS_ALLOWED
+            - ONLY_MANAGERS_ALLOWED
+          type: string
+        details:
+          description: Additional error context
+          type: object
+      required:
+        - error
+        - message
+        - path
+        - status
+        - timestamp
+    healthBucketCheck_500_response:
+      example:
+        error: Uploaded and downloaded content mismatch
+      properties:
+        error:
+          example: Uploaded and downloaded content mismatch
+          type: string
+    triggerDummyEvents_400_response:
+      example:
+        error: nbEvent must be between 1 and 500
+      properties:
+        error:
+          example: nbEvent must be between 1 and 500
+          type: string
+    _health_db_get_200_response:
+      example:
+        content:
+          - id: 550e8400-e29b-41d4-a716-446655440000
+            description: First dummy description
+        totalElements: 5
+        totalPages: 1
+        number: 0
+        size: 5
+      properties:
+        content:
+          items:
+            $ref: "#/components/schemas/Dummy"
+          type: array
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+        number:
+          type: integer
+        size:
+          type: integer
+    supabaseProfileWebhook_200_response:
+      example:
+        event_type: INSERT
+        user_id: 046b6c7f-0b8a-43b9-b35d-6489e6daee91
+        message: Webhook processed successfully
+      properties:
+        message:
+          example: Webhook processed successfully
+          type: string
+        user_id:
+          description: The VaikaParts user ID (same as Supabase profile ID)
+          format: uuid
+          type: string
+        event_type:
+          enum:
+            - INSERT
+            - UPDATE
+            - DELETE
+          type: string
+    getCurrentUser_200_response:
+      oneOf:
+        - $ref: "#/components/schemas/Researcher"
+        - $ref: "#/components/schemas/Seller"
+        - $ref: "#/components/schemas/Manager"
+    uploadProfilePhoto_request:
+      properties:
+        photo:
+          format: binary
+          type: string
+      required:
+        - photo
+    uploadProfilePhoto_200_response:
+      example:
+        photo_url: https://vaikaparts-bucket.s3.amazonaws.com/profiles/user-123/photo.jpg
+      properties:
+        photo_url:
+          description: S3 object URL for the uploaded photograph
+          example: https://vaikaparts-bucket.s3.amazonaws.com/profiles/user-123/photo.jpg
+          format: uri
+          type: string
+    SupabaseProfileRecord_user_metadata_location:
+      description: User location (for RESEARCHER and SELLER)
+      properties:
+        city:
+          type: string
+        region:
+          type: string
+        address:
+          type: string
+      nullable: true
+    SupabaseProfileRecord_user_metadata_lat_lon:
+      description: Geographic coordinates (for SELLER only)
+      properties:
+        lat:
+          format: double
+          type: number
+        lon:
+          format: double
+          type: number
+      nullable: true
+    SupabaseProfileRecord_user_metadata:
+      description: Custom user metadata containing user-type-specific fields
+      properties:
+        user_type:
+          description: Determines which user entity type to create
+          enum:
+            - RESEARCHER
+            - SELLER
+            - MANAGER
+          type: string
+        location:
+          $ref: "#/components/schemas/SupabaseProfileRecord_user_metadata_location"
+        lat_lon:
+          $ref: "#/components/schemas/SupabaseProfileRecord_user_metadata_lat_lon"
+        garage_name:
+          description: Garage name (for SELLER only)
+          type: string
+          nullable: true
+        manager_role:
+          description: Manager role (for MANAGER only)
+          enum:
+            - ADMIN
+            - SUPERVISOR
+            - STAFF
+          type: string
+          nullable: true
+      required:
+        - user_type
+    AnonymousSellerProfile_location:
+      description: Generalized location without exact address
+      properties:
+        city:
+          type: string
+        region:
+          type: string
+      required:
+        - city
+        - region
+    ContactUnlock_researcher_contact:
+      description: Researcher contact details (revealed to seller after payment)
+      properties:
+        name:
+          type: string
+        phone_number:
+          description: E.164 formatted international phone number
+          example: "+261380012345"
+          pattern: "^\\+[1-9]\\d{1,14}$"
+          type: string
+        email:
+          description: RFC 5322 compliant email address
+          example: jane.doe@example.mg
+          format: email
+          maxLength: 254
+          minLength: 5
+          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+          type: string
+        profile_img_url:
+          format: uri
+          type: string
+        location:
+          $ref: "#/components/schemas/Location"
+      nullable: true
+    ContactUnlock_seller_contact:
+      description: Seller contact details (revealed to Researcher after payment)
+      properties:
+        name:
+          type: string
+        phone_number:
+          description: E.164 formatted international phone number
+          example: "+261380012345"
+          pattern: "^\\+[1-9]\\d{1,14}$"
+          type: string
+        email:
+          description: RFC 5322 compliant email address
+          example: jane.doe@example.mg
+          format: email
+          maxLength: 254
+          minLength: 5
+          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+          type: string
+        profile_img_url:
+          format: uri
+          type: string
+        garage_name:
+          type: string
+        location:
+          $ref: "#/components/schemas/Location"
+      nullable: true
+    PremiumSubscription_features:
+      description: Enabled premium features
+      properties:
+        priorityNotifications:
+          default: true
+          type: boolean
+        additionalChannels:
+          items:
+            $ref: "#/components/schemas/NotificationChannel"
+          type: array
+        premiumBadge:
+          default: true
+          type: boolean
+    SellerPublicStatistics_responseTime:
+      properties:
+        averageHours:
+          description: Mean response time to demands
+          type: number
+    PlatformStatistics_popularCategories_inner:
+      properties:
+        category:
+          $ref: "#/components/schemas/PartCategory"
+        demandCount:
+          type: integer
+    PlatformStatistics_topSellers_inner:
+      properties:
+        sellerId:
+          description: RFC 4122 compliant UUID
+          example: e6b5cc3e-eaaa-4cb3-912c-e059e983bb78
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          type: string
+        garageName:
+          type: string
+        successfulUnlocks:
+          type: integer
+        averageRating:
+          type: number
+    SellerDashboard_premiumStatus:
+      properties:
+        isActive:
+          type: boolean
+        expiresAt:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+    ManagerDashboard_recentActivity_inner:
+      properties:
+        type:
+          enum:
+            - NEW_DEMAND
+            - NEW_OFFER
+            - UNLOCK_PAID
+            - RATING_CREATED
+          type: string
+        description:
+          type: string
+        timestamp:
+          description: ISO 8601 formatted date-time string
+          example: 2025-12-06T11:23:45Z
+          format: date-time
+          type: string
+    PageResponse_pageable:
+      description: Pagination state used to produce this page.
+      example:
+        paged: true
+        page_number: 0
+        offset: 1
+        unpaged: true
+        sort:
+          unsorted: true
+          sorted: true
+          empty: true
+        page_size: 6
+      properties:
+        page_number:
+          description: Zero-based current page index.
+          type: integer
+        page_size:
+          description: Requested number of items per page.
+          type: integer
+        offset:
+          description: Offset of the first element of this page relative to the full result set.
+          format: int64
+          type: integer
+        sort:
+          $ref: "#/components/schemas/SortDescriptor"
+        paged:
+          description: Whether pagination is applied.
+          type: boolean
+        unpaged:
+          description: Whether pagination is disabled.
+          type: boolean
+  securitySchemes:
+    supabaseAuth:
+      bearerFormat: JWT
+      description: Supabase-issued JWT token for user authentication
+      scheme: bearer
+      type: http
+    supabaseWebhookSignature:
+      description: HMAC signature for Supabase webhook verification
+      in: header
+      name: X-Webhook-Signature
+      type: apiKey
+    paymentWebhookSignature:
+      description: HMAC signature for Payment Service webhook verification
+      in: header
+      name: X-Payment-Signature
+      type: apiKey

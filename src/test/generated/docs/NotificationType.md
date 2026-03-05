@@ -1,0 +1,19 @@
+
+
+# NotificationType
+
+## Enum
+
+
+* `DEMAND_PUBLISHED` (value: `"DEMAND_PUBLISHED"`)
+
+* `OFFER_ACCEPTED` (value: `"OFFER_ACCEPTED"`)
+
+* `OFFER_REJECTED` (value: `"OFFER_REJECTED"`)
+
+* `DEMAND_CANCELED` (value: `"DEMAND_CANCELED"`)
+
+* `SYSTEM_ANNOUNCEMENT` (value: `"SYSTEM_ANNOUNCEMENT"`)
+
+
+

@@ -124,16 +124,6 @@ tags:
     description: Automotive parts demand management
   - name: Offers
     description: Seller offer management
-  - name: Contact Unlocks
-    description: Contact information unlock transactions
-  - name: Notifications
-    description: Notification management and preferences
-  - name: Premium
-    description: Premium subscription management
-  - name: Ratings
-    description: Seller rating and feedback system
-  - name: Statistics
-    description: Analytics and reporting
   - name: Storage
     description: File upload operations
   - name: Notifications
@@ -377,25 +367,6 @@ paths:
           description: Invalid webhook signature or authorization token
         '500':
           description: Internal server error during webhook processing
-  /webhooks/payment/premium-subscription-paid:
-    post:
-      operationId: paymentPremiumSubscriptionWebhook
-      tags: [Webhooks]
-      summary: Premium subscription payment confirmation webhook
-      description: Activates or renews a seller's premium subscription when payment is confirmed by the Payment Service.
-      security:
-        - paymentWebhookSignature: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PremiumSubscriptionWebhookPayload'
-      responses:
-        '200':
-          description: Premium subscription activated successfully
-        '401':
-          description: Invalid webhook signature
   /users/me:
     get:
       operationId: getCurrentUser
@@ -510,7 +481,7 @@ paths:
 
         **Authorization**: Manager role required
       parameters:
-        - name: ResearcherId
+        - name: researcherId
           in: path
           required: true
           description: Unique identifier of the Researcher
@@ -571,32 +542,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-  /sellers/{sellerId}/statistics:
-    get:
-      operationId: getSellerStatistics
-      tags: [Sellers, Statistics]
-      summary: Retrieve seller performance statistics
-      description: |
-        Returns public performance metrics for a seller including total offers, successful unlocks, rating statistics, and average response time.
-
-        **Public Access**: This endpoint does not require authentication
-      security: []
-      parameters:
-        - name: sellerId
-          in: path
-          required: true
-          description: Unique identifier of the seller
-          schema:
-            $ref: '#/components/schemas/UUID'
-      responses:
-        '200':
-          description: Statistics retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SellerPublicStatistics'
-        '404':
-          $ref: '#/components/responses/NotFound'
   /managers/me:
     get:
       operationId: getCurrentManager
@@ -970,175 +915,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-  /contact-unlocks/initiate:
-    post:
-      operationId: initiateContactUnlock
-      tags: [Contact Unlocks]
-      summary: Initiate contact information unlock
-      description: |
-        Creates a contact unlock request for a specific offer. Returns a payment reference to be used with the Payment Service. Upon successful payment confirmation via webhook, the seller's contact information will be revealed to the Researcher.
-
-        Each unlock transaction is scoped to a single offer. Multiple unlocks require separate payment transactions.
-
-        **Authorization**: Researcher role required
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [offerId]
-              properties:
-                offerId:
-                  $ref: '#/components/schemas/UUID'
-      responses:
-        '201':
-          description: Contact unlock initiated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContactUnlock'
-        '400':
-          description: Invalid offer or unlock already exists for this offer
-        '403':
-          description: Only Researchers may initiate contact unlocks
-  /contact-unlocks/my-unlocks:
-    get:
-      operationId: getMyContactUnlocks
-      tags: [Contact Unlocks]
-      summary: Retrieve current user's contact unlocks
-      description: |
-        Returns a paginated list of contact unlock transactions where the current user is either the Researcher or seller. Full contact information is included only for unlocks with PAID status.
-      parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/SizeParam'
-        - name: status
-          in: query
-          description: Filter by unlock status
-          schema:
-            $ref: '#/components/schemas/ContactUnlockStatus'
-      responses:
-        '200':
-          description: Contact unlock list retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContactUnlockPageResponse'
-  /contact-unlocks/{unlockId}:
-    get:
-      operationId: getContactUnlockById
-      tags: [Contact Unlocks]
-      summary: Retrieve contact unlock details
-      description: |
-        Returns detailed information for a specific contact unlock transaction. Contact information disclosure depends on payment status:
-        - **PENDING_PAYMENT**: Both parties see anonymized information
-        - **PAID**: Researcher sees full seller contact, seller sees full Researcher contact
-        - **Manager**: Always sees complete information for both parties
-      parameters:
-        - name: unlockId
-          in: path
-          required: true
-          description: Unique identifier of the contact unlock
-          schema:
-            $ref: '#/components/schemas/UUID'
-      responses:
-        '200':
-          description: Contact unlock retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContactUnlock'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-  /contact-unlocks/{unlockId}/confirm:
-    post:
-      operationId: confirmContactUnlock
-      tags: [Contact Unlocks]
-      summary: Confirm successful transaction
-      description: |
-        Researcher confirms that they have received the automotive part and are satisfied with the transaction. Must be completed within 48 hours of contact unlock payment. This action triggers the seller rating workflow.
-
-        **Authorization**: Researcher (unlock owner) required
-      parameters:
-        - name: unlockId
-          in: path
-          required: true
-          description: Unique identifier of the contact unlock
-          schema:
-            $ref: '#/components/schemas/UUID'
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [satisfied]
-              properties:
-                satisfied:
-                  type: boolean
-                  description: Whether the part met expectations
-                comment:
-                  type: string
-                  description: Optional feedback
-                  maxLength: 500
-      responses:
-        '200':
-          description: Transaction confirmed successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContactUnlock'
-        '400':
-          description: Confirmation deadline expired or unlock not in valid state
-        '403':
-          $ref: '#/components/responses/Forbidden'
-  /contact-unlocks/{unlockId}/request-refund:
-    post:
-      operationId: requestRefund
-      tags: [Contact Unlocks]
-      summary: Request contact unlock refund
-      description: |
-        Initiates a refund request if the automotive part was misrepresented or transaction was unsatisfactory. The request is forwarded to the Payment Service for processing and creates a dispute record requiring manager review.
-
-        **Authorization**: Researcher (unlock owner) required
-      parameters:
-        - name: unlockId
-          in: path
-          required: true
-          description: Unique identifier of the contact unlock
-          schema:
-            $ref: '#/components/schemas/UUID'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [reason]
-              properties:
-                reason:
-                  type: string
-                  description: Detailed explanation for refund request
-                  maxLength: 1000
-                evidenceUrls:
-                  type: array
-                  items:
-                    type: string
-                    format: uri
-                  description: Photo or document URLs supporting the claim
-                  maxItems: 5
-      responses:
-        '200':
-          description: Refund request submitted successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ContactUnlock'
-        '400':
-          description: Refund request deadline expired or invalid state
-        '403':
-          $ref: '#/components/responses/Forbidden'
   /v1/notifications:
     get:
       operationId: fetchNotifications
