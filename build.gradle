@@ -2,7 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.11'
     id 'io.spring.dependency-management' version '1.1.7'
-    id 'org.openapi.generator' version '7.14.0'
+    id 'org.openapi.generator' version '7.20.0'
 }
 
 java {
@@ -52,8 +52,8 @@ dependencies {
     implementation 'org.owasp.encoder:encoder:1.4.0'
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
-    implementation 'software.amazon.awssdk:s3:2.42.6'
-    implementation 'software.amazon.awssdk:s3-transfer-manager:2.42.6'
+    implementation 'software.amazon.awssdk:s3:2.42.7'
+    implementation 'software.amazon.awssdk:s3-transfer-manager:2.42.7'
 
     runtimeOnly 'org.postgresql:postgresql'
 
@@ -89,7 +89,7 @@ dependencies {
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
     testCompileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 
-    testImplementation 'io.swagger.core.v3:swagger-annotations:2.2.28'
+    testImplementation 'io.swagger.core.v3:swagger-annotations:2.2.44'
 }
 
 
