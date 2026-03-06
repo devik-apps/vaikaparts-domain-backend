@@ -46,7 +46,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @Slf4j
 class NotificationControllerIT extends FacadeIT {
 
-  private static final String BASE_URL = "/v1/notifications";
+  private static final String BASE_URL = "/v1/notifications/demand-published";
 
   private static final String TEST_SELLER_ID = "seller-ctrl-123";
   private static final String TEST_SELLER_NAME = "John Seller";

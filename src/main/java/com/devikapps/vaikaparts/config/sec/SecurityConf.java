@@ -9,6 +9,7 @@ import static org.springframework.http.HttpMethod.PUT;
 
 import com.devikapps.vaikaparts.InfraGenerated;
 import com.devikapps.vaikaparts.config.JwtAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -37,6 +38,7 @@ public class SecurityConf {
   private static final String V_3_API_DOCS_YAML = "/v3/api-docs.yaml";
   private static final String SPB_WEBHOOK = "/v1/webhooks/**";
   private static final String WEBSOCKET = "/ws/**";
+  private static final String V1_ENDPOINT = "/v1/**";
 
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
@@ -55,8 +57,14 @@ public class SecurityConf {
                     V_3_API_DOCS,
                     V_3_API_DOCS_YAML,
                     WEBSOCKET,
+                    V1_ENDPOINT,
                     SPB_WEBHOOK))
         .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+        .exceptionHandling(
+            exceptions ->
+                exceptions.authenticationEntryPoint(
+                    (request, response, authException) ->
+                        response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHORIZED")))
         .authorizeHttpRequests(
             auth ->
                 auth.requestMatchers(GET, PING_ENDPOINT)

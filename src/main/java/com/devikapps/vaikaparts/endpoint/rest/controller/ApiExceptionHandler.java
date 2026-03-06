@@ -313,8 +313,11 @@ public class ApiExceptionHandler {
 
     var errorResponse =
         ErrorResponse.of(
-            HttpStatus.FORBIDDEN, ex.getMessage(), getRequestPath(request), "AUTHORIZATION_DENIED");
-    return new ResponseEntity<>(errorResponse, HttpStatus.FORBIDDEN);
+            HttpStatus.UNAUTHORIZED,
+            ex.getMessage(),
+            getRequestPath(request),
+            "AUTHORIZATION_DENIED");
+    return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
   }
 
   @ExceptionHandler(DataIntegrityViolationException.class)
@@ -333,11 +336,11 @@ public class ApiExceptionHandler {
           && (errorMessage.contains("unique") || errorMessage.contains("duplicate"))) {
         userMessage = "Email already exists";
         errorCode = "DUPLICATE_EMAIL";
-      } else if (errorMessage.contains("clerk_id")
-          || errorMessage.contains("clerk")
+      } else if (errorMessage.contains("supabase_id")
+          || errorMessage.contains("supabase")
               && (errorMessage.contains("unique") || errorMessage.contains("duplicate"))) {
-        userMessage = "Clerk ID already exists";
-        errorCode = "DUPLICATE_CLERK_ID";
+        userMessage = "Supabase ID already exists";
+        errorCode = "DUPLICATE_SUPABASE_ID";
       }
     }
 

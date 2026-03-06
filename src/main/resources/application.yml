@@ -1,6 +1,11 @@
 server:
   port: ${PORT:8080}
 spring:
+  jackson:
+    serialization:
+      write-dates-with-zone-id: false
+      write-dates-as-timestamps: false
+    time-zone: UTC
   datasource:
     hikari:
       pool-name: HikariPool

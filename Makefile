@@ -191,16 +191,32 @@ semgrep: install-semgrep ## Run Semgrep security scanning
 ##@ Docker
 
 docker-build: ## Build Docker image
-	$(DOCKER) build -t $(IMAGE_NAME):$(IMAGE_TAG) .
+	$(DOCKER) buildx build \
+		--secret id=github_actor,env=GITHUB_ACTOR \
+		--secret id=github_token,env=GITHUB_TOKEN \
+		-t $(IMAGE_NAME):$(IMAGE_TAG) \
+		--load \
+		.
 
 docker-build-cache: ## Build Docker image with buildx cache
 ifeq ($(DETECTED_OS),Windows)
-	$(DOCKER) buildx build --cache-from type=local,src=%TEMP%\.buildx-cache --cache-to type=local,dest=%TEMP%\.buildx-cache -t $(IMAGE_NAME):$(IMAGE_TAG) .
+	$(DOCKER) buildx build \
+		--secret id=github_actor,env=GITHUB_ACTOR \
+		--secret id=github_token,env=GITHUB_TOKEN \
+		--cache-from type=local,src=%TEMP%\.buildx-cache \
+		--cache-to type=local,dest=%TEMP%\.buildx-cache \
+		-t $(IMAGE_NAME):$(IMAGE_TAG) \
+		--load \
+		.
 else
 	$(DOCKER) buildx build \
+		--secret id=github_actor,env=GITHUB_ACTOR \
+		--secret id=github_token,env=GITHUB_TOKEN \
 		--cache-from type=local,src=/tmp/.buildx-cache \
 		--cache-to type=local,dest=/tmp/.buildx-cache \
-		-t $(IMAGE_NAME):$(IMAGE_TAG) .
+		-t $(IMAGE_NAME):$(IMAGE_TAG) \
+		--load \
+		.
 endif
 
 verify-image: ## Verify Docker image contents and configuration

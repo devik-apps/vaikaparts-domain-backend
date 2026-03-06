@@ -1,3 +1,6 @@
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
+
 plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.11'
@@ -20,6 +23,14 @@ configurations {
 
 repositories {
     mavenLocal()
+    maven {
+        name = "GitHubPackages"
+        url = uri("https://maven.pkg.github.com/devik-apps/vaikaparts-domain-backend")
+        credentials {
+            username = System.getenv("GITHUB_ACTOR") ?: project.findProperty("gpr.user") ?: ""
+            password = System.getenv("GITHUB_TOKEN") ?: project.findProperty("gpr.key") ?: ""
+        }
+    }
     mavenCentral()
 }
 
@@ -90,6 +101,9 @@ dependencies {
     testCompileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 
     testImplementation 'io.swagger.core.v3:swagger-annotations:2.2.28'
+    implementation 'com.devikapps:vaikaparts-gen:1.0.0'
+    implementation 'io.swagger.core.v3:swagger-annotations:2.2.28'
+    implementation 'org.openapitools:jackson-databind-nullable:0.2.6'
 }
 
 
@@ -117,30 +131,47 @@ tasks.named('test') {
     }
 }
 
-openApiGenerate {
+tasks.register('generateJavaClient', GenerateTask) {
     generatorName = "java"
     inputSpec = file("${projectDir}/doc/api.yaml").toURI().toString()
-    outputDir = "${projectDir}/src/test/generated"
+    outputDir = layout.buildDirectory.dir("generated/openapi-client").get().asFile.absolutePath
     apiPackage = "com.devikapps.vaikaparts.client.api"
     modelPackage = "com.devikapps.vaikaparts.client.model"
     invokerPackage = "com.devikapps.vaikaparts.client.invoker"
 
+    groupId = "com.devikapps"
+    id = "vaikaparts-gen"
+    version = "1.0.0"
+
     configOptions = [
-            dateLibrary            : "java8",
+            serializableModel      : "true",
             serializationLibrary   : "jackson",
             useJakartaEe           : "true",
+            dateLibrary            : "java8-localdatetime",
             openApiNullable        : "false",
             hideGenerationTimestamp: "true",
     ]
 
     library = "restclient"
+    skipValidateSpec = false
+    logToStderr = true
+    generateAliasAsModel = false
+    enablePostProcessFile = false
 }
 
-sourceSets {
-    test {
-        java {
-            srcDir "${projectDir}/src/test/generated"
-        }
+tasks.register('publishClientToMavenLocal', Exec) {
+    dependsOn tasks.named('generateJavaClient')
+
+    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+        commandLine 'cmd', '/c', '.shell\\publish-gen-to-local-maven.bat'
+    } else {
+        commandLine 'bash', '.shell/publish-gen-to-local-maven.sh'
     }
 }
 
+
+tasks.named('compileJava') {
+    if (!project.hasProperty('skipClientPublish')) {
+        dependsOn tasks.named('publishClientToMavenLocal')
+    }
+}

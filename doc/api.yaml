@@ -29,8 +29,6 @@ info:
     - **Offers**: Seller responses to Researcher demands with pricing and availability
     - **Parts**: Structured automotive part specifications
     - **Contact Unlocks**: Paid contact information exchange transactions
-    - **Ratings**: Seller performance and reliability feedback
-    - **Premium Subscriptions**: Enhanced seller features and notifications
 
     ## Privacy and Data Protection
 
@@ -61,20 +59,10 @@ info:
     1. **Demand Creation**: Researcher creates a demand specifying part requirements
     2. **Seller Notification**: System notifies relevant sellers based on matching criteria
     3. **Offer Submission**: Sellers respond with offers including pricing and conditions
-    4. **Offer Review**: Researcher reviews anonymous offers with masked seller information
-    5. **Contact Unlock Initiation**: Researcher selects an offer and initiates unlock request
-    6. **Payment Processing**: External Payment Service handles transaction
-    7. **Contact Revelation**: Upon payment confirmation, full contact details are revealed
-    8. **Transaction Confirmation**: Researcher confirms receipt and satisfaction within 48 hours
-    9. **Rating Submission**: Researcher rates seller performance
-
-    ### Premium Seller Features
-
-    Sellers may subscribe to premium tiers offering:
-    - Priority placement in seller notification queues
-    - Extended notification channel access (SMS, email in addition to push)
-    - Premium badge display on anonymous profiles
-    - Enhanced visibility in offer listings
+    4. **Contact Unlock Initiation**: Researcher selects an offer and initiates unlock request
+    5. **Payment Processing**: External Payment Service handles transaction
+    6. **Contact Revelation**: Upon payment confirmation, full contact details are revealed
+    7. **Transaction Confirmation**: Researcher confirms receipt and satisfaction within 48 hours
 
     ## Integration Points
 
@@ -89,7 +77,6 @@ info:
 
     The Payment Service communicates transaction outcomes via authenticated webhooks:
     - Contact unlock payment confirmation
-    - Premium subscription activation and renewal
     - Refund processing notifications
 
     ## Support
@@ -131,7 +118,7 @@ tags:
 paths:
   /:
     get:
-      operationId: rootRedirect
+      operationId: addViewControllers
       tags:
         - Docs
       summary: Redirect root path to Swagger UI
@@ -143,10 +130,15 @@ paths:
               description: URL to redirect
               schema:
                 type: string
-                example: /doc
+                format: uri
+                example: 'https://vaikaparts-domain-backend.onrender.com'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /ping:
     get:
-      operationId: pong
+      operationId: ping
       tags:
         - Health
       summary: Check if the server is alive
@@ -154,13 +146,18 @@ paths:
         200:
           description: A message showing that the server is alive
           content:
-            application/json:
+            text/plain:
               schema:
                 type: string
+                format: string
                 example: pong
+        400:
+          $ref: '#/components/responses/BadRequest'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /health/bucket:
     get:
-      operationId: healthBucketCheck
+      operationId: checkBucketHealth
       tags:
         - Health
       summary: Check bucket health by uploading, downloading, and presigning a file
@@ -171,23 +168,18 @@ paths:
         200:
           description: Successfully uploaded, verified, and presigned file.
           content:
-            application/json:
+            text/plain:
               schema:
                 type: string
+                format: string
                 example: "https://unfaked-bucket.s3.amazonaws.com/health/uuid.txt?X-Amz-Signature=..."
+        400:
+          $ref: '#/components/responses/NotFound'
         500:
-          description: Uploaded and downloaded content mismatch or other error occurred.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: Uploaded and downloaded content mismatch
+          $ref: '#/components/responses/InternalServer'
   /health/email:
     get:
-      operationId: sendHealthEmail
+      operationId: sendHealthCheckEmails
       tags:
         - Health
       summary: Send health check email
@@ -202,26 +194,18 @@ paths:
             type: string
             format: email
       responses:
-        "200":
+        200:
           description: Email sent successfully
           content:
-            application/json:
+            text/plain:
               schema:
                 type: string
+                format: string
                 example: "Email sent successfully"
-        "400":
-          description: Invalid email address format
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-              example:
-                timestamp: "2025-11-04T10:30:00Z"
-                status: 400
-                error: "Bad Request"
-                message: "Invalid email address format"
-                path: "/health/email"
-                errorCode: "BAD_FORM"
+        400:
+          $ref: '#/components/responses/BadRequest'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /health/message:
     get:
       operationId: triggerDummyEvents
@@ -257,22 +241,14 @@ paths:
               schema:
                 type: array
                 items:
-                  type: string
-                example:
-                  - "c91f2c9b-9c8e-4e7f-84e2-09c95edff3e4"
-                  - "51af4d2b-745a-465d-b9a2-bf0b1c1ffb23"
+                  $ref: '#/components/schemas/UUID'
         400:
-          description: Invalid parameter values (e.g., nbEvent not in 1–500)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: nbEvent must be between 1 and 500
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /health/db:
     get:
+      operationId: checkDbHealth
       summary: Health check for the dummy database
       description: Returns a paginated list of Dummy entities.
       tags:
@@ -291,33 +267,16 @@ paths:
             default: 10
           description: Page size
       responses:
-        "200":
+        200:
           description: Successful database health check
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  content:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Dummy"
-                  totalElements:
-                    type: integer
-                  totalPages:
-                    type: integer
-                  number:
-                    type: integer
-                  size:
-                    type: integer
-                example:
-                  content:
-                    - id: "550e8400-e29b-41d4-a716-446655440000"
-                      description: "First dummy description"
-                  totalElements: 5
-                  totalPages: 1
-                  number: 0
-                  size: 5
+                $ref: "#/components/schemas/DummyPageResponse"
+        400:
+          $ref: '#/components/responses/BadRequest'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/webhooks/spb/auth:
     post:
       operationId: supabaseProfileWebhook
@@ -344,7 +303,7 @@ paths:
             schema:
               $ref: '#/components/schemas/SupabaseDatabaseWebhook'
       responses:
-        '200':
+        200:
           description: Webhook processed successfully
           content:
             application/json:
@@ -353,6 +312,7 @@ paths:
                 properties:
                   message:
                     type: string
+                    format: string
                     example: Webhook processed successfully
                   user_id:
                     type: string
@@ -361,12 +321,12 @@ paths:
                   event_type:
                     type: string
                     enum: [INSERT, UPDATE, DELETE]
-        '400':
+        400:
           $ref: '#/components/responses/BadRequest'
-        '401':
-          description: Invalid webhook signature or authorization token
-        '500':
-          description: Internal server error during webhook processing
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /users/me:
     get:
       operationId: getCurrentUser
@@ -374,7 +334,7 @@ paths:
       summary: Retrieve current authenticated user profile
       description: Returns the complete profile of the currently authenticated user based on the Supabase JWT token provided in the request.
       responses:
-        '200':
+        200:
           description: User profile retrieved successfully
           content:
             application/json:
@@ -383,8 +343,12 @@ paths:
                   - $ref: '#/components/schemas/Researcher'
                   - $ref: '#/components/schemas/Seller'
                   - $ref: '#/components/schemas/Manager'
-        '401':
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
           $ref: '#/components/responses/Unauthorized'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /users/me/profile-photo:
     post:
       operationId: uploadProfilePhoto
@@ -409,7 +373,7 @@ paths:
                   type: string
                   format: binary
       responses:
-        '200':
+        200:
           description: Profile photograph uploaded successfully
           content:
             application/json:
@@ -421,16 +385,26 @@ paths:
                     format: uri
                     description: S3 object URL for the uploaded photograph
                     example: "https://vaikaparts-bucket.s3.amazonaws.com/profiles/user-123/photo.jpg"
-        '400':
-          description: Invalid file format or size exceeds limit
+        400:
+          $ref: '#/components/responses/BadRequest'
+        500:
+          $ref: '#/components/responses/InternalServer'
     delete:
       operationId: deleteProfilePhoto
       tags: [Users, Storage]
       summary: Remove user profile photograph
       description: Deletes the current profile photograph from storage and removes the URL from the user profile.
       responses:
-        '204':
+        204:
           description: Profile photograph deleted successfully
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /researchers:
     get:
       operationId: getResearchers
@@ -444,15 +418,15 @@ paths:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
       responses:
-        '200':
+        200:
           description: Researcher list retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResearcherPageResponse'
-        '401':
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '403':
+        403:
           $ref: '#/components/responses/Forbidden'
   /researchers/me:
     get:
@@ -461,16 +435,20 @@ paths:
       summary: Retrieve the currently authenticated Researcher profile
       description: Returns the complete profile of the currently authenticated Researcher.
       responses:
-        '200':
+        200:
           description: Researcher profile retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Researcher'
-        '401':
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          description: Authenticated user is not a Researcher.
+        403:
+          $ref: '#/components/responses/Forbidden'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /researchers/{researcherId}:
     get:
       operationId: getResearcherById
@@ -488,16 +466,22 @@ paths:
           schema:
             $ref: '#/components/schemas/UUID'
       responses:
-        '200':
+        200:
           description: Researcher profile retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Researcher'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '403':
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
           $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /sellers/me:
     get:
       operationId: getCurrentSeller
@@ -509,16 +493,22 @@ paths:
 
         **Authorization**: Seller role required.
       responses:
-        '200':
+        200:
           description: Seller profile retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Seller'
-        '401':
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          description: Authenticated user is not a Seller.
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /sellers:
     get:
       operationId: getSellers
@@ -532,16 +522,22 @@ paths:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
       responses:
-        '200':
+        200:
           description: Seller list retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SellerPageResponse'
-        '401':
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '403':
+        403:
           $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /managers/me:
     get:
       operationId: getCurrentManager
@@ -552,16 +548,22 @@ paths:
 
         **Authorization**: Manager role required.
       responses:
-        '200':
+        200:
           description: Manager profile retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Manager'
-        '401':
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          description: Authenticated user is not a Manager.
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /managers:
     get:
       operationId: getManagers
@@ -575,16 +577,22 @@ paths:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
       responses:
-        '200':
+        200:
           description: Manager list retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ManagerPageResponse'
-        '401':
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '403':
+        403:
           $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/demands:
     get:
       operationId: getResearcherDemands
@@ -605,16 +613,22 @@ paths:
           schema:
             $ref: '#/components/schemas/DemandStatus'
       responses:
-        '200':
+        200:
           description: Demand list retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DemandPageResponse'
-        '401':
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '403':
+        403:
           $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
     post:
       operationId: createDemand
       tags: [Demands]
@@ -636,18 +650,22 @@ paths:
               part.images:
                 contentType: image/jpeg, image/png, image/webp
       responses:
-        '201':
+        201:
           description: Demand created successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Demand'
-        '400':
+        400:
           $ref: '#/components/responses/BadRequest'
-        '401':
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '403':
+        403:
           $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/demands/{demandId}:
     get:
       operationId: getDemandById
@@ -667,16 +685,22 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        200:
           description: Demand retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Demand'
-        '401':
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '404':
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
           $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/demands/{demandId}/status:
     patch:
       operationId: updateDemandStatus
@@ -701,20 +725,22 @@ paths:
           schema:
             $ref: '#/components/schemas/DemandStatus'
       responses:
-        '200':
+        200:
           description: Demand status updated successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Demand'
-        '400':
+        400:
           $ref: '#/components/responses/BadRequest'
-        '401':
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '403':
+        403:
           $ref: '#/components/responses/Forbidden'
-        '404':
+        404:
           $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/demands/{demandId}/offers:
     get:
       operationId: getOffersForDemand
@@ -735,18 +761,22 @@ paths:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
       responses:
-        '200':
+        200:
           description: Offer list retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OfferPageResponse'
-        '401':
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '403':
+        403:
           $ref: '#/components/responses/Forbidden'
-        '404':
+        404:
           $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/offers:
     post:
       operationId: createOffer
@@ -769,24 +799,22 @@ paths:
               part_info.images:
                 contentType: image/jpeg, image/png, image/webp
       responses:
-        '201':
+        201:
           description: Offer created successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Offer'
-        '400':
+        400:
           $ref: '#/components/responses/BadRequest'
-        '401':
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '403':
+        403:
           $ref: '#/components/responses/Forbidden'
-        '404':
-          description: Demand not found.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
     get:
       operationId: getSellerOffers
       tags: [Offers]
@@ -806,16 +834,22 @@ paths:
           schema:
             $ref: '#/components/schemas/OfferStatus'
       responses:
-        '200':
+        200:
           description: Offer list retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OfferPageResponse'
-        '401':
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '403':
+        403:
           $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/offers/{offerId}:
     get:
       operationId: getOfferById
@@ -835,16 +869,22 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        200:
           description: Offer retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Offer'
-        '401':
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '404':
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
           $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/offers/{offerId}/status:
     patch:
       operationId: updateOfferStatus
@@ -869,20 +909,22 @@ paths:
           schema:
             $ref: '#/components/schemas/OfferStatus'
       responses:
-        '200':
+        200:
           description: Offer status updated successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Offer'
-        '400':
+        400:
           $ref: '#/components/responses/BadRequest'
-        '401':
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '403':
+        403:
           $ref: '#/components/responses/Forbidden'
-        '404':
+        404:
           $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/offers/demand/{demandId}:
     get:
       operationId: getOffersByDemandId
@@ -903,19 +945,23 @@ paths:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
       responses:
-        '200':
+        200:
           description: Offer list retrieved successfully.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OfferPageResponse'
-        '401':
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
           $ref: '#/components/responses/Unauthorized'
-        '403':
+        403:
           $ref: '#/components/responses/Forbidden'
-        '404':
+        404:
           $ref: '#/components/responses/NotFound'
-  /v1/notifications:
+        500:
+          $ref: '#/components/responses/InternalServer'
+  /v1/notifications/demand-published:
     get:
       operationId: fetchNotifications
       tags: [Notifications]
@@ -925,13 +971,23 @@ paths:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
       responses:
-        '200':
+        200:
           description: Notifications retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotificationPageResponse'
-  /v1/notifications/mark-as-read/{notificationId}:
+                $ref: '#/components/schemas/DemandPublishedNotificationPageResponse'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
+  /v1/notifications/demand-published/mark-as-read/{notificationId}:
     patch:
       operationId: markAsRead
       tags: [Notifications]
@@ -945,15 +1001,23 @@ paths:
           schema:
             $ref: '#/components/schemas/UUID'
       responses:
-        '202':
+        202:
           description: Notification marked as read
           content:
             appliction/json:
               schema:
-                $ref: "#/components/schemas/Notification"
-        '404':
+                $ref: "#/components/schemas/DemandPublishedNotification"
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
           $ref: '#/components/responses/NotFound'
-  /v1/notifications/{notificationId}:
+        500:
+          $ref: '#/components/responses/InternalServer'
+  /v1/notifications/demand-published/{notificationId}:
     get:
       operationId: getNotification
       tags: [Notifications]
@@ -967,14 +1031,22 @@ paths:
           schema:
             $ref: '#/components/schemas/UUID'
       responses:
-        '202':
+        202:
           description: Fetched notification with the corresponding given id
           content:
             appliction/json:
               schema:
-                $ref: "#/components/schemas/Notification"
-        '404':
+                $ref: "#/components/schemas/DemandPublishedNotification"
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
           $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
 components:
   securitySchemes:
     supabaseAuth:
@@ -1050,10 +1122,12 @@ components:
       properties:
         city:
           type: string
-          example: "ANTANANARIVO"
+          description: Location city
+          enum: [ANTANANARIVO]
         region:
           type: string
-          example: "ANALAMANGA"
+          description: Location region
+          enum: [ANALAMANGA]
         address:
           type: string
           description: Detailed street address
@@ -1095,14 +1169,6 @@ components:
       type: string
       enum: [PENDING, SELECTED, REJECTED, WITHDRAWN]
       description: Current state of offer lifecycle
-    ContactUnlockStatus:
-      type: string
-      enum: [PENDING_PAYMENT, PAID, CONFIRMED, REFUND_REQUESTED, REFUNDED, DISPUTED]
-      description: Current state of contact unlock transaction
-    PremiumPlan:
-      type: string
-      enum: [MONTHLY, QUARTERLY, YEARLY]
-      description: Premium subscription billing period
     NotificationType:
       type: string
       enum: [DEMAND_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED, DEMAND_CANCELED, SYSTEM_ANNOUNCEMENT]
@@ -1221,54 +1287,6 @@ components:
           format: date-time
           nullable: true
           description: Soft delete timestamp (null if not deleted)
-    PaymentWebhookPayload:
-      type: object
-      required: [unlockId, paymentId, transactionId, amount, status]
-      description: Payload structure for Payment Service transaction webhooks
-      properties:
-        unlockId:
-          $ref: '#/components/schemas/UUID'
-          description: Associated contact unlock identifier
-        paymentId:
-          type: string
-          description: Payment Service payment identifier
-        transactionId:
-          type: string
-          description: Mobile money provider transaction reference
-        amount:
-          type: number
-          format: double
-          description: Transaction amount in MGA
-        paymentMethod:
-          type: string
-          enum: [ORANGE_MONEY, MVOLA, AIRTEL_MONEY]
-        status:
-          type: string
-          enum: [SUCCESS, FAILED]
-        paidAt:
-          $ref: '#/components/schemas/DateTime'
-    PremiumSubscriptionWebhookPayload:
-      type: object
-      required: [sellerId, subscriptionId, plan, status, paidAt]
-      description: Payload structure for premium subscription payment webhooks
-      properties:
-        sellerId:
-          $ref: '#/components/schemas/UUID'
-        subscriptionId:
-          type: string
-          description: Payment Service subscription identifier
-        plan:
-          $ref: '#/components/schemas/PremiumPlan'
-        amount:
-          type: number
-          format: double
-        status:
-          type: string
-          enum: [ACTIVATED, RENEWED, CANCELLED]
-        paidAt:
-          $ref: '#/components/schemas/DateTime'
-        expiresAt:
-          $ref: '#/components/schemas/DateTime'
     BaseUser:
       type: object
       required: [id, supabase_user_id, name, phone_number, user_type, status, created_at]
@@ -1322,42 +1340,6 @@ components:
               $ref: '#/components/schemas/Location'
             lat_lon:
               $ref: '#/components/schemas/LatLon'
-    AnonymousSellerProfile:
-      type: object
-      required: [id, location, average_rating, member_since]
-      description: Anonymized seller profile visible before contact unlock
-      properties:
-        id:
-          $ref: '#/components/schemas/UUID'
-        masked_profile_photo_url:
-          type: string
-          format: uri
-          description: Blurred or placeholder profile photograph URL
-        garage_name:
-          type: string
-          description: Business name (visible only for premium sellers)
-          nullable: true
-        location:
-          type: object
-          required: [city, region]
-          description: Generalized location without exact address
-          properties:
-            city:
-              type: string
-            region:
-              type: string
-        average_rating:
-          type: number
-          format: float
-        total_ratings:
-          type: integer
-        successful_unlocks:
-          type: integer
-        is_premium:
-          type: boolean
-          description: Premium subscription status
-        member_since:
-          $ref: '#/components/schemas/DateTime'
     Manager:
       allOf:
         - $ref: '#/components/schemas/BaseUser'
@@ -1709,194 +1691,7 @@ components:
             type: string
             format: uri
           maxItems: 5
-    ContactUnlock:
-      type: object
-      required: [id, demand_id, offer_id, researcher_id, seller_id, status, contact_fee, created_at]
-      description: Contact information unlock transaction
-      properties:
-        id:
-          $ref: '#/components/schemas/UUID'
-        demand_id:
-          $ref: '#/components/schemas/UUID'
-        offer_id:
-          $ref: '#/components/schemas/UUID'
-        researcher_id:
-          $ref: '#/components/schemas/UUID'
-        seller_id:
-          $ref: '#/components/schemas/UUID'
-        researcher_contact:
-          type: object
-          description: Researcher contact details (revealed to seller after payment)
-          nullable: true
-          properties:
-            name:
-              type: string
-            phone_number:
-              $ref: '#/components/schemas/PhoneNumber'
-            email:
-              $ref: '#/components/schemas/EmailAddress'
-            profile_img_url:
-              type: string
-              format: uri
-            location:
-              $ref: '#/components/schemas/Location'
-        seller_contact:
-          type: object
-          description: Seller contact details (revealed to Researcher after payment)
-          nullable: true
-          properties:
-            name:
-              type: string
-            phone_number:
-              $ref: '#/components/schemas/PhoneNumber'
-            email:
-              $ref: '#/components/schemas/EmailAddress'
-            profile_img_url:
-              type: string
-              format: uri
-            garage_name:
-              type: string
-            location:
-              $ref: '#/components/schemas/Location'
-        status:
-          $ref: '#/components/schemas/ContactUnlockStatus'
-        contact_fee:
-          type: number
-          format: double
-          description: Unlock fee in Malagasy Ariary
-        payment_reference:
-          type: string
-          description: Payment Service reference identifier
-        transaction_id:
-          type: string
-          description: Mobile money transaction reference
-          nullable: true
-        paid_at:
-          $ref: '#/components/schemas/DateTime'
-          nullable: true
-        confirmed_at:
-          $ref: '#/components/schemas/DateTime'
-          nullable: true
-        confirmation_deadline:
-          $ref: '#/components/schemas/DateTime'
-          description: Researcher confirmation deadline (48 hours from payment)
-          nullable: true
-        created_at:
-          $ref: '#/components/schemas/DateTime'
-        updated_at:
-          $ref: '#/components/schemas/DateTime'
-    PremiumSubscription:
-      type: object
-      description: Seller premium subscription details
-      properties:
-        id:
-          $ref: '#/components/schemas/UUID'
-        sellerId:
-          $ref: '#/components/schemas/UUID'
-        plan:
-          $ref: '#/components/schemas/PremiumPlan'
-        status:
-          type: string
-          enum: [ACTIVE, EXPIRED, CANCELLED]
-        paymentReference:
-          type: string
-          description: Payment Service reference identifier
-        features:
-          type: object
-          description: Enabled premium features
-          properties:
-            priorityNotifications:
-              type: boolean
-              default: true
-            additionalChannels:
-              type: array
-              items:
-                $ref: '#/components/schemas/NotificationChannel'
-            premiumBadge:
-              type: boolean
-              default: true
-        activatedAt:
-          $ref: '#/components/schemas/DateTime'
-        expiresAt:
-          $ref: '#/components/schemas/DateTime'
-        autoRenew:
-          type: boolean
-          default: true
-    Rating:
-      type: object
-      required: [id, sellerId, ResearcherId, unlockId, rating, createdAt]
-      description: Seller performance rating
-      properties:
-        id:
-          $ref: '#/components/schemas/UUID'
-        sellerId:
-          $ref: '#/components/schemas/UUID'
-        ResearcherId:
-          $ref: '#/components/schemas/UUID'
-        unlockId:
-          $ref: '#/components/schemas/UUID'
-          description: Associated contact unlock transaction
-        rating:
-          type: integer
-          minimum: 1
-          maximum: 5
-          description: Numeric rating score
-        comment:
-          type: string
-          maxLength: 500
-          description: Optional written feedback
-        ResearcherName:
-          type: string
-          description: Public Researcher name for verification
-        createdAt:
-          $ref: '#/components/schemas/DateTime'
-    RatingCreateRequest:
-      type: object
-      required: [unlockId, rating]
-      description: Rating creation payload
-      properties:
-        unlockId:
-          $ref: '#/components/schemas/UUID'
-        rating:
-          type: integer
-          minimum: 1
-          maximum: 5
-        comment:
-          type: string
-          maxLength: 500
-    NotificationPreferences:
-      type: object
-      description: User notification configuration
-      properties:
-        newOfferNotification:
-          type: boolean
-          default: true
-          description: Notify Researcher when offer is received
-        demandMatchNotification:
-          type: boolean
-          default: true
-          description: Notify seller when matching demand is created
-        paymentNotification:
-          type: boolean
-          default: true
-        unlockConfirmationNotification:
-          type: boolean
-          default: true
-        ratingNotification:
-          type: boolean
-          default: true
-          description: Notify seller when rated
-        premiumExpiryNotification:
-          type: boolean
-          default: true
-          description: Notify seller before subscription expiry
-        channels:
-          type: array
-          items:
-            $ref: '#/components/schemas/NotificationChannel'
-          description: Enabled notification delivery channels (premium sellers have extended access)
-          default: [IN_APP, PUSH]
-    Notification:
+    DemandPublishedNotification:
       type: object
       required: [id, userId, type, title, message, createdAt, isRead]
       description: User notification record
@@ -1924,135 +1719,6 @@ components:
           example: {"action": "VIEW_DEMAND", "demandId": "demand-ctrl-789"}
         read_at:
           $ref: '#/components/schemas/DateTime'
-    SellerPublicStatistics:
-      type: object
-      description: Public seller performance metrics
-      properties:
-        totalOffers:
-          type: integer
-        successfulUnlocks:
-          type: integer
-        averageRating:
-          type: number
-          format: float
-        totalRatings:
-          type: integer
-        responseTime:
-          type: object
-          properties:
-            averageHours:
-              type: number
-              description: Mean response time to demands
-        joinedDate:
-          $ref: '#/components/schemas/DateTime'
-    PlatformStatistics:
-      type: object
-      description: Platform-wide aggregate metrics
-      properties:
-        totalUsers:
-          type: integer
-        totalResearchers:
-          type: integer
-        totalSellers:
-          type: integer
-        totalDemands:
-          type: integer
-        activeDemands:
-          type: integer
-        totalOffers:
-          type: integer
-        totalContactUnlocks:
-          type: integer
-        paidUnlocks:
-          type: integer
-        popularCategories:
-          type: array
-          items:
-            type: object
-            properties:
-              category:
-                $ref: '#/components/schemas/PartCategory'
-              demandCount:
-                type: integer
-        topSellers:
-          type: array
-          items:
-            type: object
-            properties:
-              sellerId:
-                $ref: '#/components/schemas/UUID'
-              garageName:
-                type: string
-              successfulUnlocks:
-                type: integer
-              averageRating:
-                type: number
-    ResearcherDashboard:
-      type: object
-      description: Researcher-specific dashboard metrics
-      properties:
-        totalDemands:
-          type: integer
-        activeDemands:
-          type: integer
-        totalOffersReceived:
-          type: integer
-        completedUnlocks:
-          type: integer
-        pendingConfirmations:
-          type: integer
-          description: Unlocks awaiting Researcher confirmation
-        recentDemands:
-          type: array
-          items:
-            $ref: '#/components/schemas/Demand'
-          maxItems: 5
-    SellerDashboard:
-      type: object
-      description: Seller-specific dashboard metrics
-      properties:
-        totalOffers:
-          type: integer
-        pendingOffers:
-          type: integer
-        selectedOffers:
-          type: integer
-        completedUnlocks:
-          type: integer
-        averageRating:
-          type: number
-        premiumStatus:
-          type: object
-          properties:
-            isActive:
-              type: boolean
-            expiresAt:
-              $ref: '#/components/schemas/DateTime'
-              nullable: true
-        recentOffers:
-          type: array
-          items:
-            $ref: '#/components/schemas/Offer'
-          maxItems: 5
-    ManagerDashboard:
-      type: object
-      description: Manager-specific dashboard overview
-      properties:
-        platformStats:
-          $ref: '#/components/schemas/PlatformStatistics'
-        recentActivity:
-          type: array
-          items:
-            type: object
-            properties:
-              type:
-                type: string
-                enum: [NEW_DEMAND, NEW_OFFER, UNLOCK_PAID, RATING_CREATED]
-              description:
-                type: string
-              timestamp:
-                $ref: '#/components/schemas/DateTime'
-          maxItems: 20
     PageResponse:
       type: object
       required: [content, pageable, total_elements, total_pages, last, first, size, number, number_of_elements, empty]
@@ -2126,6 +1792,15 @@ components:
         unsorted:
           type: boolean
           description: Whether no sort orders are applied (inverse of sorted).
+    DummyPageResponse:
+      allOf:
+        - $ref: '#/components/schemas/PageResponse'
+        - type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/Dummy'
     ResearcherPageResponse:
       allOf:
         - $ref: '#/components/schemas/PageResponse'
@@ -2144,15 +1819,6 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/Seller'
-    AnonymousSellerPageResponse:
-      allOf:
-        - $ref: '#/components/schemas/PageResponse'
-        - type: object
-          properties:
-            content:
-              type: array
-              items:
-                $ref: '#/components/schemas/AnonymousSellerProfile'
     ManagerPageResponse:
       allOf:
         - $ref: '#/components/schemas/PageResponse'
@@ -2180,7 +1846,7 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/Offer'
-    ContactUnlockPageResponse:
+    DemandPublishedNotificationPageResponse:
       allOf:
         - $ref: '#/components/schemas/PageResponse'
         - type: object
@@ -2188,30 +1854,7 @@ components:
             content:
               type: array
               items:
-                $ref: '#/components/schemas/ContactUnlock'
-    RatingPageResponse:
-      allOf:
-        - $ref: '#/components/schemas/PageResponse'
-        - type: object
-          properties:
-            averageRating:
-              type: number
-              format: float
-            totalRatings:
-              type: integer
-            content:
-              type: array
-              items:
-                $ref: '#/components/schemas/Rating'
-    NotificationPageResponse:
-      allOf:
-        - $ref: '#/components/schemas/PageResponse'
-        - type: object
-          properties:
-            content:
-              type: array
-              items:
-                $ref: '#/components/schemas/Notification'
+                $ref: '#/components/schemas/DemandPublishedNotification'
     ErrorResponse:
       type: object
       required: [timestamp, status, error, message, path]
@@ -2230,37 +1873,43 @@ components:
           description: Human-readable error description
         path:
           type: string
-          description: Request path that generated the error
+          description: The relative URI of the request that caused the error.
+          example: "/api/v1/resource-path"
         errorCode:
           type: string
           description: Application-specific error code
           enum:
+            - RESOURCE_NOT_FOUND
+            - ILLEGAL_STATE
+            - SECURITY_EXCEPTION
+            - PAYLOAD_NOT_AS_EXPECTED
+            - EMAIL_HEALTH_CHECK_FAILED
+            - MISSING_REQUIRED_PART
+            - DUPLICATE_EMAIL
+            - DUPLICATE_SUPABASE_ID
+            - DIRECTORY_UPLOAD_FAILED
             - AUTHORIZATION_DENIED
             - ENTITY_NOT_FOUND
-            - CONSTRAINT_VIOLATION_ON_FIELDS
-            - DUPLICATE_ENTITY
+            - MISSING_REQUEST_HEADER
+            - MISSING_AUTH_CREDS
+            - USER_NOT_FOUND
             - BAD_FORM
             - MISSING_AUTHORIZATION
-            - INVALID_AUTHORIZATION_FORMAT
-            - INVALID_TOKEN
-            - TOKEN_NOT_FOUND
-            - USER_DEACTIVATED
-            - AUTHENTICATION_FAILED
             - INTERNAL_SERVER_ERROR
             - MISSING_REQUIRED_PARAMETER
             - INVALID_PARAMETER
             - MALFORMED_JSON
             - METHOD_NOT_ALLOWED
-            - ALREADY_UNLOCKED
-            - UNLOCK_NOT_PAID
-            - REFUND_NOT_ELIGIBLE
-            - ONLY_ResearcherS_ALLOWED
-            - ONLY_SELLERS_ALLOWED
-            - ONLY_MANAGERS_ALLOWED
         details:
           type: object
           description: Additional error context
   responses:
+    InternalServer:
+      description: Internal Server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     BadRequest:
       description: Invalid request parameters or payload
       content:

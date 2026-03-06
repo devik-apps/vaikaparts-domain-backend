@@ -2,15 +2,26 @@ FROM gradle:8.10-jdk21-alpine AS build
 
 WORKDIR /app
 
+RUN apk add --no-cache bash
+
 COPY build.gradle settings.gradle ./
 COPY gradle ./gradle
 COPY gradlew ./
-RUN ./gradlew dependencies --no-daemon
+
+RUN --mount=type=secret,id=github_actor \
+    --mount=type=secret,id=github_token \
+    GITHUB_ACTOR=$(cat /run/secrets/github_actor) \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
+    ./gradlew dependencies --no-daemon -PskipClientPublish=true
 
 COPY doc ./doc
 COPY src ./src
 
-RUN ./gradlew bootJar --no-daemon
+RUN --mount=type=secret,id=github_actor \
+    --mount=type=secret,id=github_token \
+    GITHUB_ACTOR=$(cat /run/secrets/github_actor) \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
+    ./gradlew bootJar --no-daemon -PskipClientPublish=true
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app

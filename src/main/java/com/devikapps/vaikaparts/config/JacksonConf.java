@@ -5,17 +5,24 @@ import static org.owasp.encoder.Encode.forJava;
 import com.devikapps.vaikaparts.InfraGenerated;
 import com.devikapps.vaikaparts.file.PackageUtils;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -150,11 +157,25 @@ public class JacksonConf {
    * </ul>
    */
   private void registerModules(ObjectMapper mapper) {
+    var javaTimeModule = new JavaTimeModule();
+
+    javaTimeModule.addSerializer(
+        LocalDateTime.class,
+        new LocalDateTimeSerializer(DateTimeFormatter.ISO_OFFSET_DATE_TIME) {
+          @Override
+          public void serialize(LocalDateTime value, JsonGenerator gen, SerializerProvider provider)
+              throws IOException {
+            gen.writeString(
+                value.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+          }
+        });
+
     mapper.registerModule(new JavaTimeModule());
     mapper.registerModule(new Jdk8Module());
     mapper.registerModule(new ParameterNamesModule());
 
-    log.debug("Registered Jackson modules: JavaTime, JDK8, ParameterNames");
+    log.debug(
+        "Registered Jackson modules: JavaTime (UTC offset serialization), JDK8, ParameterNames");
   }
 
   /**

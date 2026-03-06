@@ -19,19 +19,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class NotificationController {
   private final NotificationService notificationService;
 
-  @GetMapping
+  @GetMapping("/demand-published")
   public Page<DemandPublishedNotification> fetchNotifications(
       @RequestParam(name = "page", required = false) Integer page,
       @RequestParam(name = "size", required = false) Integer size) {
     return notificationService.fetchAllNotification(page, size);
   }
 
-  @GetMapping("/{notificationId}")
+  @GetMapping("/demand-published/{notificationId}")
   public DemandPublishedNotification getNotification(@PathVariable String notificationId) {
     return notificationService.getNotification(notificationId);
   }
 
-  @PatchMapping("/mark-as-read/{notificationId}")
+  @PatchMapping("/demand-published/mark-as-read/{notificationId}")
   public ResponseEntity<DemandPublishedNotification> markAsRead(
       @PathVariable String notificationId) {
     return new ResponseEntity<>(
