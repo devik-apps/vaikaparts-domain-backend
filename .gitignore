@@ -41,9 +41,4 @@ out/
 semgrep.sarif
 
 # clients
-src/test/generated/.openapi-generator/
-src/test/generated/pom.xml
-src/test/generated/README.md
-src/test/generated/build.gradle
-src/test/generated/git_push.sh
-/src/test/generated/.travis.yml
+.maven-settings.xml

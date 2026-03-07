@@ -1,7 +1,7 @@
 .PHONY: help build test format format-check clean docker-build docker-run docker-stop \
         deps compile jar install run dev ci-build ci-test ci-format ci-qodana ci-semgrep \
         qodana semgrep verify-image health-check lint test-unit test-integration \
-        install-pipx install-semgrep
+        install-pipx install-semgrep resolve-client-version
 
 DOCKER := docker
 IMAGE_NAME := backend-app
@@ -26,7 +26,6 @@ else
 	DETECTED_OS := Unknown
 endif
 
-# Set GRADLE command based on OS
 ifeq ($(DETECTED_OS),Windows)
 	GRADLE := gradlew.bat
 	PWD := $(shell cd)
@@ -39,7 +38,7 @@ endif
 
 help:
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} \
-		/^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } \
+		/^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2 } \
 		/^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Development
@@ -60,6 +59,11 @@ run: ## Run the application
 
 dev: ## Run with development profile
 	$(GRADLE) bootRun --no-daemon --args='--spring.profiles.active=dev'
+
+##@ Client
+
+resolve-client-version: ## Fetch and cache the latest published client version
+	$(GRADLE) resolveClientVersion --no-daemon -PskipClientPublish
 
 ##@ Testing
 
@@ -159,11 +163,7 @@ else ifeq ($(DETECTED_OS),Windows)
 		echo Installing pipx on Windows... && \
 		python -m pip install --user pipx && \
 		python -m pipx ensurepath \
-	) || ( \
-		python3 -m pip install --user pipx && \
-		python3 -m pipx ensurepath \
 	)
-	@where pipx >nul 2>nul && echo pipx is already installed
 else
 	@echo "Unknown OS. Please install pipx manually."
 	@exit 1
@@ -175,7 +175,6 @@ ifeq ($(DETECTED_OS),Windows)
 		echo Installing Semgrep via pipx... && \
 		pipx install semgrep || (echo Failed to install Semgrep && exit 1) \
 	)
-	@where semgrep >nul 2>nul && echo Semgrep is already installed
 else
 	@if ! command -v semgrep >/dev/null 2>&1; then \
 		echo "Installing Semgrep via pipx..."; \

@@ -34,6 +34,27 @@ repositories {
     mavenCentral()
 }
 
+def resolveClientVersion() {
+    if (project.hasProperty('clientVersion')) {
+        def explicit = project.property('clientVersion') as String
+        logger.info("[vaikaparts-gen] Using explicitly provided clientVersion: ${explicit}")
+        return explicit
+    }
+
+    def cacheFile = layout.buildDirectory.file("client-version.txt").get().asFile
+    if (cacheFile.exists()) {
+        def cached = cacheFile.text.trim()
+        if (!cached.isEmpty()) {
+            logger.info("[vaikaparts-gen] Using cached client version: ${cached}")
+            return cached
+        }
+    }
+
+    logger.warn("[vaikaparts-gen] No cached version found. Run './gradlew resolveClientVersion' or falling back to LOCAL-SNAPSHOT.")
+    return "0.0.0-LOCAL-SNAPSHOT"
+}
+
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
@@ -101,7 +122,7 @@ dependencies {
     testCompileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 
     testImplementation 'io.swagger.core.v3:swagger-annotations:2.2.44'
-    implementation 'com.devikapps:vaikaparts-gen:1.0.0'
+    implementation "com.devikapps:vaikaparts-gen:${resolveClientVersion()}"
     implementation 'io.swagger.core.v3:swagger-annotations:2.2.44'
     implementation 'org.openapitools:jackson-databind-nullable:0.2.9'
 }
@@ -131,6 +152,61 @@ tasks.named('test') {
     }
 }
 
+tasks.register('resolveClientVersion') {
+    description = 'Resolves and caches the latest published vaikaparts-gen version from GitHub Packages.'
+    group = 'build setup'
+
+    def outputFile = layout.buildDirectory.file("client-version.txt")
+    outputs.file(outputFile)
+
+    doLast {
+        def githubToken = (System.getenv("GITHUB_TOKEN") ?: project.findProperty("gpr.key") ?: "") as String
+
+        if (githubToken.isEmpty()) {
+            def fallback = "0.0.0-LOCAL-SNAPSHOT"
+            logger.warn("[vaikaparts-gen] GITHUB_TOKEN is not set. Writing fallback version: ${fallback}")
+            outputFile.get().asFile.text = fallback
+            return
+        }
+
+        def resolved = fetchLatestVersionFromGitHubPackages(githubToken)
+        outputFile.get().asFile.text = resolved
+        logger.lifecycle("[vaikaparts-gen] Resolved and cached client version: ${resolved}")
+    }
+}
+
+def fetchLatestVersionFromGitHubPackages(String githubToken) {
+    try {
+        URI uri = URI.create("https://api.github.com/user/packages/maven/com.devikapps.vaikaparts-gen/versions")
+        HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection()
+        connection.setRequestMethod("GET")
+        connection.setRequestProperty("Authorization", "Bearer ${githubToken}")
+        connection.setRequestProperty("Accept", "application/vnd.github+json")
+        connection.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+        connection.connectTimeout = 5000
+        connection.readTimeout = 5000
+
+        if (connection.responseCode != 200) {
+            logger.warn("[vaikaparts-gen] GitHub Packages API returned HTTP ${connection.responseCode}. Falling back to LOCAL-SNAPSHOT.")
+            return "0.0.0-LOCAL-SNAPSHOT"
+        }
+
+        def response = connection.inputStream.text
+        def matcher = response =~ /"name"\s*:\s*"(\d+\.\d+\.\d+)"/
+
+        if (matcher.find()) {
+            return matcher.group(1)
+        }
+
+        logger.warn("[vaikaparts-gen] No published semantic version found. Falling back to LOCAL-SNAPSHOT.")
+        return "0.0.0-LOCAL-SNAPSHOT"
+
+    } catch (Exception e) {
+        logger.warn("[vaikaparts-gen] Failed to reach GitHub Packages API: ${e.message}. Falling back to LOCAL-SNAPSHOT.")
+        return "0.0.0-LOCAL-SNAPSHOT"
+    }
+}
+
 tasks.register('generateJavaClient', GenerateTask) {
     generatorName = "java"
     inputSpec = file("${projectDir}/doc/api.yaml").toURI().toString()
@@ -141,7 +217,7 @@ tasks.register('generateJavaClient', GenerateTask) {
 
     groupId = "com.devikapps"
     id = "vaikaparts-gen"
-    version = "1.0.0"
+    version = "0.0.0-PLACEHOLDER"
 
     configOptions = [
             serializableModel      : "true",

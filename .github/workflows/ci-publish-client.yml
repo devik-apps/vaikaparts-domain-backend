@@ -2,7 +2,7 @@ name: CI - Publish Generated Client
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "**" ]
     paths:
       - "doc/api.yaml"
   workflow_dispatch:
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -44,36 +44,31 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Check if version already published
-        id: version_check
-        run: |
-          VERSION=$(grep -m1 "version" build.gradle | grep -o '"[^"]*"' | tr -d '"' | head -1)
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://maven.pkg.github.com/devik-apps/${{ github.event.repository.name }}/com/devikapps/vaikaparts-gen/${VERSION}/vaikaparts-gen-${VERSION}.pom")
-          if [ "$STATUS" == "200" ]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            echo "Version ${VERSION} already exists in GitHub Packages. Skipping publish."
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-            echo "Version ${VERSION} not found. Proceeding with publish."
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate client
-        if: steps.version_check.outputs.skip == 'false'
-        run: ./gradlew generateJavaClient
+      - name: Generate OpenAPI client
+        run: ./gradlew generateJavaClient -PskipClientPublish
 
       - name: Grant execute permission for publish script
-        if: steps.version_check.outputs.skip == 'false'
-        run: chmod +x .shell/publish_client_to_github_packages.sh
+        run: chmod +x .shell/publish-gen-to-github-packages.sh
 
       - name: Publish client to GitHub Packages
-        if: steps.version_check.outputs.skip == 'false'
-        run: bash .shell/publish_client_to_github_packages.sh
+        run: bash .shell/publish-gen-to-github-packages.sh
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Read published version
+        id: read_version
+        run: |
+          VERSION=$(cat build/published-client-version.txt)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Published version: ${VERSION}"
+
+      - name: Tag commit with published version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "client-v${{ steps.read_version.outputs.version }}" "${{ github.sha }}"
+          git push origin "client-v${{ steps.read_version.outputs.version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

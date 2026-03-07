@@ -2,17 +2,24 @@ FROM gradle:8.10-jdk21-alpine AS build
 
 WORKDIR /app
 
-RUN apk add --no-cache bash
+RUN apk add --no-cache bash maven
 
 COPY build.gradle settings.gradle ./
 COPY gradle ./gradle
 COPY gradlew ./
+COPY .shell ./.shell
 
 RUN --mount=type=secret,id=github_actor \
     --mount=type=secret,id=github_token \
     GITHUB_ACTOR=$(cat /run/secrets/github_actor) \
     GITHUB_TOKEN=$(cat /run/secrets/github_token) \
-    ./gradlew dependencies --no-daemon -PskipClientPublish=true
+    ./gradlew resolveClientVersion --no-daemon -PskipClientPublish
+
+RUN --mount=type=secret,id=github_actor \
+    --mount=type=secret,id=github_token \
+    GITHUB_ACTOR=$(cat /run/secrets/github_actor) \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
+    ./gradlew dependencies --no-daemon -PskipClientPublish
 
 COPY doc ./doc
 COPY src ./src
@@ -21,7 +28,7 @@ RUN --mount=type=secret,id=github_actor \
     --mount=type=secret,id=github_token \
     GITHUB_ACTOR=$(cat /run/secrets/github_actor) \
     GITHUB_TOKEN=$(cat /run/secrets/github_token) \
-    ./gradlew bootJar --no-daemon -PskipClientPublish=true
+    ./gradlew bootJar --no-daemon -PskipClientPublish
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
@@ -32,7 +39,6 @@ RUN apk add --no-cache wget && \
     rm -rf /var/cache/apk/*
 
 COPY --from=build /app/build/libs/*.jar app.jar
-COPY --from=build /app/doc ./doc
 COPY docker-start.sh /app/docker-start.sh
 
 RUN chmod +x /app/docker-start.sh && \
