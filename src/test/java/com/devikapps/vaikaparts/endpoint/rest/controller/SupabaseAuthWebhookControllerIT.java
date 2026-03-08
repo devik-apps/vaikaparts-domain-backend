@@ -1,5 +1,7 @@
 package com.devikapps.vaikaparts.endpoint.rest.controller;
 
+import static java.time.LocalDateTime.now;
+import static java.util.UUID.randomUUID;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -22,7 +24,7 @@ class SupabaseAuthWebhookControllerIT extends FacadeIT {
 
   private static final String WEBHOOK_ENDPOINT = "/v1/webhooks/spb/auth";
   private static final String SIGNATURE_HEADER = "X-Webhook-Signature";
-  private static final String TEST_SUPABASE_USER_ID = "550e8400-e29b-41d4-a716-446655440000";
+  private static final String TEST_SUPABASE_USER_ID = randomUUID().toString();
   private static final String TEST_EMAIL = "test@example.com";
   private static final String TEST_PHONE = "+1234567890";
   private static final String TEST_NAME = "John Doe";
@@ -117,14 +119,12 @@ class SupabaseAuthWebhookControllerIT extends FacadeIT {
     record.put("user_metadata", metadata);
 
     record.put("app_metadata", Map.of());
-    record.put("created_at", "2024-01-01T00:00:00Z");
-    record.put("updated_at", "2024-01-02T00:00:00Z");
+    record.put("created_at", now());
+    record.put("updated_at", now());
     record.put("deleted_at", null);
 
     webhook.put("record", record);
     webhook.put("old_record", null);
-
-    System.out.printf("\n%s\n", om.writeValueAsString(webhook));
 
     return om.writeValueAsString(webhook);
   }

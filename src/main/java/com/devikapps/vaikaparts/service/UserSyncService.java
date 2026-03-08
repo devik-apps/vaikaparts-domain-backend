@@ -3,7 +3,6 @@ package com.devikapps.vaikaparts.service;
 import static com.devikapps.vaikaparts.model.classifier.UserType.RESEARCHER;
 import static com.devikapps.vaikaparts.model.classifier.UserType.SELLER;
 import static java.time.LocalDateTime.now;
-import static java.time.LocalDateTime.ofInstant;
 import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
@@ -22,9 +21,7 @@ import com.devikapps.vaikaparts.repository.model.user.JManager;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.repository.model.user.JUser;
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -84,7 +81,7 @@ public class UserSyncService {
 
     var user = findUserBySupabaseId(profileId);
     updateUserFields(user, profile);
-    user.setUpdatedAt(convertToLocalDateTime(profile.updatedAt()));
+    user.setUpdatedAt(profile.updatedAt());
 
     userRepository.save(user);
     log.info(
@@ -143,8 +140,8 @@ public class UserSyncService {
 
   private JUser createUserByType(ProfileRecord profile, UserType userType) {
     var userId = randomUUID().toString();
-    var createdAt = convertToLocalDateTime(profile.createdAt());
-    var updatedAt = convertToLocalDateTime(profile.updatedAt());
+    var createdAt = profile.createdAt();
+    var updatedAt = profile.updatedAt();
     var name = extractName(profile);
     var email = extractEmail(profile);
     var phoneNumber = extractPhoneNumber(profile);
@@ -312,9 +309,8 @@ public class UserSyncService {
   }
 
   private void updateResearcherLocation(JUser user, Map<String, Object> metadata) {
-    if (user instanceof JResearcher researcher) {
+    if (user instanceof JResearcher researcher)
       extractLocation(metadata).ifPresent(location -> researcher.setLocation(vom.map(location)));
-    }
   }
 
   private void updateSellerLocationAndLatLon(JUser user, Map<String, Object> metadata) {
@@ -432,9 +428,5 @@ public class UserSyncService {
         .map(e -> e.split("@"))
         .filter(parts -> parts.length > 0)
         .map(parts -> parts[0]);
-  }
-
-  private LocalDateTime convertToLocalDateTime(Instant instant) {
-    return ofInstant(instant, ZoneOffset.UTC);
   }
 }
