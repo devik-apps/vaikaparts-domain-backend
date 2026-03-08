@@ -14,11 +14,10 @@ readonly MAVEN_SETTINGS_FILE="${PROJECT_ROOT}/.maven-settings.xml"
 readonly VERSION_OUTPUT_FILE="${PROJECT_ROOT}/build/published-client-version.txt"
 readonly REQUIRED_ENV_VARS=("GITHUB_ACTOR" "GITHUB_TOKEN" "GITHUB_REPOSITORY")
 
-readonly GROUP_ID="com.devikapps"
-readonly ARTIFACT_ID="vaikaparts-gen"
 readonly INITIAL_VERSION="1.0.0"
+readonly CLIENT_TAG_PREFIX="client-v"
 
-log_info() { echo "[INFO]  $*"; }
+log_info() { echo "[INFO]  $*" >&2; }
 log_warn() { echo "[WARN]  $*" >&2; }
 log_error() { echo "[ERROR] $*" >&2; }
 
@@ -43,11 +42,6 @@ validate_environment() {
 		exit 1
 	fi
 
-	if ! command -v curl >/dev/null 2>&1; then
-		log_error "curl is not installed or not on PATH."
-		exit 1
-	fi
-
 	log_info "Environment validation passed."
 }
 
@@ -65,37 +59,34 @@ validate_token_format() {
 	fi
 }
 
-resolve_latest_published_version() {
-	local api_url="https://api.github.com/user/packages/maven/${GROUP_ID}.${ARTIFACT_ID}/versions"
-	local response
-	local http_status
+resolve_latest_version_from_git_tags() {
+	local latest_version=""
+	local tag version
 
-	response=$(curl -s -w "\n%{http_code}" \
-		-H "Authorization: Bearer ${GITHUB_TOKEN}" \
-		-H "Accept: application/vnd.github+json" \
-		-H "X-GitHub-Api-Version: 2022-11-28" \
-		"${api_url}")
+	while IFS= read -r tag; do
+		version="${tag#"${CLIENT_TAG_PREFIX}"}"
 
-	http_status=$(echo "${response}" | tail -n1)
-	local body
-	body=$(echo "${response}" | head -n -1)
+		if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+			continue
+		fi
 
-	if [[ "${http_status}" == "404" ]]; then
-		echo ""
-		return 0
-	fi
+		if [[ -z "${latest_version}" ]]; then
+			latest_version="${version}"
+			continue
+		fi
 
-	if [[ "${http_status}" != "200" ]]; then
-		log_error "Failed to query GitHub Packages API. HTTP status: ${http_status}"
-		log_error "Response body: ${body}"
-		exit 1
-	fi
+		local curr_major curr_minor curr_patch
+		local new_major new_minor new_patch
 
-	local latest_version
-	latest_version=$(echo "${body}" |
-		grep -o '"name":"[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*"' |
-		head -n1 |
-		grep -o '[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*')
+		IFS='.' read -r curr_major curr_minor curr_patch <<<"${latest_version}"
+		IFS='.' read -r new_major new_minor new_patch <<<"${version}"
+
+		if ((new_major > curr_major)) ||
+			((new_major == curr_major && new_minor > curr_minor)) ||
+			((new_major == curr_major && new_minor == curr_minor && new_patch > curr_patch)); then
+			latest_version="${version}"
+		fi
+	done < <(git -C "${PROJECT_ROOT}" tag --list "${CLIENT_TAG_PREFIX}*" 2>/dev/null)
 
 	echo "${latest_version}"
 }
@@ -117,19 +108,19 @@ increment_patch_version() {
 }
 
 resolve_next_version() {
-	log_info "Resolving next version from GitHub Packages..."
+	log_info "Resolving next version from git tags..."
 
 	local latest_version
-	latest_version=$(resolve_latest_published_version)
+	latest_version=$(resolve_latest_version_from_git_tags)
 
 	local next_version
 	if [[ -z "${latest_version}" ]]; then
 		next_version="${INITIAL_VERSION}"
-		log_info "No existing published version found. Using initial version: ${next_version}"
+		log_info "No existing client tag found. Using initial version: ${next_version}"
 	else
 		next_version=$(increment_patch_version "${latest_version}")
-		log_info "Latest published version : ${latest_version}"
-		log_info "Next version             : ${next_version}"
+		log_info "Latest tagged version : ${latest_version}"
+		log_info "Next version          : ${next_version}"
 	fi
 
 	echo "${next_version}"
@@ -214,9 +205,10 @@ publish() {
 
 	if [[ ${exit_code} -ne 0 ]]; then
 		if echo "${output}" | grep -q "status code: 409"; then
-			log_info "Artifact version '${version}' already exists (409 Conflict). Skipping publish."
-			write_version_output "${version}"
-			return 0
+			log_error "Artifact version '${version}' already exists (409 Conflict)."
+			log_error "This should not happen — the version was derived from git tags."
+			log_error "Verify that tag '${CLIENT_TAG_PREFIX}${version}' does not already exist."
+			exit 1
 		fi
 		log_error "Publish failed with exit code ${exit_code}."
 		echo "${output}" >&2

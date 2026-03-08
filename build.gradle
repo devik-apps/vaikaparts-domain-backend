@@ -176,8 +176,9 @@ tasks.register('resolveClientVersion') {
 }
 
 def fetchLatestVersionFromGitHubPackages(String githubToken) {
+    def githubOrg = System.getenv("GITHUB_ORG") ?: (project.findProperty("gpr.org") ?: "devik-apps") as String
     try {
-        URI uri = URI.create("https://api.github.com/user/packages/maven/com.devikapps.vaikaparts-gen/versions")
+        URI uri = URI.create("https://api.github.com/orgs/${githubOrg}/packages/maven/com.devikapps.vaikaparts-gen/versions")
         HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection()
         connection.setRequestMethod("GET")
         connection.setRequestProperty("Authorization", "Bearer ${githubToken}")

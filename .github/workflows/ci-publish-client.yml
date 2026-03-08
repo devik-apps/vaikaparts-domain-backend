@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Required: all tags must be present to resolve the latest client version
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -48,10 +50,10 @@ jobs:
         run: ./gradlew generateJavaClient -PskipClientPublish
 
       - name: Grant execute permission for publish script
-        run: chmod +x .shell/publish-gen-to-github-packages.sh
+        run: chmod +x .shell/publish-gen-to-github-package.sh
 
       - name: Publish client to GitHub Packages
-        run: bash .shell/publish-gen-to-github-packages.sh
+        run: bash .shell/publish-gen-to-github-package.sh
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

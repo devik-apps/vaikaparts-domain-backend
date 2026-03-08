@@ -42,3 +42,4 @@ semgrep.sarif
 
 # clients
 .maven-settings.xml
+gradle.properties

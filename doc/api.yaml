@@ -611,7 +611,7 @@ paths:
           required: false
           description: Filter by demand lifecycle status. Omit to return all statuses.
           schema:
-            $ref: '#/components/schemas/DemandStatus'
+            $ref: '#/components/schemas/PostStatus'
       responses:
         200:
           description: Demand list retrieved successfully.
@@ -723,7 +723,7 @@ paths:
           required: true
           description: Target lifecycle status to apply to the demand.
           schema:
-            $ref: '#/components/schemas/DemandStatus'
+            $ref: '#/components/schemas/PostStatus'
       responses:
         200:
           description: Demand status updated successfully.
@@ -832,7 +832,7 @@ paths:
           required: false
           description: Filter by offer lifecycle status. Omit to return all statuses.
           schema:
-            $ref: '#/components/schemas/OfferStatus'
+            $ref: '#/components/schemas/PostStatus'
       responses:
         200:
           description: Offer list retrieved successfully.
@@ -907,7 +907,7 @@ paths:
           required: true
           description: Target lifecycle status to apply to the offer.
           schema:
-            $ref: '#/components/schemas/OfferStatus'
+            $ref: '#/components/schemas/PostStatus'
       responses:
         200:
           description: Offer status updated successfully.
@@ -1165,10 +1165,6 @@ components:
       type: string
       enum: [NEW, USED]
       description: Physical condition of automotive part
-    OfferStatus:
-      type: string
-      enum: [PENDING, SELECTED, REJECTED, WITHDRAWN]
-      description: Current state of offer lifecycle
     NotificationType:
       type: string
       enum: [DEMAND_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED, DEMAND_CANCELED, SYSTEM_ANNOUNCEMENT]
@@ -1428,9 +1424,9 @@ components:
         - UNIVERSAL_PARTS
         - OTHER
       example: FOG_LIGHTS
-    DemandStatus:
+    PostStatus:
       type: string
-      description: Lifecycle status of a demand.
+      description: Lifecycle status of an exchange.
       enum:
         - DRAFT
         - PUBLISHED
@@ -1497,7 +1493,7 @@ components:
         part:
           $ref: '#/components/schemas/Part'
         status:
-          $ref: '#/components/schemas/DemandStatus'
+          $ref: '#/components/schemas/PostStatus'
         created_at:
           $ref: '#/components/schemas/DateTime'
         updated_at:
@@ -1582,7 +1578,7 @@ components:
         demand:
           $ref: '#/components/schemas/Demand'
         status:
-          $ref: '#/components/schemas/OfferStatus'
+          $ref: '#/components/schemas/PostStatus'
         created_at:
           $ref: '#/components/schemas/DateTime'
         updated_at:
