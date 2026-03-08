@@ -87,12 +87,12 @@ class DemandClientIT extends FacadeIT {
   // -------------------------------------------------------------------------
 
   @Test
-  void create_demand_response_conforms_to_contract() {
-    ResponseEntity<Demand> response = createDemandViaMultipart(PartCategory.FOG_LIGHTS.name());
+  void create_demand_test() {
+    ResponseEntity<Demand> created = createDemandViaMultipart(PartCategory.FOG_LIGHTS.name());
 
-    assertThat(response.getStatusCode().value()).isEqualTo(HttpStatus.CREATED.value());
+    assertThat(created.getStatusCode().value()).isEqualTo(HttpStatus.CREATED.value());
 
-    Demand demand = response.getBody();
+    Demand demand = created.getBody();
     assertThat(demand).isNotNull();
     assertThat(demand.getId().toString()).isNotBlank();
     assertThat(demand.getDescription()).isEqualTo(TEST_DESCRIPTION);
@@ -102,10 +102,12 @@ class DemandClientIT extends FacadeIT {
     assertThat(demand.getPart()).isNotNull();
     assertThat(demand.getPart().getName()).isEqualTo(TEST_PART_NAME);
     assertThat(demand.getPart().getCarBrand()).isEqualTo(TEST_CAR_BRAND);
-  }
 
-  @Test
-  void create_demand_returns_401_when_unauthenticated() {
+    // 400 — blank description
+    ResponseEntity<String> badRequest = createDemandViaMultipartRaw();
+    assertThat(badRequest.getStatusCode().value()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+
+    // 401 — unauthenticated
     MultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
     formData.add("description", TEST_DESCRIPTION);
     formData.add("part.name", TEST_PART_NAME);
@@ -114,21 +116,14 @@ class DemandClientIT extends FacadeIT {
     formData.add("part.carYear", String.valueOf(TEST_CAR_YEAR));
     formData.add("part.partCategory", PartCategory.FOG_LIGHTS.name());
 
-    ResponseEntity<String> response =
+    ResponseEntity<String> unauthorized =
         restTemplate.exchange(
             format("%s:%s/v1/demands", BASE_URL, port),
             HttpMethod.POST,
             new HttpEntity<>(formData, new HttpHeaders()),
             String.class);
 
-    assertThat(response.getStatusCode().value()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
-  }
-
-  @Test
-  void create_demand_returns_400_when_description_is_blank() {
-    ResponseEntity<String> response = createDemandViaMultipartRaw("");
-
-    assertThat(response.getStatusCode().value()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+    assertThat(unauthorized.getStatusCode().value()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
   }
 
   // -------------------------------------------------------------------------
@@ -136,16 +131,16 @@ class DemandClientIT extends FacadeIT {
   // -------------------------------------------------------------------------
 
   @Test
-  void get_researcher_demands_response_conforms_to_contract() {
+  void get_researcher_demands_test() {
     createPersistedDemand(PostStatus.DRAFT);
     createPersistedDemand(PostStatus.PUBLISHED);
 
-    ResponseEntity<DemandPageResponse> response =
+    ResponseEntity<DemandPageResponse> ok =
         authenticatedClient.getResearcherDemandsWithHttpInfo(0, 10, null);
 
-    assertThat(response.getStatusCode().value()).isEqualTo(HttpStatus.OK.value());
+    assertThat(ok.getStatusCode().value()).isEqualTo(HttpStatus.OK.value());
 
-    DemandPageResponse page = response.getBody();
+    DemandPageResponse page = ok.getBody();
     assertThat(page).isNotNull();
     assertThat(page.getContent()).hasSize(2);
     assertThat(page.getTotalElements()).isEqualTo(2);
@@ -158,27 +153,21 @@ class DemandClientIT extends FacadeIT {
     assertThat(first.getStatus()).isNotNull();
     assertThat(first.getResearcher()).isNotNull();
     assertThat(first.getPart()).isNotNull();
-  }
 
-  @Test
-  void get_researcher_demands_filtered_by_status_conforms_to_contract() {
+    // Status filter — only DRAFT demands returned
     createPersistedDemand(PostStatus.DRAFT);
-    createPersistedDemand(PostStatus.DRAFT);
-    createPersistedDemand(PostStatus.PUBLISHED);
 
-    ResponseEntity<DemandPageResponse> response =
+    ResponseEntity<DemandPageResponse> filtered =
         authenticatedClient.getResearcherDemandsWithHttpInfo(0, 10, DemandStatus.DRAFT);
 
-    assertThat(response.getStatusCode().value()).isEqualTo(HttpStatus.OK.value());
+    assertThat(filtered.getStatusCode().value()).isEqualTo(HttpStatus.OK.value());
 
-    DemandPageResponse page = response.getBody();
-    assertThat(page).isNotNull();
-    assertThat(page.getContent()).hasSize(2);
-    page.getContent().forEach(d -> assertThat(d.getStatus()).isEqualTo(DemandStatus.DRAFT));
-  }
+    DemandPageResponse filteredPage = filtered.getBody();
+    assertThat(filteredPage).isNotNull();
+    assertThat(filteredPage.getContent()).hasSize(2);
+    filteredPage.getContent().forEach(d -> assertThat(d.getStatus()).isEqualTo(DemandStatus.DRAFT));
 
-  @Test
-  void get_researcher_demands_returns_401_when_unauthenticated() {
+    // 401 — unauthenticated
     assertThatThrownBy(() -> unauthenticatedClient.getResearcherDemands(0, 10, null))
         .isInstanceOf(RestClientResponseException.class)
         .satisfies(
@@ -192,38 +181,54 @@ class DemandClientIT extends FacadeIT {
   // -------------------------------------------------------------------------
 
   @Test
-  void get_demand_by_id_response_conforms_to_contract() {
+  void get_demand_by_id_test() {
+    // Happy path — demand retrieved successfully
     JDemand persisted = createPersistedDemand(PostStatus.PUBLISHED);
 
-    ResponseEntity<Demand> response =
-        authenticatedClient.getDemandByIdWithHttpInfo(persisted.getId());
+    ResponseEntity<Demand> ok = authenticatedClient.getDemandByIdWithHttpInfo(persisted.getId());
 
-    assertThat(response.getStatusCode().value()).isEqualTo(HttpStatus.OK.value());
+    assertThat(ok.getStatusCode().value()).isEqualTo(HttpStatus.OK.value());
 
-    Demand demand = response.getBody();
+    Demand demand = ok.getBody();
     assertThat(demand).isNotNull();
     assertThat(demand.getId().toString()).isEqualTo(persisted.getId());
     assertThat(demand.getDescription()).isEqualTo(TEST_DESCRIPTION);
     assertThat(demand.getStatus()).isNotNull();
     assertThat(demand.getResearcher()).isNotNull();
     assertThat(demand.getPart()).isNotNull();
-  }
 
-  @Test
-  void get_demand_by_id_returns_404_for_nonexistent_demand() {
+    // 404 — nonexistent demand
     assertThatThrownBy(() -> authenticatedClient.getDemandById("nonexistent-id"))
         .isInstanceOf(RestClientResponseException.class)
         .satisfies(
             ex ->
                 assertThat(((RestClientResponseException) ex).getStatusCode().value())
                     .isEqualTo(HttpStatus.NOT_FOUND.value()));
+
+    // 401 — unauthenticated
+    assertThatThrownBy(() -> unauthenticatedClient.getDemandById(persisted.getId()))
+        .isInstanceOf(RestClientResponseException.class)
+        .satisfies(
+            ex ->
+                assertThat(((RestClientResponseException) ex).getStatusCode().value())
+                    .isEqualTo(HttpStatus.UNAUTHORIZED.value()));
   }
 
+  // -------------------------------------------------------------------------
+  // GET /v1/demands/{demandId}/offers
+  // -------------------------------------------------------------------------
+
   @Test
-  void get_demand_by_id_returns_401_when_unauthenticated() {
+  void get_offers_for_demand_test() {
     JDemand persisted = createPersistedDemand(PostStatus.PUBLISHED);
 
-    assertThatThrownBy(() -> unauthenticatedClient.getDemandById(persisted.getId()))
+    ResponseEntity<?> ok =
+        authenticatedClient.getOffersForDemandWithHttpInfo(persisted.getId(), 0, 10);
+
+    assertThat(ok.getStatusCode().value()).isEqualTo(HttpStatus.OK.value());
+
+    // 401 — unauthenticated
+    assertThatThrownBy(() -> unauthenticatedClient.getOffersForDemand(persisted.getId(), 0, 10))
         .isInstanceOf(RestClientResponseException.class)
         .satisfies(
             ex ->
@@ -236,23 +241,22 @@ class DemandClientIT extends FacadeIT {
   // -------------------------------------------------------------------------
 
   @Test
-  void update_demand_status_response_conforms_to_contract() {
+  void update_demand_status_test() {
+    // Happy path — status transitioned successfully
     JDemand persisted = createPersistedDemand(PostStatus.DRAFT);
 
-    ResponseEntity<Demand> response =
+    ResponseEntity<Demand> ok =
         authenticatedClient.updateDemandStatusWithHttpInfo(
             persisted.getId(), DemandStatus.PUBLISHED);
 
-    assertThat(response.getStatusCode().value()).isEqualTo(HttpStatus.OK.value());
+    assertThat(ok.getStatusCode().value()).isEqualTo(HttpStatus.OK.value());
 
-    Demand demand = response.getBody();
+    Demand demand = ok.getBody();
     assertThat(demand).isNotNull();
     assertThat(demand.getId().toString()).isEqualTo(persisted.getId());
     assertThat(demand.getStatus()).isEqualTo(DemandStatus.PUBLISHED);
-  }
 
-  @Test
-  void update_demand_status_returns_404_for_nonexistent_demand() {
+    // 404 — nonexistent demand
     assertThatThrownBy(
             () -> authenticatedClient.updateDemandStatus("nonexistent-id", DemandStatus.PUBLISHED))
         .isInstanceOf(RestClientResponseException.class)
@@ -260,15 +264,12 @@ class DemandClientIT extends FacadeIT {
             ex ->
                 assertThat(((RestClientResponseException) ex).getStatusCode().value())
                     .isEqualTo(HttpStatus.NOT_FOUND.value()));
-  }
 
-  @Test
-  void update_demand_status_returns_401_when_unauthenticated() {
-    JDemand persisted = createPersistedDemand(PostStatus.DRAFT);
+    // 401 — unauthenticated
+    JDemand another = createPersistedDemand(PostStatus.DRAFT);
 
     assertThatThrownBy(
-            () ->
-                unauthenticatedClient.updateDemandStatus(persisted.getId(), DemandStatus.PUBLISHED))
+            () -> unauthenticatedClient.updateDemandStatus(another.getId(), DemandStatus.PUBLISHED))
         .isInstanceOf(RestClientResponseException.class)
         .satisfies(
             ex ->
@@ -279,9 +280,7 @@ class DemandClientIT extends FacadeIT {
   private DemandsApi buildClient(String bearerToken) {
     RestClient.Builder builder = RestClient.builder().baseUrl(format("%s:%s", BASE_URL, port));
 
-    if (bearerToken != null) {
-      builder.defaultHeader("Authorization", "Bearer " + bearerToken);
-    }
+    if (bearerToken != null) builder.defaultHeader("Authorization", "Bearer " + bearerToken);
 
     ApiClient apiClient = new ApiClient(builder.build());
     apiClient.setBasePath(format("%s:%s", BASE_URL, port));
@@ -308,9 +307,9 @@ class DemandClientIT extends FacadeIT {
         Demand.class);
   }
 
-  private ResponseEntity<String> createDemandViaMultipartRaw(String description) {
+  private ResponseEntity<String> createDemandViaMultipartRaw() {
     MultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
-    formData.add("description", description);
+    formData.add("description", "");
     formData.add("part.name", TEST_PART_NAME);
     formData.add("part.carBrand", TEST_CAR_BRAND);
     formData.add("part.carModel", TEST_CAR_MODEL);

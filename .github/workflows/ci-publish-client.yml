@@ -48,10 +48,10 @@ jobs:
         run: ./gradlew generateJavaClient -PskipClientPublish
 
       - name: Grant execute permission for publish script
-        run: chmod +x .shell/publish-gen-to-github-packages.sh
+        run: chmod +x .shell/publish-gen-to-github-package.sh
 
       - name: Publish client to GitHub Packages
-        run: bash .shell/publish-gen-to-github-packages.sh
+        run: bash .shell/publish-gen-to-github-package.sh
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

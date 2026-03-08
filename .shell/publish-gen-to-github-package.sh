@@ -13,12 +13,14 @@ readonly POM_FILE="${GENERATED_DIR}/pom.xml"
 readonly MAVEN_SETTINGS_FILE="${PROJECT_ROOT}/.maven-settings.xml"
 readonly VERSION_OUTPUT_FILE="${PROJECT_ROOT}/build/published-client-version.txt"
 readonly REQUIRED_ENV_VARS=("GITHUB_ACTOR" "GITHUB_TOKEN" "GITHUB_REPOSITORY")
+readonly GITHUB_ORG="devik-apps"
 
 readonly GROUP_ID="com.devikapps"
 readonly ARTIFACT_ID="vaikaparts-gen"
 readonly INITIAL_VERSION="1.0.0"
 
-log_info() { echo "[INFO]  $*"; }
+# All log functions write to stderr so they never pollute stdout captures via $()
+log_info() { echo "[INFO]  $*" >&2; }
 log_warn() { echo "[WARN]  $*" >&2; }
 log_error() { echo "[ERROR] $*" >&2; }
 
@@ -66,7 +68,7 @@ validate_token_format() {
 }
 
 resolve_latest_published_version() {
-	local api_url="https://api.github.com/user/packages/maven/${GROUP_ID}.${ARTIFACT_ID}/versions"
+	local api_url="https://api.github.com/orgs/${GITHUB_ORG}/packages/maven/${GROUP_ID}.${ARTIFACT_ID}/versions"
 	local response
 	local http_status
 
@@ -81,6 +83,7 @@ resolve_latest_published_version() {
 	body=$(echo "${response}" | head -n -1)
 
 	if [[ "${http_status}" == "404" ]]; then
+		# Package does not exist yet — return empty string, caller handles initial version
 		echo ""
 		return 0
 	fi
@@ -117,6 +120,9 @@ increment_patch_version() {
 }
 
 resolve_next_version() {
+	# NOTE: this function only writes the resolved version to stdout.
+	# All logging goes to stderr via log_info/log_warn/log_error so that
+	# callers capturing output via $() receive a clean version string only.
 	log_info "Resolving next version from GitHub Packages..."
 
 	local latest_version
@@ -132,6 +138,7 @@ resolve_next_version() {
 		log_info "Next version             : ${next_version}"
 	fi
 
+	# Only the version string goes to stdout
 	echo "${next_version}"
 }
 
