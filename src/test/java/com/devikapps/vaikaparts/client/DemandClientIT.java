@@ -9,7 +9,6 @@ import com.devikapps.vaikaparts.client.api.DemandsApi;
 import com.devikapps.vaikaparts.client.invoker.ApiClient;
 import com.devikapps.vaikaparts.client.model.Demand;
 import com.devikapps.vaikaparts.client.model.DemandPageResponse;
-import com.devikapps.vaikaparts.client.model.DemandStatus;
 import com.devikapps.vaikaparts.client.model.PartCategory;
 import com.devikapps.vaikaparts.conf.FacadeIT;
 import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
@@ -158,14 +157,20 @@ class DemandClientIT extends FacadeIT {
     createPersistedDemand(PostStatus.DRAFT);
 
     ResponseEntity<DemandPageResponse> filtered =
-        authenticatedClient.getResearcherDemandsWithHttpInfo(0, 10, DemandStatus.DRAFT);
+        authenticatedClient.getResearcherDemandsWithHttpInfo(
+            0, 10, com.devikapps.vaikaparts.client.model.PostStatus.DRAFT);
 
     assertThat(filtered.getStatusCode().value()).isEqualTo(HttpStatus.OK.value());
 
     DemandPageResponse filteredPage = filtered.getBody();
     assertThat(filteredPage).isNotNull();
     assertThat(filteredPage.getContent()).hasSize(2);
-    filteredPage.getContent().forEach(d -> assertThat(d.getStatus()).isEqualTo(DemandStatus.DRAFT));
+    filteredPage
+        .getContent()
+        .forEach(
+            d ->
+                assertThat(d.getStatus())
+                    .isEqualTo(com.devikapps.vaikaparts.client.model.PostStatus.DRAFT));
 
     // 401 — unauthenticated
     assertThatThrownBy(() -> unauthenticatedClient.getResearcherDemands(0, 10, null))
@@ -247,18 +252,21 @@ class DemandClientIT extends FacadeIT {
 
     ResponseEntity<Demand> ok =
         authenticatedClient.updateDemandStatusWithHttpInfo(
-            persisted.getId(), DemandStatus.PUBLISHED);
+            persisted.getId(), com.devikapps.vaikaparts.client.model.PostStatus.PUBLISHED);
 
     assertThat(ok.getStatusCode().value()).isEqualTo(HttpStatus.OK.value());
 
     Demand demand = ok.getBody();
     assertThat(demand).isNotNull();
     assertThat(demand.getId().toString()).isEqualTo(persisted.getId());
-    assertThat(demand.getStatus()).isEqualTo(DemandStatus.PUBLISHED);
+    assertThat(demand.getStatus())
+        .isEqualTo(com.devikapps.vaikaparts.client.model.PostStatus.PUBLISHED);
 
     // 404 — nonexistent demand
     assertThatThrownBy(
-            () -> authenticatedClient.updateDemandStatus("nonexistent-id", DemandStatus.PUBLISHED))
+            () ->
+                authenticatedClient.updateDemandStatus(
+                    "nonexistent-id", com.devikapps.vaikaparts.client.model.PostStatus.PUBLISHED))
         .isInstanceOf(RestClientResponseException.class)
         .satisfies(
             ex ->
@@ -269,7 +277,9 @@ class DemandClientIT extends FacadeIT {
     JDemand another = createPersistedDemand(PostStatus.DRAFT);
 
     assertThatThrownBy(
-            () -> unauthenticatedClient.updateDemandStatus(another.getId(), DemandStatus.PUBLISHED))
+            () ->
+                unauthenticatedClient.updateDemandStatus(
+                    another.getId(), com.devikapps.vaikaparts.client.model.PostStatus.PUBLISHED))
         .isInstanceOf(RestClientResponseException.class)
         .satisfies(
             ex ->
