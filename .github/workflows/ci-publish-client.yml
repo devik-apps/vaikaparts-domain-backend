@@ -66,6 +66,31 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Published version: ${VERSION}"
 
+      - name: Write dependency snippets file
+        run: |
+          VERSION="${{ steps.read_version.outputs.version }}"
+          REPO="${{ github.repository }}"
+          GROUP="com.devikapps"
+          ARTIFACT="vaikaparts-gen"
+
+          cat > build/client-dependency-snippets.txt <<EOF
+          Maven:
+            <dependency>
+              <groupId>${GROUP}</groupId>
+              <artifactId>${ARTIFACT}</artifactId>
+              <version>${VERSION}</version>
+            </dependency>
+
+          Gradle Kotlin DSL:
+            implementation("${GROUP}:${ARTIFACT}:${VERSION}")
+
+          Gradle Groovy DSL:
+            implementation '${GROUP}:${ARTIFACT}:${VERSION}'
+
+          Repository (Maven/Gradle):
+            https://maven.pkg.github.com/${REPO}
+          EOF
+
       - name: Tag commit with published version
         run: |
           git config user.name "github-actions[bot]"

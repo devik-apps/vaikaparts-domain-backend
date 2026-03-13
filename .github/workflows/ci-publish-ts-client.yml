@@ -1,0 +1,85 @@
+name: CI - Publish Generated TypeScript Client
+
+on:
+  push:
+    branches: [ "**" ]
+    paths:
+      - "doc/api.yaml"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Grant execute permission for Gradle wrapper
+        run: chmod +x gradlew
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Generate TypeScript client
+        run: ./gradlew generateTypeScriptClient -PskipClientPublish
+
+      - name: Grant execute permission for publish script
+        run: chmod +x .shell/publish-ts-client-to-github-package.sh
+
+      - name: Generate TypeScript client
+        run: ./gradlew generateTypeScriptClient -PskipClientPublish
+
+      - name: Fix barrel export collisions in generated TypeScript client
+        run: |
+          chmod +x .shell/fix-ts-client-barrel-exports.sh
+          bash .shell/fix-ts-client-barrel-exports.sh
+
+      - name: Publish TypeScript client to GitHub Packages
+        run: bash .shell/publish-ts-client-to-github-package.sh
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Read published version
+        id: read_version
+        run: |
+          VERSION=$(cat build/published-ts-client-version.txt)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Published version: ${VERSION}"
+
+      - name: Tag commit with published TypeScript client version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "client-ts-v${{ steps.read_version.outputs.version }}" "${{ github.sha }}"
+          git push origin "client-ts-v${{ steps.read_version.outputs.version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

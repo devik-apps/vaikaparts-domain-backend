@@ -236,6 +236,29 @@ tasks.register('generateJavaClient', GenerateTask) {
     enablePostProcessFile = false
 }
 
+tasks.register('generateTypeScriptClient', GenerateTask) {
+    generatorName = "typescript-fetch"
+    inputSpec = file("${projectDir}/doc/api.yaml").toURI().toString()
+    outputDir = layout.buildDirectory.dir("generated/openapi-ts-client").get().asFile.absolutePath
+
+    configOptions = [
+            npmName                  : "vaikaparts-gen",
+            npmVersion               : "0.0.0-PLACEHOLDER",
+            supportsES6              : "true",
+            withInterfaces           : "true",
+            typescriptThreePlus      : "true",
+            hideGenerationTimestamp  : "true",
+            useSingleRequestParameter: "true",
+            modelPropertyNaming      : "original",
+            enumPropertyNaming       : "original",
+    ]
+
+    skipValidateSpec = false
+    logToStderr = true
+    generateAliasAsModel = false
+    enablePostProcessFile = false
+}
+
 tasks.register('publishClientToMavenLocal', Exec) {
     dependsOn tasks.named('generateJavaClient')
 
