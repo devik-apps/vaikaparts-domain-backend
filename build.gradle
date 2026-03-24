@@ -84,8 +84,8 @@ dependencies {
     implementation 'org.owasp.encoder:encoder:1.4.0'
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
-    implementation 'software.amazon.awssdk:s3:2.42.17'
-    implementation 'software.amazon.awssdk:s3-transfer-manager:2.42.17'
+    implementation 'software.amazon.awssdk:s3:2.42.19'
+    implementation 'software.amazon.awssdk:s3-transfer-manager:2.42.19'
 
     runtimeOnly 'org.postgresql:postgresql'
 
@@ -124,7 +124,7 @@ dependencies {
     testImplementation 'io.swagger.core.v3:swagger-annotations:2.2.45'
     implementation "com.devikapps:vaikaparts-gen:${resolveClientVersion()}"
     implementation 'io.swagger.core.v3:swagger-annotations:2.2.45'
-    implementation 'org.openapitools:jackson-databind-nullable:0.2.9'
+    implementation 'org.openapitools:jackson-databind-nullable:0.2.10'
 }
 
 
