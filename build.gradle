@@ -31,6 +31,15 @@ repositories {
             password = System.getenv("GITHUB_TOKEN") ?: project.findProperty("gpr.key") ?: ""
         }
     }
+
+    maven {
+        name = "VaikapartsPecuniaRepo"
+        url = uri("https://maven.pkg.github.com/devik-apps/vaikaparts-pecunia")
+        credentials {
+            username = System.getenv("GITHUB_ACTOR") ?: project.findProperty("gpr.user") ?: ""
+            password = System.getenv("GITHUB_TOKEN") ?: project.findProperty("gpr.key") ?: ""
+        }
+    }
     mavenCentral()
 }
 
@@ -125,6 +134,8 @@ dependencies {
     implementation "com.devikapps:vaikaparts-gen:${resolveClientVersion()}"
     implementation 'io.swagger.core.v3:swagger-annotations:2.2.45'
     implementation 'org.openapitools:jackson-databind-nullable:0.2.10'
+
+    implementation 'com.devikapps.vaikaparts.pecunia:vaikaparts-pecunia-client-gen:1.0.0'
 }
 
 
