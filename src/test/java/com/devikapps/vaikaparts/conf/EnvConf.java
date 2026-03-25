@@ -24,5 +24,6 @@ public class EnvConf {
 
     registry.add("payment.base-url", () -> PAYMENT_BASE_URL);
     registry.add("payment.api-key", () -> PAYMENT_API_KEY);
+    registry.add("vaikaparts.payment.policy.unlock-profile", () -> "100");
   }
 }

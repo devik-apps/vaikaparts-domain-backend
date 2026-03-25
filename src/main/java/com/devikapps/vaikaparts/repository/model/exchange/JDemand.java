@@ -72,11 +72,7 @@ public class JDemand implements StatusAware {
   @JoinColumn(name = "researcher_id", nullable = false)
   private JResearcher researcher;
 
-  @OneToOne(
-      mappedBy = "demand",
-      cascade = CascadeType.ALL,
-      orphanRemoval = true,
-      fetch = FetchType.LAZY)
+  @OneToOne(mappedBy = "demand", cascade = CascadeType.ALL, orphanRemoval = true)
   private JPart part;
 
   @OneToMany(mappedBy = "demand", fetch = FetchType.LAZY)
