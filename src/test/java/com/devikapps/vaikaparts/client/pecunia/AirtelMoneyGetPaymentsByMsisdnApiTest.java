@@ -22,10 +22,6 @@ public class AirtelMoneyGetPaymentsByMsisdnApiTest extends AbstractPecuniaTestBa
     subject = new AirtelMoneyApi(apiClient);
   }
 
-  // -------------------------------------------------------------------------
-  // Response deserialization
-  // -------------------------------------------------------------------------
-
   @Test
   void should_return_non_empty_content_on_successful_retrieval() {
     mockWebServer.enqueue(jsonResponse(200, buildPageResponseBody(1, 1, false, true)));
@@ -195,10 +191,6 @@ public class AirtelMoneyGetPaymentsByMsisdnApiTest extends AbstractPecuniaTestBa
     assertEquals(10, response.getPageable().getPageSize());
   }
 
-  // -------------------------------------------------------------------------
-  // HTTP request shape
-  // -------------------------------------------------------------------------
-
   @Test
   void should_send_get_request_to_correct_path() throws Exception {
     mockWebServer.enqueue(jsonResponse(200, buildPageResponseBody(1, 1, false, true)));
@@ -246,10 +238,6 @@ public class AirtelMoneyGetPaymentsByMsisdnApiTest extends AbstractPecuniaTestBa
     final RecordedRequest recorded = mockWebServer.takeRequest();
     assertEquals(API_KEY, recorded.getHeader("X-API-KEY"));
   }
-
-  // -------------------------------------------------------------------------
-  // Error codes
-  // -------------------------------------------------------------------------
 
   @Test
   void should_throw_on_400_bad_request() {
@@ -305,20 +293,12 @@ public class AirtelMoneyGetPaymentsByMsisdnApiTest extends AbstractPecuniaTestBa
         () -> subject.getAirtelMoneyPaymentsByCustomerMsisdn(CUSTOMER_MSISDN_PLAIN, 0, 10));
   }
 
-  // -------------------------------------------------------------------------
-  // Null-parameter guards
-  // -------------------------------------------------------------------------
-
   @Test
   void should_throw_when_customer_msisdn_is_null() {
     assertThrows(
         RestClientResponseException.class,
         () -> subject.getAirtelMoneyPaymentsByCustomerMsisdn(null, 0, 10));
   }
-
-  // -------------------------------------------------------------------------
-  // Helpers
-  // -------------------------------------------------------------------------
 
   private String buildPageResponseBody(
       final int totalPages, final long totalElements, final boolean last, final boolean first) {

@@ -1,5 +1,6 @@
 package com.devikapps.vaikaparts.client.pecunia;
 
+import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -28,10 +29,6 @@ public class MvolaInitiatePaymentApiTest extends AbstractPecuniaTestBase {
   void setUp() {
     subject = new MVolaApi(apiClient);
   }
-
-  // -------------------------------------------------------------------------
-  // Response deserialization
-  // -------------------------------------------------------------------------
 
   @Test
   void should_return_payment_id_on_successful_initiation() {
@@ -172,10 +169,6 @@ public class MvolaInitiatePaymentApiTest extends AbstractPecuniaTestBase {
     assertNotNull(response.getCreatedAt());
   }
 
-  // -------------------------------------------------------------------------
-  // HTTP request shape
-  // -------------------------------------------------------------------------
-
   @Test
   void should_send_post_request_to_correct_path() throws Exception {
     mockWebServer.enqueue(jsonResponse(201, buildInitiateSuccessBody()));
@@ -205,7 +198,7 @@ public class MvolaInitiatePaymentApiTest extends AbstractPecuniaTestBase {
 
     final RecordedRequest recorded = mockWebServer.takeRequest();
     assertNotNull(recorded.getHeader("Content-Type"));
-    assertTrue(recorded.getHeader("Content-Type").contains("application/json"));
+    assertTrue(requireNonNull(recorded.getHeader("Content-Type")).contains("application/json"));
   }
 
   @Test
@@ -251,10 +244,6 @@ public class MvolaInitiatePaymentApiTest extends AbstractPecuniaTestBase {
     final String body = recorded.getBody().readUtf8();
     assertTrue(body.contains("PROFILE_UNLOCK"));
   }
-
-  // -------------------------------------------------------------------------
-  // Error codes
-  // -------------------------------------------------------------------------
 
   @Test
   void should_throw_on_400_bad_request() {
@@ -312,18 +301,10 @@ public class MvolaInitiatePaymentApiTest extends AbstractPecuniaTestBase {
         RestClientResponseException.class, () -> subject.initiateMvolaPayment(buildValidRequest()));
   }
 
-  // -------------------------------------------------------------------------
-  // Null-parameter guards
-  // -------------------------------------------------------------------------
-
   @Test
   void should_throw_when_request_is_null() {
     assertThrows(RestClientResponseException.class, () -> subject.initiateMvolaPayment(null));
   }
-
-  // -------------------------------------------------------------------------
-  // Helpers
-  // -------------------------------------------------------------------------
 
   private MvolaPaymentRequest buildValidRequest() {
     final PaymentParty payer = new PaymentParty();

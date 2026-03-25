@@ -26,10 +26,6 @@ public class AirtelMoneyGetPaymentApiTest extends AbstractPecuniaTestBase {
     subject = new AirtelMoneyApi(apiClient);
   }
 
-  // -------------------------------------------------------------------------
-  // Response deserialization
-  // -------------------------------------------------------------------------
-
   @Test
   void should_return_payment_id_on_successful_retrieval() {
     mockWebServer.enqueue(jsonResponse(200, buildGetSuccessBody(VerificationStatus.SUCCESS)));
@@ -178,10 +174,6 @@ public class AirtelMoneyGetPaymentApiTest extends AbstractPecuniaTestBase {
     assertNotNull(response.getUpdatedAt());
   }
 
-  // -------------------------------------------------------------------------
-  // HTTP request shape
-  // -------------------------------------------------------------------------
-
   @Test
   void should_send_get_request_to_correct_path() throws Exception {
     mockWebServer.enqueue(jsonResponse(200, buildGetSuccessBody(VerificationStatus.SUCCESS)));
@@ -215,10 +207,6 @@ public class AirtelMoneyGetPaymentApiTest extends AbstractPecuniaTestBase {
     final RecordedRequest recorded = mockWebServer.takeRequest();
     assertEquals(API_KEY, recorded.getHeader("X-API-KEY"));
   }
-
-  // -------------------------------------------------------------------------
-  // Error codes
-  // -------------------------------------------------------------------------
 
   @Test
   void should_throw_on_400_bad_request() {
@@ -284,18 +272,10 @@ public class AirtelMoneyGetPaymentApiTest extends AbstractPecuniaTestBase {
         RestClientResponseException.class, () -> subject.getAirtelMoneyPayment(AIRTEL_PAYMENT_ID));
   }
 
-  // -------------------------------------------------------------------------
-  // Null-parameter guards
-  // -------------------------------------------------------------------------
-
   @Test
   void should_throw_when_transaction_id_is_null() {
     assertThrows(RestClientResponseException.class, () -> subject.getAirtelMoneyPayment(null));
   }
-
-  // -------------------------------------------------------------------------
-  // Helpers
-  // -------------------------------------------------------------------------
 
   private String buildGetSuccessBody(final VerificationStatus status) {
     return """

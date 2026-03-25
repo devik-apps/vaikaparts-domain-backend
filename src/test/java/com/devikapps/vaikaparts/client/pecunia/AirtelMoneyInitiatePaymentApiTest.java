@@ -148,10 +148,6 @@ public class AirtelMoneyInitiatePaymentApiTest extends AbstractPecuniaTestBase {
     assertNotNull(response.getCreatedAt());
   }
 
-  // -------------------------------------------------------------------------
-  // HTTP request shape
-  // -------------------------------------------------------------------------
-
   @Test
   void should_send_post_request_to_correct_path() throws Exception {
     mockWebServer.enqueue(jsonResponse(201, buildInitiateSuccessBody()));
@@ -228,10 +224,6 @@ public class AirtelMoneyInitiatePaymentApiTest extends AbstractPecuniaTestBase {
     assertTrue(body.contains("PROFILE_UNLOCK"));
   }
 
-  // -------------------------------------------------------------------------
-  // Error codes
-  // -------------------------------------------------------------------------
-
   @Test
   void should_throw_on_400_bad_request() {
     mockWebServer.enqueue(jsonResponse(400, "{}"));
@@ -295,18 +287,10 @@ public class AirtelMoneyInitiatePaymentApiTest extends AbstractPecuniaTestBase {
         () -> subject.initiateAirtelMoneyPayment(buildValidRequest()));
   }
 
-  // -------------------------------------------------------------------------
-  // Null-parameter guards
-  // -------------------------------------------------------------------------
-
   @Test
   void should_throw_when_request_is_null() {
     assertThrows(RestClientResponseException.class, () -> subject.initiateAirtelMoneyPayment(null));
   }
-
-  // -------------------------------------------------------------------------
-  // Helpers
-  // -------------------------------------------------------------------------
 
   private AirtelMoneyPaymentRequest buildValidRequest() {
     final PaymentParty payer = new PaymentParty();
