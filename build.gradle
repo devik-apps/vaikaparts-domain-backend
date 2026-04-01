@@ -93,8 +93,8 @@ dependencies {
     implementation 'org.owasp.encoder:encoder:1.4.0'
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
-    implementation 'software.amazon.awssdk:s3:2.42.20'
-    implementation 'software.amazon.awssdk:s3-transfer-manager:2.42.20'
+    implementation 'software.amazon.awssdk:s3:2.42.25'
+    implementation 'software.amazon.awssdk:s3-transfer-manager:2.42.25'
 
     runtimeOnly 'org.postgresql:postgresql'
 
@@ -130,9 +130,9 @@ dependencies {
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
     testCompileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 
-    testImplementation 'io.swagger.core.v3:swagger-annotations:2.2.45'
+    testImplementation 'io.swagger.core.v3:swagger-annotations:2.2.46'
     implementation "com.devikapps:vaikaparts-gen:${resolveClientVersion()}"
-    implementation 'io.swagger.core.v3:swagger-annotations:2.2.45'
+    implementation 'io.swagger.core.v3:swagger-annotations:2.2.46'
     implementation 'org.openapitools:jackson-databind-nullable:0.2.10'
 
     implementation 'com.devikapps.vaikaparts.pecunia:vaikaparts-pecunia-client-gen:1.0.0'
