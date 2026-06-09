@@ -5,7 +5,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.12'
     id 'io.spring.dependency-management' version '1.1.7'
-    id 'org.openapi.generator' version '7.21.0'
+    id 'org.openapi.generator' version '7.23.0'
 }
 
 java {
@@ -73,7 +73,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.security:spring-security-crypto'
-    implementation 'org.bouncycastle:bcprov-jdk18on:1.83'
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.84'
 
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
@@ -88,18 +88,18 @@ dependencies {
     testAnnotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
     annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.16'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17'
 
     implementation 'org.owasp.encoder:encoder:1.4.0'
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
-    implementation 'software.amazon.awssdk:s3:2.42.20'
-    implementation 'software.amazon.awssdk:s3-transfer-manager:2.42.20'
+    implementation 'software.amazon.awssdk:s3:2.46.6'
+    implementation 'software.amazon.awssdk:s3-transfer-manager:2.46.6'
 
     runtimeOnly 'org.postgresql:postgresql'
 
     implementation 'org.apache.commons:commons-lang3:3.20.0'
-    implementation 'commons-io:commons-io:2.21.0'
+    implementation 'commons-io:commons-io:2.22.0'
     implementation 'org.apache.commons:commons-compress:1.28.0'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -130,15 +130,15 @@ dependencies {
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
     testCompileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 
-    testImplementation 'io.swagger.core.v3:swagger-annotations:2.2.45'
+    testImplementation 'io.swagger.core.v3:swagger-annotations:2.2.50'
     implementation "com.devikapps:vaikaparts-gen:${resolveClientVersion()}"
-    implementation 'io.swagger.core.v3:swagger-annotations:2.2.45'
+    implementation 'io.swagger.core.v3:swagger-annotations:2.2.50'
     implementation 'org.openapitools:jackson-databind-nullable:0.2.10'
 
     implementation 'com.devikapps.vaikaparts.pecunia:vaikaparts-pecunia-client-gen:1.0.0'
 
-    implementation 'com.squareup.okhttp3:okhttp:5.3.2'
-    testImplementation 'com.squareup.okhttp3:mockwebserver:5.3.2'
+    implementation 'com.squareup.okhttp3:okhttp:5.4.0'
+    testImplementation 'com.squareup.okhttp3:mockwebserver:5.4.0'
 }
 
 
