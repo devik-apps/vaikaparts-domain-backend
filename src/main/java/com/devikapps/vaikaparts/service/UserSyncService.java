@@ -61,6 +61,7 @@ public class UserSyncService {
     }
 
     var userType = extractUserType(profile.appMetadata());
+    log.info("inserting user with ROLE {} ",userType);
     var newUser = createUserByType(profile, userType);
 
     userRepository.save(newUser);
@@ -116,6 +117,7 @@ public class UserSyncService {
   }
 
   private UserType extractUserType(Map<String, Object> appMetadata) {
+    log.info("ROLE USER IN METADATA {}",appMetadata.get(USER_TYPE_KEY));
     return Optional.ofNullable(appMetadata)
         .map(metadata -> metadata.get(USER_TYPE_KEY))
         .map(Object::toString)
