@@ -2,7 +2,6 @@ package com.devikapps.vaikaparts.service;
 
 import static com.devikapps.vaikaparts.model.classifier.UserType.RESEARCHER;
 import static com.devikapps.vaikaparts.model.classifier.UserType.SELLER;
-import static java.time.LocalDateTime.now;
 import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
@@ -21,7 +20,7 @@ import com.devikapps.vaikaparts.repository.model.user.JManager;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.repository.model.user.JUser;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -97,7 +96,7 @@ public class UserSyncService {
 
     var user = findUserBySupabaseId(profileId);
     user.setStatus(UserStatus.DISABLED);
-    user.setUpdatedAt(now());
+    user.setUpdatedAt(OffsetDateTime.now());
 
     userRepository.save(user);
     log.info(
@@ -154,14 +153,14 @@ public class UserSyncService {
   }
 
   private JUser buildUserEntity(
-      ProfileRecord profile,
-      UserType userType,
-      String userId,
-      String email,
-      String name,
-      String phoneNumber,
-      LocalDateTime createdAt,
-      LocalDateTime updatedAt) {
+          ProfileRecord profile,
+          UserType userType,
+          String userId,
+          String email,
+          String name,
+          String phoneNumber,
+          OffsetDateTime createdAt,
+          OffsetDateTime updatedAt) {
 
     var profileId = profile.id();
     var metadata = profile.userMetadata();
@@ -206,8 +205,8 @@ public class UserSyncService {
       String phoneNumber,
       String userId,
       Location location,
-      LocalDateTime createdAt,
-      LocalDateTime updatedAt) {
+      OffsetDateTime createdAt,
+      OffsetDateTime updatedAt) {
     var finalLocation = (location == null) ? Location.getDefault() : location;
     return JResearcher.builder()
         .id(userId)
@@ -233,8 +232,8 @@ public class UserSyncService {
       String userId,
       Location location,
       LatLon latLon,
-      LocalDateTime createdAt,
-      LocalDateTime updatedAt) {
+      OffsetDateTime createdAt,
+      OffsetDateTime updatedAt) {
     var finalLocation = (location == null) ? Location.getDefault() : location;
     var finalLatLon = (latLon == null) ? LatLon.getDefault() : latLon;
     return JSeller.builder()
@@ -261,8 +260,8 @@ public class UserSyncService {
       String email,
       String phoneNumber,
       ManagerRole managerRole,
-      LocalDateTime createdAt,
-      LocalDateTime updatedAt) {
+      OffsetDateTime createdAt,
+      OffsetDateTime updatedAt) {
     return JManager.builder()
         .id(userId)
         .supabaseUserId(profileId)

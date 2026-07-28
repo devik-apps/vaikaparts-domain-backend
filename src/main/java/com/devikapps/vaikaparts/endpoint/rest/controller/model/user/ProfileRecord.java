@@ -3,6 +3,7 @@ package com.devikapps.vaikaparts.endpoint.rest.controller.model.user;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -14,6 +15,6 @@ public record ProfileRecord(
     @JsonProperty("profile_img_url") String profileImgUrl,
     @JsonProperty("user_metadata") Map<String, Object> userMetadata,
     @JsonProperty("app_metadata") Map<String, Object> appMetadata,
-    @JsonProperty("created_at") LocalDateTime createdAt,
-    @JsonProperty("updated_at") LocalDateTime updatedAt,
-    @JsonProperty("deleted_at") LocalDateTime deletedAt) {}
+    @JsonProperty("created_at") OffsetDateTime createdAt,
+    @JsonProperty("updated_at") OffsetDateTime updatedAt,
+    @JsonProperty("deleted_at") OffsetDateTime deletedAt) {}
