@@ -6,6 +6,8 @@ import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import java.net.URL;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -28,8 +30,8 @@ public abstract sealed class User permits Researcher, Seller, Manager {
   private URL profileImgUrl;
   private UserType userType;
   private UserStatus status;
-  private LocalDateTime createdAt;
-  private LocalDateTime updatedAt;
+  private OffsetDateTime createdAt;
+  private OffsetDateTime updatedAt;
 
   @Override
   public String toString() {
