@@ -60,7 +60,7 @@ public class UserSyncService {
       return;
     }
 
-    var userType = extractUserType(profile.userMetadata());
+    var userType = extractUserType(profile.appMetadata());
     var newUser = createUserByType(profile, userType);
 
     userRepository.save(newUser);
@@ -115,8 +115,8 @@ public class UserSyncService {
             });
   }
 
-  private UserType extractUserType(Map<String, Object> userMetadata) {
-    return Optional.ofNullable(userMetadata)
+  private UserType extractUserType(Map<String, Object> appMetadata) {
+    return Optional.ofNullable(appMetadata)
         .map(metadata -> metadata.get(USER_TYPE_KEY))
         .map(Object::toString)
         .map(String::toUpperCase)
@@ -164,7 +164,7 @@ public class UserSyncService {
 
     var profileId = profile.id();
     var metadata = profile.userMetadata();
-
+    var appMetadata = profile.appMetadata();
     return switch (userType) {
       case RESEARCHER -> {
         var location = extractLocation(metadata).orElse(null);
@@ -189,7 +189,7 @@ public class UserSyncService {
       }
       case MANAGER -> {
         var managerRole =
-            extractMetadataValue(metadata, MANAGER_ROLE_KEY)
+            extractMetadataValue(appMetadata, MANAGER_ROLE_KEY)
                 .flatMap(this::parseManagerRole)
                 .orElse(ManagerRole.ADMIN);
         yield buildManager(
@@ -279,13 +279,13 @@ public class UserSyncService {
 
   private void updateUserFields(JUser user, ProfileRecord profile) {
     Map<String, Object> metadata = profile.userMetadata();
-
+    Map<String,Object> appMetadata = profile.appMetadata();
     updateName(user, profile.name());
     updatePhoneNumber(user, profile.phoneNumber());
     updateProfileImage(user, profile.profileImgUrl());
     updateLocationFields(user, metadata);
     updateSellerFields(user, metadata);
-    updateManagerFields(user, metadata);
+    updateManagerFields(user, appMetadata);
   }
 
   private void updateName(JUser user, String profileName) {
