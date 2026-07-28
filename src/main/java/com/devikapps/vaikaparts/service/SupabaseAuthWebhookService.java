@@ -25,7 +25,7 @@ public class SupabaseAuthWebhookService {
 
   public Map<String, String> handleAuthWebhook(String rawPayload, String signature) {
     log.info("Processing Supabase Database webhook");
-    log.info("payload {}",rawPayload);
+
     validateWebhookSignature(signature);
     SupabaseWebhook webhook = parseWebhookPayload(rawPayload);
     String userId = processWebhookEvent(webhook);

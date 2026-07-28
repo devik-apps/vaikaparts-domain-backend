@@ -13,8 +13,8 @@ public record ProfileRecord(
     @JsonProperty("phone_number") String phoneNumber,
     @JsonProperty("name") String name,
     @JsonProperty("profile_img_url") String profileImgUrl,
-    @JsonProperty("user_metadata") Map<String, Object> userMetadata,
-    @JsonProperty("app_metadata") Map<String, Object> appMetadata,
+    @JsonProperty("raw_user_meta_data") Map<String, Object> userMetadata,
+    @JsonProperty("raw_app_meta_data") Map<String, Object> appMetadata,
     @JsonProperty("created_at") OffsetDateTime createdAt,
     @JsonProperty("updated_at") OffsetDateTime updatedAt,
     @JsonProperty("deleted_at") OffsetDateTime deletedAt) {}

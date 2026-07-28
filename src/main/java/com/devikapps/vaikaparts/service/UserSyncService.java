@@ -52,14 +52,14 @@ public class UserSyncService {
   public void handleUserCreated(SupabaseWebhook webhook) {
     var profile = webhook.record();
     var profileId = profile.id();
-
+    log.info("webhook body {}",webhook);
     log.info("Processing INSERT event for profile ID: {}", forJava(profileId));
 
     if (userRepository.existsBySupabaseUserId(profileId)) {
       log.warn("User with profile ID {} already exists, skipping creation", forJava(profileId));
       return;
     }
-
+    log.info("metadata {}",profile.appMetadata());
     var userType = extractUserType(profile.appMetadata());
     log.info("inserting user with ROLE {} ",userType);
     var newUser = createUserByType(profile, userType);
