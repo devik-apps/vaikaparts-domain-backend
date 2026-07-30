@@ -55,21 +55,14 @@ public class UserSyncService {
     log.info("webhook body {}",webhook);
     log.info("Processing INSERT event for profile ID: {}", forJava(profileId));
 
-    if (userRepository.existsBySupabaseUserId(profileId)) {
-      log.warn("User with profile ID {} already exists, skipping creation", forJava(profileId));
-      return;
-    }
     log.info("metadata {}",profile.appMetadata());
-    var userType = extractUserType(profile.appMetadata());
-    log.info("inserting user with ROLE {} ",userType);
-    var newUser = createUserByType(profile, userType);
-
-    userRepository.save(newUser);
-    log.info(
-        "Successfully created {} with ID {} for profile {}",
-        userType,
-        forJava(newUser.getId()),
-        forJava(profileId));
+    extractUserType(profile.appMetadata())
+        .ifPresentOrElse(
+            userType -> createUserIfAbsent(profile, userType),
+            () ->
+                log.info(
+                    "Skipping INSERT for profile {} because user_type is not available yet",
+                    forJava(profileId)));
   }
 
   @Transactional
@@ -79,13 +72,26 @@ public class UserSyncService {
 
     log.info("Processing UPDATE event for profile ID: {}", forJava(profileId));
 
-    var user = findUserBySupabaseId(profileId);
-    updateUserFields(user, profile);
-    user.setUpdatedAt(profile.updatedAt());
-
-    userRepository.save(user);
-    log.info(
-        "Successfully updated user {} for profile {}", forJava(user.getId()), forJava(profileId));
+    userRepository
+        .findBySupabaseUserId(profileId)
+        .ifPresentOrElse(
+            user -> {
+              updateUserFields(user, profile);
+              user.setUpdatedAt(profile.updatedAt());
+              userRepository.save(user);
+              log.info(
+                  "Successfully updated user {} for profile {}",
+                  forJava(user.getId()),
+                  forJava(profileId));
+            },
+            () ->
+                extractUserType(profile.appMetadata())
+                    .ifPresentOrElse(
+                        userType -> createUserIfAbsent(profile, userType),
+                        () ->
+                            log.info(
+                                "Skipping UPDATE for unknown profile {} because user_type is not available yet",
+                                forJava(profileId))));
   }
 
   @Transactional
@@ -116,27 +122,39 @@ public class UserSyncService {
             });
   }
 
-  private UserType extractUserType(Map<String, Object> appMetadata) {
-    log.info("ROLE USER IN METADATA {}",appMetadata.get(USER_TYPE_KEY));
+  private Optional<UserType> extractUserType(Map<String, Object> appMetadata) {
+    log.info("ROLE USER IN METADATA {}", extractMetadataValue(appMetadata, USER_TYPE_KEY).orElse(null));
     return Optional.ofNullable(appMetadata)
         .map(metadata -> metadata.get(USER_TYPE_KEY))
         .map(Object::toString)
         .map(String::toUpperCase)
-        .flatMap(this::parseUserType)
-        .orElseGet(
-            () -> {
-              log.debug("No user_type in metadata, defaulting to RESEARCHER");
-              return RESEARCHER;
-            });
+        .flatMap(this::parseUserType);
   }
 
   private Optional<UserType> parseUserType(String typeStr) {
     try {
       return Optional.of(UserType.valueOf(typeStr));
     } catch (IllegalArgumentException e) {
-      log.warn("Invalid user_type '{}' in metadata, defaulting to RESEARCHER", forJava(typeStr));
+      log.warn("Invalid user_type '{}' in metadata", forJava(typeStr));
       return Optional.empty();
     }
+  }
+
+  private void createUserIfAbsent(ProfileRecord profile, UserType userType) {
+    var profileId = profile.id();
+    if (userRepository.existsBySupabaseUserId(profileId)) {
+      log.warn("User with profile ID {} already exists, skipping creation", forJava(profileId));
+      return;
+    }
+
+    log.info("Creating user with role {}", userType);
+    var newUser = createUserByType(profile, userType);
+    userRepository.save(newUser);
+    log.info(
+        "Successfully created {} with ID {} for profile {}",
+        userType,
+        forJava(newUser.getId()),
+        forJava(profileId));
   }
 
   private JUser createUserByType(ProfileRecord profile, UserType userType) {

@@ -10,7 +10,7 @@ import java.util.Map;
 public record ProfileRecord(
     @JsonProperty("id") String id,
     @JsonProperty("email") String email,
-    @JsonProperty("phone_number") String phoneNumber,
+    @JsonProperty("phone") String phoneNumber,
     @JsonProperty("name") String name,
     @JsonProperty("profile_img_url") String profileImgUrl,
     @JsonProperty("raw_user_meta_data") Map<String, Object> userMetadata,
