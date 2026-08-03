@@ -15,6 +15,8 @@ import com.devikapps.vaikaparts.exception.JwtClaimExtractionException;
 import jakarta.annotation.PostConstruct;
 
 import java.net.URI;
+import java.security.PublicKey;
+import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Map;
 import java.util.Optional;
@@ -159,9 +161,9 @@ public class JwtValidationService {
 
   public DecodedJWT validateJWT(DecodedJWT jwt,String token) throws JwkException{
     Jwk jwk = jwkProvider.get(jwt.getKeyId());
-    RSAPublicKey publicKey = (RSAPublicKey) jwk.getPublicKey();
+    ECPublicKey publicKey = (ECPublicKey) jwk.getPublicKey();
 
-    Algorithm algorithm = Algorithm.RSA256(publicKey, null);
+    Algorithm algorithm = Algorithm.ECDSA256(publicKey, null);
     JWTVerifier verifier = JWT.require(algorithm).withIssuer(issuer)
             .withAudience("authenticated") // Recommandé par Supabase
             .build();
