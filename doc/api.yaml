@@ -640,6 +640,13 @@ paths:
         bound under `part.images`; maximum 5 files per demand.
 
         **Authorization**: Researcher role required.
+      parameters:
+        - name: published
+          in: query
+          required: false
+          description: apply or not default published status on the to be created demand.
+          schema:
+            type: boolean
       requestBody:
         required: true
         content:
