@@ -116,8 +116,8 @@ dependencies {
 
     testImplementation 'org.wiremock:wiremock-standalone:3.13.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testImplementation 'com.icegreen:greenmail:2.1.8'
-    testImplementation 'com.icegreen:greenmail-junit5:2.1.8'
+    testImplementation 'com.icegreen:greenmail:2.1.12'
+    testImplementation 'com.icegreen:greenmail-junit5:2.1.12'
 
     implementation 'com.auth0:java-jwt:4.5.1'
     implementation 'com.auth0:jwks-rsa:0.23.0'
