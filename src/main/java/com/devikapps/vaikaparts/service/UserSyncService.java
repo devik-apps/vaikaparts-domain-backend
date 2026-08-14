@@ -79,6 +79,7 @@ public class UserSyncService {
               updateUserFields(user, profile);
               user.setUpdatedAt(profile.updatedAt());
               userRepository.save(user);
+
               log.info(
                   "Successfully updated user {} for profile {}",
                   forJava(user.getId()),
@@ -142,19 +143,12 @@ public class UserSyncService {
 
   private void createUserIfAbsent(ProfileRecord profile, UserType userType) {
     var profileId = profile.id();
-    if (userRepository.existsBySupabaseUserId(profileId)) {
-      log.warn("User with profile ID {} already exists, skipping creation", forJava(profileId));
-      return;
-    }
-
-    log.info("Creating user with role {}", userType);
     var newUser = createUserByType(profile, userType);
-    userRepository.save(newUser);
-    log.info(
-        "Successfully created {} with ID {} for profile {}",
-        userType,
-        forJava(newUser.getId()),
-        forJava(profileId));
+
+    userRepository.insertIfAbsent(newUser);
+
+    log.info("Successfully created {} with ID {} for profile {}",
+            userType, forJava(newUser.getId()), forJava(profileId));
   }
 
   private JUser createUserByType(ProfileRecord profile, UserType userType) {
