@@ -25,7 +25,10 @@ import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
@@ -34,19 +37,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserSyncService {
 
   private static final String USER_TYPE_KEY = "user_type";
-  private static final String NAME_KEY = "name";
-  private static final String LOCATION_KEY = "location";
-  private static final String LAT_LON_KEY = "lat_lon";
-  private static final String GARAGE_NAME_KEY = "garage_name";
-  private static final String MANAGER_ROLE_KEY = "manager_role";
-  private static final String CITY_KEY = "city";
-  private static final String REGION_KEY = "region";
-  private static final String ADDRESS_KEY = "address";
-  private static final String LAT_KEY = "lat";
-  private static final String LON_KEY = "lon";
+  private final UserCreationService userCreationService;
 
   private final UserRepository userRepository;
-  private final ValueObjectMapper vom;
+
 
   @Transactional
   public void handleUserCreated(SupabaseWebhook webhook) {
@@ -58,7 +52,7 @@ public class UserSyncService {
     log.info("metadata {}",profile.appMetadata());
     extractUserType(profile.appMetadata())
         .ifPresentOrElse(
-            userType -> createUserIfAbsent(profile, userType),
+            userType -> userCreationService.createUserIfAbsent(profile, userType),
             () ->
                 log.info(
                     "Skipping INSERT for profile {} because user_type is not available yet",
@@ -76,7 +70,7 @@ public class UserSyncService {
         .findBySupabaseUserId(profileId)
         .ifPresentOrElse(
             user -> {
-              updateUserFields(user, profile);
+              userCreationService.updateUserFields(user, profile);
               user.setUpdatedAt(profile.updatedAt());
               userRepository.save(user);
 
@@ -88,7 +82,7 @@ public class UserSyncService {
             () ->
                 extractUserType(profile.appMetadata())
                     .ifPresentOrElse(
-                        userType -> createUserIfAbsent(profile, userType),
+                        userType -> userCreationService.createUserIfAbsent(profile, userType),
                         () ->
                             log.info(
                                 "Skipping UPDATE for unknown profile {} because user_type is not available yet",
@@ -124,7 +118,7 @@ public class UserSyncService {
   }
 
   private Optional<UserType> extractUserType(Map<String, Object> appMetadata) {
-    log.info("ROLE USER IN METADATA {}", extractMetadataValue(appMetadata, USER_TYPE_KEY).orElse(null));
+    log.info("ROLE USER IN METADATA {}", userCreationService.extractMetadataValue(appMetadata, USER_TYPE_KEY).orElse(null));
     return Optional.ofNullable(appMetadata)
         .map(metadata -> metadata.get(USER_TYPE_KEY))
         .map(Object::toString)
@@ -141,305 +135,11 @@ public class UserSyncService {
     }
   }
 
-  private void createUserIfAbsent(ProfileRecord profile, UserType userType) {
-    var profileId = profile.id();
-    var newUser = createUserByType(profile, userType);
 
-    userRepository.insertIfAbsent(newUser);
 
-    log.info("Successfully created {} with ID {} for profile {}",
-            userType, forJava(newUser.getId()), forJava(profileId));
-  }
 
-  private JUser createUserByType(ProfileRecord profile, UserType userType) {
-    var userId = randomUUID().toString();
-    var createdAt = profile.createdAt();
-    var updatedAt = profile.updatedAt();
-    var name = extractName(profile);
-    var email = extractEmail(profile);
-    var phoneNumber = extractPhoneNumber(profile);
 
-    var user =
-        buildUserEntity(profile, userType, userId, name, email, phoneNumber, createdAt, updatedAt);
-    updateUserFields(user, profile);
 
-    return user;
-  }
 
-  private JUser buildUserEntity(
-          ProfileRecord profile,
-          UserType userType,
-          String userId,
-          String email,
-          String name,
-          String phoneNumber,
-          OffsetDateTime createdAt,
-          OffsetDateTime updatedAt) {
 
-    var profileId = profile.id();
-    var metadata = profile.userMetadata();
-    var appMetadata = profile.appMetadata();
-    return switch (userType) {
-      case RESEARCHER -> {
-        var location = extractLocation(metadata).orElse(null);
-        yield buildResearcher(
-            profileId, email, name, phoneNumber, userId, location, createdAt, updatedAt);
-      }
-      case SELLER -> {
-        var garageName = extractMetadataValue(metadata, GARAGE_NAME_KEY).orElse(null);
-        var location = extractLocation(metadata).orElse(null);
-        var latLon = extractLatLon(metadata).orElse(null);
-        yield buildSeller(
-            profileId,
-            name,
-            email,
-            phoneNumber,
-            garageName,
-            userId,
-            location,
-            latLon,
-            createdAt,
-            updatedAt);
-      }
-      case MANAGER -> {
-        var managerRole =
-            extractMetadataValue(appMetadata, MANAGER_ROLE_KEY)
-                .flatMap(this::parseManagerRole)
-                .orElse(ManagerRole.ADMIN);
-        yield buildManager(
-            profileId, userId, email, name, phoneNumber, managerRole, createdAt, updatedAt);
-      }
-    };
-  }
-
-  private JResearcher buildResearcher(
-      String profileId,
-      String name,
-      String email,
-      String phoneNumber,
-      String userId,
-      Location location,
-      OffsetDateTime createdAt,
-      OffsetDateTime updatedAt) {
-    var finalLocation = (location == null) ? Location.getDefault() : location;
-    return JResearcher.builder()
-        .id(userId)
-        .supabaseUserId(profileId)
-        .name(name)
-        .email(email)
-        .phoneNumber(phoneNumber)
-        .profileImgKey("")
-        .location(vom.map(finalLocation))
-        .userType(RESEARCHER)
-        .status(UserStatus.ENABLED)
-        .createdAt(createdAt)
-        .updatedAt(updatedAt)
-        .build();
-  }
-
-  private JSeller buildSeller(
-      String profileId,
-      String name,
-      String email,
-      String phoneNumber,
-      String garageName,
-      String userId,
-      Location location,
-      LatLon latLon,
-      OffsetDateTime createdAt,
-      OffsetDateTime updatedAt) {
-    var finalLocation = (location == null) ? Location.getDefault() : location;
-    var finalLatLon = (latLon == null) ? LatLon.getDefault() : latLon;
-    return JSeller.builder()
-        .id(userId)
-        .supabaseUserId(profileId)
-        .name(name)
-        .email(email)
-        .phoneNumber(phoneNumber)
-        .profileImgKey("")
-        .garageName(garageName)
-        .userType(SELLER)
-        .status(UserStatus.ENABLED)
-        .location(vom.map(finalLocation))
-        .latLon(vom.map(finalLatLon))
-        .createdAt(createdAt)
-        .updatedAt(updatedAt)
-        .build();
-  }
-
-  private JManager buildManager(
-      String profileId,
-      String userId,
-      String name,
-      String email,
-      String phoneNumber,
-      ManagerRole managerRole,
-      OffsetDateTime createdAt,
-      OffsetDateTime updatedAt) {
-    return JManager.builder()
-        .id(userId)
-        .supabaseUserId(profileId)
-        .name(name)
-        .email(email)
-        .phoneNumber(phoneNumber)
-        .profileImgKey("")
-        .userType(UserType.MANAGER)
-        .status(UserStatus.ENABLED)
-        .managerRole(managerRole)
-        .createdAt(createdAt)
-        .updatedAt(updatedAt)
-        .build();
-  }
-
-  private void updateUserFields(JUser user, ProfileRecord profile) {
-    Map<String, Object> metadata = profile.userMetadata();
-    Map<String,Object> appMetadata = profile.appMetadata();
-    updateName(user, profile.name());
-    updatePhoneNumber(user, profile.phoneNumber());
-    updateProfileImage(user, profile.profileImgUrl());
-    updateLocationFields(user, metadata);
-    updateSellerFields(user, metadata);
-    updateManagerFields(user, appMetadata);
-  }
-
-  private void updateName(JUser user, String profileName) {
-    Optional.ofNullable(profileName).filter(n -> !n.isBlank()).ifPresent(user::setName);
-  }
-
-  private void updatePhoneNumber(JUser user, String phoneNumber) {
-    Optional.ofNullable(phoneNumber).filter(p -> !p.isBlank()).ifPresent(user::setPhoneNumber);
-  }
-
-  private void updateProfileImage(JUser user, String profileImgUrl) {
-    Optional.ofNullable(profileImgUrl)
-        .filter(url -> !url.isBlank())
-        .ifPresent(user::setProfileImgKey);
-  }
-
-  private void updateLocationFields(JUser user, Map<String, Object> metadata) {
-    if (user.getUserType() == RESEARCHER) updateResearcherLocation(user, metadata);
-    else if (user.getUserType() == SELLER) updateSellerLocationAndLatLon(user, metadata);
-  }
-
-  private void updateResearcherLocation(JUser user, Map<String, Object> metadata) {
-    if (user instanceof JResearcher researcher)
-      extractLocation(metadata).ifPresent(location -> researcher.setLocation(vom.map(location)));
-  }
-
-  private void updateSellerLocationAndLatLon(JUser user, Map<String, Object> metadata) {
-    if (user instanceof JSeller seller) {
-      extractLocation(metadata).ifPresent(location -> seller.setLocation(vom.map(location)));
-      extractLatLon(metadata).ifPresent(latLon -> seller.setLatLon(vom.map(latLon)));
-    }
-  }
-
-  private void updateSellerFields(JUser user, Map<String, Object> metadata) {
-    if (user instanceof JSeller seller) {
-      extractMetadataValue(metadata, GARAGE_NAME_KEY)
-          .filter(name -> !name.isBlank())
-          .ifPresent(seller::setGarageName);
-    }
-  }
-
-  private void updateManagerFields(JUser user, Map<String, Object> metadata) {
-    if (user instanceof JManager manager) {
-      extractMetadataValue(metadata, MANAGER_ROLE_KEY)
-          .flatMap(this::parseManagerRole)
-          .ifPresent(manager::setManagerRole);
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  private Optional<Location> extractLocation(Map<String, Object> metadata) {
-    return Optional.ofNullable(metadata)
-        .map(m -> m.get(LOCATION_KEY))
-        .filter(Map.class::isInstance)
-        .map(obj -> (Map<String, Object>) obj)
-        .flatMap(this::parseLocation);
-  }
-
-  private String extractEmail(ProfileRecord profile) {
-    return Optional.ofNullable(profile.email()).filter(p -> !p.isBlank()).orElse("");
-  }
-
-  private Optional<Location> parseLocation(Map<String, Object> locationMap) {
-    var cityStr = (String) locationMap.get(CITY_KEY);
-    var regionStr = (String) locationMap.get(REGION_KEY);
-    var address = (String) locationMap.get(ADDRESS_KEY);
-
-    if (cityStr == null || regionStr == null || address == null) return Optional.empty();
-
-    return parseCity(cityStr)
-        .flatMap(city -> parseRegion(regionStr).map(region -> new Location(city, region, address)));
-  }
-
-  private Optional<City> parseCity(String cityStr) {
-    try {
-      return Optional.of(City.valueOf(cityStr.toUpperCase()));
-    } catch (IllegalArgumentException e) {
-      log.warn("Invalid city '{}' in metadata", forJava(cityStr));
-      return Optional.empty();
-    }
-  }
-
-  private Optional<Region> parseRegion(String regionStr) {
-    try {
-      return Optional.of(Region.valueOf(regionStr.toUpperCase()));
-    } catch (IllegalArgumentException e) {
-      log.warn("Invalid region '{}' in metadata", forJava(regionStr));
-      return Optional.empty();
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  private Optional<LatLon> extractLatLon(Map<String, Object> metadata) {
-    return Optional.ofNullable(metadata)
-        .map(m -> m.get(LAT_LON_KEY))
-        .filter(Map.class::isInstance)
-        .map(obj -> (Map<String, Object>) obj)
-        .flatMap(this::parseLatLon);
-  }
-
-  private Optional<LatLon> parseLatLon(Map<String, Object> latLonMap) {
-    var latObj = latLonMap.get(LAT_KEY);
-    var lonObj = latLonMap.get(LON_KEY);
-
-    if (latObj == null || lonObj == null) return Optional.empty();
-
-    var lat = ((Number) latObj).doubleValue();
-    var lon = ((Number) lonObj).doubleValue();
-    return Optional.of(new LatLon(lat, lon));
-  }
-
-  private Optional<ManagerRole> parseManagerRole(String roleStr) {
-    try {
-      return Optional.of(ManagerRole.valueOf(roleStr.toUpperCase()));
-    } catch (IllegalArgumentException e) {
-      log.warn("Invalid manager_role '{}' in metadata, keeping default", forJava(roleStr));
-      return Optional.empty();
-    }
-  }
-
-  private String extractName(ProfileRecord profile) {
-    return Optional.ofNullable(profile.name())
-        .filter(n -> !n.isBlank())
-        .or(() -> extractMetadataValue(profile.userMetadata(), NAME_KEY))
-        .or(() -> extractEmailUsername(profile.email()))
-        .orElse("");
-  }
-
-  private String extractPhoneNumber(ProfileRecord profile) {
-    return Optional.ofNullable(profile.phoneNumber()).filter(p -> !p.isBlank()).orElse("");
-  }
-
-  private Optional<String> extractMetadataValue(Map<String, Object> metadata, String key) {
-    return Optional.ofNullable(metadata).map(m -> m.get(key)).map(Object::toString);
-  }
-
-  private Optional<String> extractEmailUsername(String email) {
-    return Optional.ofNullable(email)
-        .map(e -> e.split("@"))
-        .filter(parts -> parts.length > 0)
-        .map(parts -> parts[0]);
-  }
 }
