@@ -47,15 +47,35 @@ public class UserCreationService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createUserIfAbsent(ProfileRecord profile, UserType userType) {
         var profileId = profile.id();
-        var newUser = createUserByType(profile, userType);
+        userRepository.lockByKey(userLockKey(profileId));
+
+        var existingUser = userRepository.findBySupabaseUserId(profileId);
+        if (existingUser.isPresent()) {
+            updateUserFields(existingUser.get(), profile);
+            existingUser.get().setUpdatedAt(profile.updatedAt());
+            userRepository.save(existingUser.get());
+            log.info("User {} already exists, updated from webhook", forJava(profileId));
+            return;
+        }
 
         try {
-            userRepository.save(newUser);
+            var newUser = createUserByType(profile, userType);
+            userRepository.saveAndFlush(newUser);
             log.info("Successfully created {} for profile {}",
                     userType, forJava(profileId));
         } catch (DataIntegrityViolationException e) {
-            log.warn("User {} already exists, skipping", forJava(profileId));
+            log.warn("User {} already exists, updating existing row from webhook", forJava(profileId));
+            userRepository.findBySupabaseUserId(profileId)
+                    .ifPresent(existing -> {
+                        updateUserFields(existing, profile);
+                        existing.setUpdatedAt(profile.updatedAt());
+                        userRepository.save(existing);
+                    });
         }
+    }
+
+    private String userLockKey(String profileId) {
+        return "user:supabase:" + profileId;
     }
     private JUser createUserByType(ProfileRecord profile, UserType userType) {
         var userId = randomUUID().toString();

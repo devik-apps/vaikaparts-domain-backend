@@ -60,7 +60,7 @@ public class DemandService {
   public Demand createDemand(String description, RestPart restPart) {
     log.info("Creating new demand for authenticated researcher");
 
-    var currentResearcher = researcherService.getCurrentResearcher();
+    var currentResearcher = researcherService.getOrCreateCurrentResearcher();
     log.debug("Authenticated researcher: {}", forJava(currentResearcher.getId()));
 
     validateDemandCreation(description, restPart);

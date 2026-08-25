@@ -19,6 +19,9 @@ import org.springframework.stereotype.Repository;
 public interface UserRepository extends JpaRepository<JUser, String> {
   Optional<JUser> findBySupabaseUserId(String supabaseUserId);
 
+  @Query(value = "SELECT pg_advisory_xact_lock(CAST(hashtext(:key) AS bigint))", nativeQuery = true)
+  Object lockByKey(@Param("key") String key);
+
   Optional<JUser> findJUserById(String id);
 
   boolean existsBySupabaseUserId(String supabaseUserId);
