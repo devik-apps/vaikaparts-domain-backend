@@ -784,6 +784,36 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServer'
+  /v1/demands/all:
+    get:
+      operationId: get all demands
+      tags: [ Demands ]
+      summary: List demands with pagination
+      description: |
+        Returns a paginated list of demands belonging to the authenticated Seller.
+        Results may be narrowed by lifecycle status.
+
+        **Authorization**: Seller role required.
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        200:
+          description: Demand list retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DemandPageResponse'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/offers:
     post:
       operationId: createOffer

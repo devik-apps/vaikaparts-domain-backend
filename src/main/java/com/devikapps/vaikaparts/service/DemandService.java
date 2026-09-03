@@ -15,6 +15,7 @@ import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.mapper.exchange.DemandMapper;
 import com.devikapps.vaikaparts.mapper.exchange.OfferMapper;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
+import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.exchange.Offer;
 import com.devikapps.vaikaparts.model.exchange.Part;
@@ -49,6 +50,7 @@ public class DemandService {
   private final DemandRepository demandRepository;
   private final DemandMapper demandMapper;
   private final ResearcherService researcherService;
+  private final UserService userService;
   private final OfferMapper offerMapper;
   private final OfferRepository offerRepository;
   private final Paginator paginator;
@@ -75,6 +77,27 @@ public class DemandService {
 
     log.info("Successfully created demand with id: {}", forJava(savedJDemand.getId()));
     return demandMapper.toDomain(savedJDemand);
+  }
+
+  @Transactional(readOnly = true)
+  public Page<Demand> getAllDemands(Integer page , Integer size) {
+
+    var currentSeller = userService.getCurrentSeller();
+    var sellerId = currentSeller.getId();
+    var pagination = paginator.apply(page, size);
+    var pageable =
+            PageRequest.of(
+                    pagination.get(PAGE_FIELD),
+                    pagination.get(SIZE_FIELD),
+                    Sort.by(CREATED_AT_FIELD).descending());
+
+    log.info(
+            "Fetching demands for authenticated seller : {}",sellerId);
+
+
+    Page<JDemand> jDemands =
+            demandRepository.findAllActiveDemands(pageable);
+    return jDemands.map(demandMapper::toDomain);
   }
 
   @Transactional(readOnly = true)
