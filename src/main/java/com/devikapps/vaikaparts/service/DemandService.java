@@ -96,7 +96,7 @@ public class DemandService {
 
 
     Page<JDemand> jDemands =
-            demandRepository.findAllActiveDemands(pageable);
+            demandRepository.findByStatus(PostStatus.PUBLISHED,pageable);
     return jDemands.map(demandMapper::toDomain);
   }
 

@@ -4,10 +4,10 @@ import static java.lang.String.format;
 
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import java.net.URL;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -21,6 +21,16 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @EqualsAndHashCode
 @SuperBuilder
+@JsonTypeInfo(
+    use = JsonTypeInfo.Id.NAME,
+    include = JsonTypeInfo.As.EXISTING_PROPERTY,
+    property = "userType",
+    visible = true)
+@JsonSubTypes({
+  @JsonSubTypes.Type(value = Researcher.class, name = "RESEARCHER"),
+  @JsonSubTypes.Type(value = Seller.class, name = "SELLER"),
+  @JsonSubTypes.Type(value = Manager.class, name = "MANAGER")
+})
 public abstract sealed class User permits Researcher, Seller, Manager {
   private String id;
   private String supabaseUserId;

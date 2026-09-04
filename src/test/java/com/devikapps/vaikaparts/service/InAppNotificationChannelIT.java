@@ -18,7 +18,7 @@ import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
-import com.devikapps.vaikaparts.model.notification.DemandPublishedNotification;
+import com.devikapps.vaikaparts.model.notification.Notification;
 import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
@@ -38,7 +38,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Pageable;
 
-class InAppDemandPublishedNotificationChannelIT extends FacadeIT {
+class InAppNotificationChannelIT extends FacadeIT {
 
   private static final String TEST_NOTIFICATION_ID = "notification-123";
   private static final String TEST_NOTIFICATION_REQUESTED_ID = "notification-requested-001";
@@ -53,7 +53,7 @@ class InAppDemandPublishedNotificationChannelIT extends FacadeIT {
   @Autowired private UserRepository userRepository;
   @Autowired private DemandRepository demandRepository;
 
-  private DemandPublishedNotification testDemandPublishedNotification;
+  private Notification testNotification;
 
   @BeforeEach
   void setUp() {
@@ -64,8 +64,8 @@ class InAppDemandPublishedNotificationChannelIT extends FacadeIT {
                 .supabaseUserId(randomUUID().toString())
                 .name(randomUUID().toString())
                 .userType(UserType.SELLER)
-                .createdAt(now())
-                .updatedAt(now())
+                .createdAt(java.time.OffsetDateTime.now())
+                .updatedAt(java.time.OffsetDateTime.now())
                 .status(UserStatus.ENABLED)
                 .build());
 
@@ -76,8 +76,8 @@ class InAppDemandPublishedNotificationChannelIT extends FacadeIT {
                 .supabaseUserId(randomUUID().toString())
                 .name(randomUUID().toString())
                 .userType(UserType.RESEARCHER)
-                .createdAt(now())
-                .updatedAt(now())
+                .createdAt(java.time.OffsetDateTime.now())
+                .updatedAt(java.time.OffsetDateTime.now())
                 .status(UserStatus.ENABLED)
                 .build());
 
@@ -129,12 +129,12 @@ class InAppDemandPublishedNotificationChannelIT extends FacadeIT {
             .updatedAt(now())
             .build());
 
-    testDemandPublishedNotification =
-        DemandPublishedNotification.builder()
+    testNotification =
+        Notification.builder()
             .id(TEST_NOTIFICATION_ID)
             .notificationRequestedId(TEST_NOTIFICATION_REQUESTED_ID)
-            .seller(Seller.builder().id(TEST_SELLER_ID).build())
-            .demand(Demand.builder().id(TEST_DEMAND_ID).build())
+            .recipient(Seller.builder().id(TEST_SELLER_ID).build())
+            .resource(Demand.builder().id(TEST_DEMAND_ID).build())
             .message(TEST_MESSAGE)
             .notificationType(NotificationType.DEMAND_PUBLISHED)
             .read(false)
@@ -153,7 +153,7 @@ class InAppDemandPublishedNotificationChannelIT extends FacadeIT {
 
   @Test
   void should_save_notification_to_database() {
-    inAppNotificationChannel.send(testDemandPublishedNotification);
+    inAppNotificationChannel.send(testNotification);
 
     var saved = demandPublishedNotificationRepository.findById(TEST_NOTIFICATION_ID);
     assertTrue(saved.isPresent());
@@ -163,16 +163,16 @@ class InAppDemandPublishedNotificationChannelIT extends FacadeIT {
     assertFalse(saved.get().isRead());
     assertNotNull(saved.get().getCreatedAt());
     assertEquals(TEST_NOTIFICATION_REQUESTED_ID, saved.get().getNotificationRequested().getId());
-    assertEquals(TEST_SELLER_ID, saved.get().getSeller().getId());
+    assertEquals(TEST_SELLER_ID, saved.get().getRecipient().getId());
     assertEquals(TEST_DEMAND_ID, saved.get().getDemand().getId());
   }
 
   @Test
   void should_save_notification_linked_to_correct_seller() {
-    inAppNotificationChannel.send(testDemandPublishedNotification);
+    inAppNotificationChannel.send(testNotification);
 
     var page =
-        demandPublishedNotificationRepository.findBySellerIdOrderByCreatedAtDesc(
+        demandPublishedNotificationRepository.findByRecipientIdOrderByCreatedAtDesc(
             TEST_SELLER_ID, Pageable.ofSize(10));
     assertEquals(1, page.getTotalElements());
     assertEquals(TEST_NOTIFICATION_ID, page.getContent().getFirst().getId());
@@ -180,18 +180,18 @@ class InAppDemandPublishedNotificationChannelIT extends FacadeIT {
 
   @Test
   void should_not_fail_when_websocket_is_unavailable() {
-    assertDoesNotThrow(() -> inAppNotificationChannel.send(testDemandPublishedNotification));
+    assertDoesNotThrow(() -> inAppNotificationChannel.send(testNotification));
     assertEquals(1, demandPublishedNotificationRepository.count());
   }
 
   @Test
   void should_throw_notification_delivery_exception_when_notification_requested_does_not_exist() {
     var notificationWithBadRef =
-        DemandPublishedNotification.builder()
+        Notification.builder()
             .id(TEST_NOTIFICATION_ID)
             .notificationRequestedId("non-existent-id")
-            .seller(Seller.builder().id(TEST_SELLER_ID).build())
-            .demand(Demand.builder().id(TEST_DEMAND_ID).build())
+            .recipient(Seller.builder().id(TEST_SELLER_ID).build())
+            .resource(Demand.builder().id(TEST_DEMAND_ID).build())
             .message(TEST_MESSAGE)
             .notificationType(NotificationType.DEMAND_PUBLISHED)
             .read(false)
@@ -207,11 +207,11 @@ class InAppDemandPublishedNotificationChannelIT extends FacadeIT {
   @Test
   void should_not_save_notification_when_notification_requested_does_not_exist() {
     var notificationWithBadRef =
-        DemandPublishedNotification.builder()
+        Notification.builder()
             .id(TEST_NOTIFICATION_ID)
             .notificationRequestedId("non-existent-id")
-            .seller(Seller.builder().id(TEST_SELLER_ID).build())
-            .demand(Demand.builder().id(TEST_DEMAND_ID).build())
+            .recipient(Seller.builder().id(TEST_SELLER_ID).build())
+            .resource(Demand.builder().id(TEST_DEMAND_ID).build())
             .message(TEST_MESSAGE)
             .notificationType(NotificationType.DEMAND_PUBLISHED)
             .read(false)

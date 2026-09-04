@@ -16,7 +16,7 @@ import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
-import com.devikapps.vaikaparts.model.notification.DemandPublishedNotification;
+import com.devikapps.vaikaparts.model.notification.Notification;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
@@ -38,7 +38,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class DemandPublishedDemandPublishedDemandPublishedNotificationRequestedServiceTest {
+class DemandPublishedDemandPublishedNotificationRequestedServiceTest {
 
   private static final String TEST_EVENT_ID = "event-123";
   private static final String TEST_PARENT_ID = "parent-456";
@@ -110,7 +110,7 @@ class DemandPublishedDemandPublishedDemandPublishedNotificationRequestedServiceT
     when(notificationRequestedRepository.save(any(JDemandPublishedNotificationRequested.class)))
         .thenReturn(testEventLog);
     when(notificationService.createAndSendNotification(any(NotificationRequest.class)))
-        .thenReturn(mock(DemandPublishedNotification.class));
+        .thenReturn(mock(Notification.class));
 
     service.accept(testEvent);
 
@@ -135,7 +135,7 @@ class DemandPublishedDemandPublishedDemandPublishedNotificationRequestedServiceT
     when(notificationRequestedRepository.save(any(JDemandPublishedNotificationRequested.class)))
         .thenReturn(testEventLog);
     when(notificationService.createAndSendNotification(any(NotificationRequest.class)))
-        .thenReturn(mock(DemandPublishedNotification.class));
+        .thenReturn(mock(Notification.class));
 
     service.accept(testEvent);
 
@@ -143,8 +143,8 @@ class DemandPublishedDemandPublishedDemandPublishedNotificationRequestedServiceT
     verify(notificationService, times(1)).createAndSendNotification(captor.capture());
 
     var request = captor.getValue();
-    assertEquals(TEST_SELLER_ID, request.getSellerId());
-    assertEquals(TEST_DEMAND_ID, request.getDemandId());
+    assertEquals(TEST_SELLER_ID, request.getRecipientUserId());
+    assertEquals(TEST_DEMAND_ID, request.getResourceId());
     assertEquals(NotificationType.DEMAND_PUBLISHED, request.getNotificationType());
     assertTrue(request.getMessage().contains(TEST_CAR_BRAND));
     assertTrue(request.getMessage().contains(TEST_CAR_MODEL));
@@ -161,7 +161,7 @@ class DemandPublishedDemandPublishedDemandPublishedNotificationRequestedServiceT
     when(notificationRequestedRepository.save(any(JDemandPublishedNotificationRequested.class)))
         .thenReturn(testEventLog);
     when(notificationService.createAndSendNotification(any(NotificationRequest.class)))
-        .thenReturn(mock(DemandPublishedNotification.class));
+        .thenReturn(mock(Notification.class));
 
     service.accept(testEvent);
 
@@ -227,7 +227,7 @@ class DemandPublishedDemandPublishedDemandPublishedNotificationRequestedServiceT
     when(notificationRequestedRepository.save(any(JDemandPublishedNotificationRequested.class)))
         .thenReturn(testEventLog);
     when(notificationService.createAndSendNotification(any(NotificationRequest.class)))
-        .thenReturn(mock(DemandPublishedNotification.class));
+        .thenReturn(mock(Notification.class));
 
     service.accept(testEvent);
 

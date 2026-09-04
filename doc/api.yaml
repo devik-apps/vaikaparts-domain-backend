@@ -1002,8 +1002,8 @@ paths:
     get:
       operationId: fetchNotifications
       tags: [Notifications]
-      summary: Retrieve seller notifications
-      description: Returns a paginated list of notifications for the current active seller.
+      summary: Retrieve user notifications
+      description: Returns a paginated list of notifications for the current authenticated user.
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
@@ -1013,7 +1013,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DemandPublishedNotificationPageResponse'
+                $ref: '#/components/schemas/NotificationPageResponse'
         400:
           $ref: '#/components/responses/BadRequest'
         401:
@@ -1041,9 +1041,9 @@ paths:
         202:
           description: Notification marked as read
           content:
-            appliction/json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/DemandPublishedNotification"
+                $ref: "#/components/schemas/Notification"
         400:
           $ref: '#/components/responses/BadRequest'
         401:
@@ -1059,7 +1059,7 @@ paths:
       operationId: getNotification
       tags: [Notifications]
       summary: Get notification with given id
-      description: This endpoints allows sellers to fetch the notifications object with the given id.
+      description: Allows the authenticated recipient to fetch the notification with the given id.
       parameters:
         - name: notificationId
           in: path
@@ -1071,9 +1071,9 @@ paths:
         202:
           description: Fetched notification with the corresponding given id
           content:
-            appliction/json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/DemandPublishedNotification"
+                $ref: "#/components/schemas/Notification"
         400:
           $ref: '#/components/responses/BadRequest'
         401:
@@ -1509,8 +1509,12 @@ components:
     Demand:
       type: object
       description: A Researcher's request for a specific automotive part.
-      required: [id, researcher, part, status, created_at]
+      required: [id, resource_type, researcher, part, status, created_at]
       properties:
+        resource_type:
+          type: string
+          enum: [DEMAND]
+          readOnly: true
         id:
           $ref: '#/components/schemas/UUID'
         description:
@@ -1591,9 +1595,13 @@ components:
           maxItems: 5
     Offer:
       type: object
-      required: [id, seller_id, parts_info, demand, status, created_at]
+      required: [id, resource_type, seller_id, parts_info, demand, status, created_at]
       description: Seller response to a Researcher demand.
       properties:
+        resource_type:
+          type: string
+          enum: [OFFER]
+          readOnly: true
         id:
           $ref: '#/components/schemas/UUID'
         description:
@@ -1724,23 +1732,40 @@ components:
             type: string
             format: uri
           maxItems: 5
-    DemandPublishedNotification:
+    Notification:
       type: object
-      required: [id, userId, type, title, message, createdAt, isRead]
+      required: [id, recipient, message, notification_type, created_at, read]
       description: User notification record
       properties:
         id:
           $ref: '#/components/schemas/UUID'
-        seller:
-          $ref: '#/components/schemas/Seller'
+        recipient:
+          oneOf:
+            - $ref: '#/components/schemas/Researcher'
+            - $ref: '#/components/schemas/Seller'
+            - $ref: '#/components/schemas/Manager'
+          discriminator:
+            propertyName: user_type
+            mapping:
+              RESEARCHER: '#/components/schemas/Researcher'
+              SELLER: '#/components/schemas/Seller'
+              MANAGER: '#/components/schemas/Manager'
         notification_requested_id:
           type: string
           description: Notification event id
         message:
           type: string
           description: Notification body text
-        demand:
-          $ref: '#/components/schemas/Demand'
+        resource:
+          nullable: true
+          oneOf:
+            - $ref: '#/components/schemas/Demand'
+            - $ref: '#/components/schemas/Offer'
+          discriminator:
+            propertyName: resource_type
+            mapping:
+              DEMAND: '#/components/schemas/Demand'
+              OFFER: '#/components/schemas/Offer'
         notification_type:
           $ref: '#/components/schemas/NotificationType'
         read:
@@ -1879,7 +1904,7 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/Offer'
-    DemandPublishedNotificationPageResponse:
+    NotificationPageResponse:
       allOf:
         - $ref: '#/components/schemas/PageResponse'
         - type: object
@@ -1887,7 +1912,7 @@ components:
             content:
               type: array
               items:
-                $ref: '#/components/schemas/DemandPublishedNotification'
+                $ref: '#/components/schemas/Notification'
     ErrorResponse:
       type: object
       required: [timestamp, status, error, message, path]
