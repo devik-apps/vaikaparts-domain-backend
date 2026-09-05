@@ -2,7 +2,8 @@ package com.devikapps.vaikaparts.repository.event;
 
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
-import com.devikapps.vaikaparts.repository.model.user.JSeller;
+import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
+import com.devikapps.vaikaparts.repository.model.user.JUser;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -35,16 +36,20 @@ public class JDemandPublishedNotification {
   @Id private String id;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "notification_requested_id", nullable = false)
+  @JoinColumn(name = "notification_requested_id")
   private JDemandPublishedNotificationRequested notificationRequested;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "seller_id", nullable = false)
-  private JSeller seller;
+  @JoinColumn(name = "recipient_user_id", nullable = false)
+  private JUser recipient;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "demand_id", nullable = false)
+  @JoinColumn(name = "demand_id")
   private JDemand demand;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "offer_id")
+  private JOffer offer;
 
   @Column(name = "message", nullable = false, columnDefinition = "TEXT")
   private String message;

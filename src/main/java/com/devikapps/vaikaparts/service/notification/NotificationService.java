@@ -8,18 +8,29 @@ import com.devikapps.vaikaparts.endpoint.rest.controller.model.NotificationReque
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.exception.UserNotFoundException;
 import com.devikapps.vaikaparts.mapper.NotificationMapper;
+import com.devikapps.vaikaparts.mapper.user.ManagerMapper;
+import com.devikapps.vaikaparts.mapper.user.ResearcherMapper;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
-import com.devikapps.vaikaparts.model.notification.DemandPublishedNotification;
+import com.devikapps.vaikaparts.model.classifier.NotificationType;
+import com.devikapps.vaikaparts.model.classifier.UserType;
+import com.devikapps.vaikaparts.model.exchange.Exchange;
+import com.devikapps.vaikaparts.model.notification.Notification;
+import com.devikapps.vaikaparts.model.user.User;
 import com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
+import com.devikapps.vaikaparts.repository.model.user.JManager;
+import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
+import com.devikapps.vaikaparts.repository.model.user.JUser;
 import com.devikapps.vaikaparts.service.DemandService;
-import com.devikapps.vaikaparts.service.SellerService;
+import com.devikapps.vaikaparts.service.OfferService;
+import com.devikapps.vaikaparts.service.UserService;
 import com.devikapps.vaikaparts.service.util.Paginator;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -35,44 +46,59 @@ public class NotificationService {
   private final List<NotificationChannel> channels;
   private final UserRepository userRepository;
   private final SellerMapper sellerMapper;
+  private final ResearcherMapper researcherMapper;
+  private final ManagerMapper managerMapper;
   private final DemandService demandService;
+  private final OfferService offerService;
   private final DemandPublishedNotificationRepository demandPublishedNotificationRepository;
   private final Paginator paginator;
-  private final SellerService sellerService;
+  private final UserService userService;
   private final NotificationMapper notificationMapper;
 
-  public DemandPublishedNotification createAndSendNotification(NotificationRequest request) {
-    log.info("Creating notification for seller: {}", forJava(request.getSellerId()));
+  public Notification createAndSendNotification(NotificationRequest request) {
+    var notificationType =
+        Objects.requireNonNull(request.getNotificationType(), "Notification type is required");
+    log.info(
+        "Creating notification type={} for recipient user={}",
+        forJava(notificationType.toString()),
+        forJava(request.getRecipientUserId()));
 
     var notification = buildNotification(request);
     sendThroughChannels(notification);
 
-    log.info("Notification created and sent: {}", forJava(notification.getId()));
+    log.info(
+        "Notification created and sent: id={}, recipientType={}",
+        forJava(notification.getId()),
+        forJava(notification.getRecipient().getUserType().toString()));
     return notification;
   }
 
   @Transactional(readOnly = true)
-  public Page<DemandPublishedNotification> fetchAllNotification(Integer page, Integer size) {
+  public Page<Notification> fetchAllNotification(Integer page, Integer size) {
     var pagination = paginator.apply(page, size);
-    var currentActiveSeller = sellerService.getCurrentSeller();
+    var currentUser = userService.getCurrentUser();
     var fPage = pagination.get("page");
     var fSize = pagination.get("size");
 
     var pageable = PageRequest.of(fPage, fSize);
     log.info(
-        "Fetching all notification of current active seller with page={}, size={}", fPage, fSize);
+        "Fetching notifications for current user={} ({}) with page={}, size={}",
+        forJava(currentUser.getId()),
+        currentUser.getUserType(),
+        fPage,
+        fSize);
 
     return demandPublishedNotificationRepository
-        .findBySellerIdOrderByCreatedAtDesc(currentActiveSeller.getId(), pageable)
+        .findByRecipientIdOrderByCreatedAtDesc(currentUser.getId(), pageable)
         .map(notificationMapper::toDomain);
   }
 
   @Transactional(readOnly = true)
-  public DemandPublishedNotification getNotification(@NotNull @NotBlank String notificationId) {
-    var currentActiveSeller = sellerService.getCurrentSeller();
+  public Notification getNotification(@NotNull @NotBlank String notificationId) {
+    var currentUser = userService.getCurrentUser();
     var notification =
         demandPublishedNotificationRepository
-            .findByIdAndSellerId(notificationId, currentActiveSeller.getId())
+            .findByIdAndRecipientId(notificationId, currentUser.getId())
             .orElseThrow(
                 () ->
                     new ResourceNotFoundException(
@@ -84,13 +110,13 @@ public class NotificationService {
   }
 
   @Transactional
-  public DemandPublishedNotification markAsRead(@NotNull @NotBlank String notificationId) {
+  public Notification markAsRead(@NotNull @NotBlank String notificationId) {
     log.info(
         "Processing marking notification with notification id={} as read", forJava(notificationId));
-    var currentActiveSeller = sellerService.getCurrentSeller();
+    var currentUser = userService.getCurrentUser();
     var notification =
         demandPublishedNotificationRepository
-            .findByIdAndSellerId(notificationId, currentActiveSeller.getId())
+            .findByIdAndRecipientId(notificationId, currentUser.getId())
             .orElseThrow(
                 () ->
                     new ResourceNotFoundException(
@@ -107,23 +133,25 @@ public class NotificationService {
     return notificationMapper.toDomain(persisted);
   }
 
-  private DemandPublishedNotification buildNotification(NotificationRequest request) {
-    var jSeller =
-        (JSeller)
-            userRepository
-                .findJUserById(request.getSellerId())
-                .orElseThrow(
-                    () ->
-                        new UserNotFoundException(
-                            format(
-                                "No seller with id=%s not found", forJava(request.getSellerId()))));
-    var seller = sellerMapper.toSeller(jSeller);
+  private Notification buildNotification(NotificationRequest request) {
+    var jUser =
+        userRepository
+            .findJUserById(request.getRecipientUserId())
+            .orElseThrow(
+                () ->
+                    new UserNotFoundException(
+                        format(
+                            "No user with id=%s was found",
+                            forJava(request.getRecipientUserId()))));
 
-    return DemandPublishedNotification.builder()
+    var recipient = mapRecipient(jUser);
+    var resource = handleNotificationType(request, recipient.getUserType());
+
+    return Notification.builder()
         .id(randomUUID().toString())
-        .seller(seller)
+        .recipient(recipient)
         .notificationRequestedId(request.getNotificationRequestedId())
-        .demand(demandService.getDemandByIdWithoutAuthFilter(request.getDemandId()))
+        .resource(resource)
         .message(request.getMessage())
         .notificationType(request.getNotificationType())
         .read(false)
@@ -132,18 +160,71 @@ public class NotificationService {
         .build();
   }
 
-  private void sendThroughChannels(DemandPublishedNotification demandPublishedNotification) {
+  private void sendThroughChannels(Notification notification) {
     channels.stream()
         .filter(NotificationChannel::isEnabled)
         .forEach(
             channel -> {
               try {
-                log.debug("Sending notification via channel: {}", channel.getChannelType());
-                channel.send(demandPublishedNotification);
+                log.debug(
+                    "Sending notification type={} to recipientType={} via channel={}",
+                    notification.getNotificationType(),
+                    notification.getRecipient().getUserType(),
+                    channel.getChannelType());
+                channel.send(notification);
               } catch (Exception e) {
                 log.error(
                     "Failed to send notification via channel: {}", channel.getChannelType(), e);
               }
             });
+  }
+
+  private User mapRecipient(JUser jUser) {
+    return switch (jUser.getUserType()) {
+      case SELLER -> sellerMapper.toSeller((JSeller) jUser);
+      case RESEARCHER -> researcherMapper.toResearcher((JResearcher) jUser);
+      case MANAGER -> managerMapper.toManager((JManager) jUser);
+    };
+  }
+
+  private Exchange handleNotificationType(NotificationRequest request, UserType recipientUserType) {
+    var notificationType =
+        Objects.requireNonNull(request.getNotificationType(), "Notification type is required");
+    validateRecipientType(notificationType, recipientUserType);
+
+    return switch (notificationType) {
+      case DEMAND_PUBLISHED, DEMAND_CANCELED ->
+          demandService.getDemandByIdWithoutAuthFilter(requireResourceId(request));
+      case OFFER_ACCEPTED, OFFER_REJECTED , OFFER_PUBLISHED ->
+          offerService.getOfferByIdWithoutAuthFilter(requireResourceId(request));
+      case SYSTEM_ANNOUNCEMENT -> null;
+    };
+  }
+
+  private void validateRecipientType(
+      NotificationType notificationType, UserType recipientUserType) {
+    boolean supported =
+        switch (notificationType) {
+          case SYSTEM_ANNOUNCEMENT, DEMAND_CANCELED  -> true;
+          case DEMAND_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED ->
+              recipientUserType == UserType.SELLER || recipientUserType == UserType.MANAGER;
+          case OFFER_PUBLISHED -> recipientUserType == UserType.RESEARCHER;
+        };
+
+    if (!supported) {
+      throw new IllegalArgumentException(
+          format(
+              "Notification type %s cannot be sent to user type %s",
+              notificationType, recipientUserType));
+    }
+  }
+
+  private String requireResourceId(NotificationRequest request) {
+    if (request.getResourceId() == null || request.getResourceId().isBlank()) {
+      throw new IllegalArgumentException(
+          format(
+              "A resource id is required for notification type %s", request.getNotificationType()));
+    }
+    return request.getResourceId();
   }
 }

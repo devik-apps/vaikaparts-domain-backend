@@ -2,13 +2,17 @@ package com.devikapps.vaikaparts.service;
 
 import static com.devikapps.vaikaparts.model.classifier.UserStatus.ENABLED;
 import static java.lang.String.format;
+import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
+import com.devikapps.vaikaparts.config.sec.AuthenticatedSupabaseUser;
 import com.devikapps.vaikaparts.config.sec.SecContextUtil;
 import com.devikapps.vaikaparts.exception.UserNotFoundException;
+import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
 import com.devikapps.vaikaparts.mapper.user.ManagerMapper;
 import com.devikapps.vaikaparts.mapper.user.ResearcherMapper;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
+import com.devikapps.vaikaparts.model.Location;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.user.User;
 import com.devikapps.vaikaparts.repository.UserRepository;
@@ -20,7 +24,9 @@ import com.devikapps.vaikaparts.service.util.Paginator;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.net.URL;
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -36,12 +42,17 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class UserService {
 
+  private static final String USER_LOCK_PREFIX = "user:supabase:";
+  private static final String USER_TYPE_KEY = "user_type";
+  private static final String NAME_KEY = "name";
+
   private final UserRepository userRepository;
   private final ProfilePhotoService profilePhotoService;
   private final SellerMapper sellerMapper;
   private final ResearcherMapper researcherMapper;
   private final ManagerMapper managerMapper;
   private final Paginator paginator;
+  private final ValueObjectMapper vom;
 
   @Transactional(readOnly = true)
   public JUser getCurrentUser() {
@@ -96,6 +107,24 @@ public class UserService {
 
     log.debug("Current user is a Researcher: {}", forJava(user.getId()));
     return (JResearcher) user;
+  }
+
+  @Transactional
+  public JResearcher getOrCreateCurrentResearcher() {
+    var supabaseUser = SecContextUtil.getCurrentSupabaseUser();
+    var supabaseUserId = supabaseUser.id();
+
+    userRepository.lockByKey(USER_LOCK_PREFIX + supabaseUserId);
+
+    return userRepository
+        .findBySupabaseUserId(supabaseUserId)
+        .map(
+            user -> {
+              validateUserType(user, UserType.RESEARCHER);
+              log.debug("Current user is an existing Researcher: {}", forJava(user.getId()));
+              return (JResearcher) user;
+            })
+        .orElseGet(() -> createCurrentResearcher(supabaseUser));
   }
 
   @Transactional(readOnly = true)
@@ -164,5 +193,59 @@ public class UserService {
       throw new IllegalStateException(
           format("User is not a %s. Actual type: %s", expectedType, user.getUserType()));
     }
+  }
+
+  private JResearcher createCurrentResearcher(AuthenticatedSupabaseUser supabaseUser) {
+    validateSupabaseUserType(supabaseUser);
+
+    var now = OffsetDateTime.now();
+    var researcher =
+        JResearcher.builder()
+            .id(randomUUID().toString())
+            .supabaseUserId(supabaseUser.id())
+            .name(extractName(supabaseUser))
+            .email(blankToEmpty(supabaseUser.email()))
+            .phoneNumber(blankToEmpty(supabaseUser.phoneNumber()))
+            .profileImgKey("")
+            .userType(UserType.RESEARCHER)
+            .status(ENABLED)
+            .location(vom.map(Location.getDefault()))
+            .createdAt(now)
+            .updatedAt(now)
+            .build();
+
+    var savedResearcher = userRepository.saveAndFlush(researcher);
+    log.info(
+        "Created Researcher {} from authenticated Supabase user {}",
+        forJava(savedResearcher.getId()),
+        forJava(supabaseUser.id()));
+    return savedResearcher;
+  }
+
+  private void validateSupabaseUserType(AuthenticatedSupabaseUser supabaseUser) {
+    var userType = metadataValue(supabaseUser.appMetadata(), USER_TYPE_KEY);
+    if (userType == null || !UserType.RESEARCHER.name().equalsIgnoreCase(userType)) {
+      throw new IllegalStateException("Authenticated user is not allowed to create demands");
+    }
+  }
+
+  private String extractName(AuthenticatedSupabaseUser supabaseUser) {
+    var name = metadataValue(supabaseUser.userMetadata(), NAME_KEY);
+    if (name != null && !name.isBlank()) return name;
+
+    var email = supabaseUser.email();
+    if (email != null && !email.isBlank()) return email.split("@")[0];
+
+    return "";
+  }
+
+  private String metadataValue(Map<String, Object> metadata, String key) {
+    if (metadata == null) return null;
+    var value = metadata.get(key);
+    return value == null ? null : value.toString();
+  }
+
+  private String blankToEmpty(String value) {
+    return value == null || value.isBlank() ? "" : value;
   }
 }

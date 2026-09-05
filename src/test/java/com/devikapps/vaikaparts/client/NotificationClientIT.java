@@ -8,8 +8,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.devikapps.vaikaparts.client.api.NotificationsApi;
 import com.devikapps.vaikaparts.client.invoker.ApiClient;
-import com.devikapps.vaikaparts.client.model.DemandPublishedNotification;
-import com.devikapps.vaikaparts.client.model.DemandPublishedNotificationPageResponse;
+import com.devikapps.vaikaparts.client.model.Notification;
+import com.devikapps.vaikaparts.client.model.NotificationPageResponse;
 import com.devikapps.vaikaparts.client.model.NotificationType;
 import com.devikapps.vaikaparts.conf.FacadeIT;
 import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
@@ -106,30 +106,30 @@ class NotificationClientIT extends FacadeIT {
     saveNotification(testSeller, testDemand);
     saveNotification(testSeller, testDemand);
 
-    ResponseEntity<DemandPublishedNotificationPageResponse> ok =
+    ResponseEntity<NotificationPageResponse> ok =
         authenticatedSellerClient.fetchNotificationsWithHttpInfo(0, 10);
 
     assertThat(ok.getStatusCode().value()).isEqualTo(HttpStatus.OK.value());
 
-    DemandPublishedNotificationPageResponse page = ok.getBody();
+    NotificationPageResponse page = ok.getBody();
     assertThat(page).isNotNull();
     assertThat(page.getContent()).hasSize(2);
     assertThat(page.getTotalElements()).isEqualTo(2L);
     assertThat(page.getPageable()).isNotNull();
 
-    DemandPublishedNotification first = page.getContent().getFirst();
+    Notification first = page.getContent().getFirst();
     assertThat(first.getId()).isNotNull();
     assertThat(first.getMessage()).isNotBlank();
     assertThat(first.getRead()).isFalse();
     assertThat(first.getNotificationType()).isEqualTo(NotificationType.DEMAND_PUBLISHED);
     assertThat(first.getCreatedAt()).isNotNull();
-    assertThat(first.getSeller()).isNotNull();
-    assertThat(first.getSeller().getId().toString()).isEqualTo(TEST_SELLER_ID);
+    assertThat(first.getRecipient()).isNotNull();
+    assertThat(first.getRecipient().getId().toString()).isEqualTo(TEST_SELLER_ID);
 
     // Empty page — no notifications exist for this seller
     demandPublishedNotificationRepository.deleteAll();
 
-    ResponseEntity<DemandPublishedNotificationPageResponse> empty =
+    ResponseEntity<NotificationPageResponse> empty =
         authenticatedSellerClient.fetchNotificationsWithHttpInfo(0, 10);
 
     assertThat(empty.getStatusCode().value()).isEqualTo(HttpStatus.OK.value());
@@ -141,12 +141,12 @@ class NotificationClientIT extends FacadeIT {
       saveNotification(testSeller, testDemand);
     }
 
-    ResponseEntity<DemandPublishedNotificationPageResponse> paged =
+    ResponseEntity<NotificationPageResponse> paged =
         authenticatedSellerClient.fetchNotificationsWithHttpInfo(0, 2);
 
     assertThat(paged.getStatusCode().value()).isEqualTo(HttpStatus.OK.value());
 
-    DemandPublishedNotificationPageResponse pagedBody = paged.getBody();
+    NotificationPageResponse pagedBody = paged.getBody();
     assertThat(pagedBody).isNotNull();
     assertThat(pagedBody.getContent()).hasSize(2);
     assertThat(pagedBody.getTotalElements()).isEqualTo(5L);
@@ -158,7 +158,7 @@ class NotificationClientIT extends FacadeIT {
     JSeller otherSeller = createOtherSeller();
     saveNotificationForSeller(otherSeller, testDemand);
 
-    ResponseEntity<DemandPublishedNotificationPageResponse> isolated =
+    ResponseEntity<NotificationPageResponse> isolated =
         authenticatedSellerClient.fetchNotificationsWithHttpInfo(0, 10);
 
     assertThat(isolated.getBody()).isNotNull();
@@ -167,8 +167,8 @@ class NotificationClientIT extends FacadeIT {
         .getContent()
         .forEach(
             n -> {
-              assertThat(n.getSeller()).isNotNull();
-              assertThat(n.getSeller().getId().toString()).isEqualTo(TEST_SELLER_ID);
+              assertThat(n.getRecipient()).isNotNull();
+              assertThat(n.getRecipient().getId().toString()).isEqualTo(TEST_SELLER_ID);
             });
 
     // 401 — unauthenticated request is rejected
@@ -189,12 +189,12 @@ class NotificationClientIT extends FacadeIT {
     JDemandPublishedNotification persisted = saveNotification(testSeller, testDemand);
     var notificationId = fromString(persisted.getId());
 
-    ResponseEntity<DemandPublishedNotification> ok =
+    ResponseEntity<Notification> ok =
         authenticatedSellerClient.getNotificationWithHttpInfo(notificationId);
 
     assertThat(ok.getStatusCode().value()).isEqualTo(HttpStatus.OK.value());
 
-    DemandPublishedNotification notification = ok.getBody();
+    Notification notification = ok.getBody();
     assertThat(notification).isNotNull();
     assertThat(notification.getId()).isEqualTo(notificationId);
     assertThat(notification.getMessage()).isEqualTo(TEST_MESSAGE);
@@ -202,9 +202,9 @@ class NotificationClientIT extends FacadeIT {
     assertThat(notification.getReadAt()).isNull();
     assertThat(notification.getNotificationType()).isEqualTo(NotificationType.DEMAND_PUBLISHED);
     assertThat(notification.getCreatedAt()).isNotNull();
-    assertThat(notification.getSeller()).isNotNull();
-    assertThat(notification.getSeller().getId().toString()).isEqualTo(TEST_SELLER_ID);
-    assertThat(notification.getDemand()).isNotNull();
+    assertThat(notification.getRecipient()).isNotNull();
+    assertThat(notification.getRecipient().getId().toString()).isEqualTo(TEST_SELLER_ID);
+    assertThat(notification.getResource()).isNotNull();
 
     // 404 — notification does not exist
     assertThatThrownBy(() -> authenticatedSellerClient.getNotification(randomUUID()))
@@ -247,22 +247,22 @@ class NotificationClientIT extends FacadeIT {
 
     assertThat(persisted.isRead()).isFalse();
 
-    ResponseEntity<DemandPublishedNotification> ok =
+    ResponseEntity<Notification> ok =
         authenticatedSellerClient.markAsReadWithHttpInfo(notificationId);
 
     assertThat(ok.getStatusCode().value()).isEqualTo(HttpStatus.ACCEPTED.value());
 
-    DemandPublishedNotification updated = ok.getBody();
+    Notification updated = ok.getBody();
     assertThat(updated).isNotNull();
     assertThat(updated.getId()).isEqualTo(notificationId);
     assertThat(updated.getRead()).isTrue();
     assertThat(updated.getReadAt()).isNotNull();
     assertThat(updated.getMessage()).isEqualTo(TEST_MESSAGE);
-    assertThat(updated.getSeller()).isNotNull();
-    assertThat(updated.getSeller().getId().toString()).isEqualTo(TEST_SELLER_ID);
+    assertThat(updated.getRecipient()).isNotNull();
+    assertThat(updated.getRecipient().getId().toString()).isEqualTo(TEST_SELLER_ID);
 
     // Idempotency — marking an already-read notification stays accepted and read remains true
-    ResponseEntity<DemandPublishedNotification> idempotent =
+    ResponseEntity<Notification> idempotent =
         authenticatedSellerClient.markAsReadWithHttpInfo(notificationId);
 
     assertThat(idempotent.getStatusCode().value()).isEqualTo(HttpStatus.ACCEPTED.value());
@@ -330,7 +330,7 @@ class NotificationClientIT extends FacadeIT {
         JDemandPublishedNotification.builder()
             .id(randomUUID().toString())
             .notificationRequested(nr)
-            .seller(seller)
+            .recipient(seller)
             .demand(demand)
             .message(TEST_MESSAGE)
             .notificationType(

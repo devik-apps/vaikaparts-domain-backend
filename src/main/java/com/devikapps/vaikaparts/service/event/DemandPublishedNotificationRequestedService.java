@@ -151,8 +151,8 @@ public class DemandPublishedNotificationRequestedService
     var clickAction = format("{\"action\":\"VIEW_DEMAND\",\"demandId\":\"%s\"}", demand.getId());
 
     return NotificationRequest.builder()
-        .sellerId(sellerId)
-        .demandId(demand.getId())
+        .recipientUserId(sellerId)
+        .resourceId(demand.getId())
         .message(message)
         .notificationType(NotificationType.DEMAND_PUBLISHED)
         .clickAction(clickAction)

@@ -3,6 +3,7 @@ package com.devikapps.vaikaparts.service;
 import static java.lang.String.format;
 import static java.time.LocalDateTime.now;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -120,30 +121,24 @@ class UserSyncServiceIT extends FacadeIT {
   }
 
   @Test
-  void should_default_to_researcher_when_user_type_not_specified() {
+  void should_not_create_user_when_user_type_not_specified() {
     var metadata = new HashMap<String, Object>();
     var webhook = buildWebhook(TEST_SUPABASE_USER_ID, metadata);
 
     userSyncService.handleUserCreated(webhook);
 
-    var savedUser = findUserBySupabaseId();
-    assertNotNull(savedUser);
-    assertInstanceOf(JResearcher.class, savedUser);
-    assertEquals(UserType.RESEARCHER, savedUser.getUserType());
-    assertEquals(TEST_SUPABASE_USER_ID, savedUser.getSupabaseUserId());
+    assertFalse(userRepository.existsBySupabaseUserId(TEST_SUPABASE_USER_ID));
   }
 
   @Test
-  void should_default_to_researcher_when_invalid_user_type_specified() {
+  void should_not_create_user_when_invalid_user_type_specified() {
     var metadata = buildResearcherMetadata();
     metadata.put("user_type", "INVALID_TYPE");
     var webhook = buildWebhook(TEST_SUPABASE_USER_ID, metadata);
 
     userSyncService.handleUserCreated(webhook);
 
-    var savedUser = findUserBySupabaseId();
-    assertNotNull(savedUser);
-    assertInstanceOf(JResearcher.class, savedUser);
+    assertFalse(userRepository.existsBySupabaseUserId(TEST_SUPABASE_USER_ID));
   }
 
   @Test
@@ -207,10 +202,12 @@ class UserSyncServiceIT extends FacadeIT {
   }
 
   @Test
-  void should_throw_exception_when_updating_non_existent_user() {
+  void should_create_user_when_update_contains_user_type_and_user_does_not_exist() {
     var webhook = buildWebhook("non-existent-id", buildResearcherMetadata());
 
-    assertThrows(IllegalStateException.class, () -> userSyncService.handleUserUpdated(webhook));
+    userSyncService.handleUserUpdated(webhook);
+
+    assertTrue(userRepository.existsBySupabaseUserId("non-existent-id"));
   }
 
   @Test
@@ -235,14 +232,12 @@ class UserSyncServiceIT extends FacadeIT {
   }
 
   @Test
-  void should_handle_null_metadata_gracefully() {
+  void should_not_create_user_when_metadata_is_null() {
     var webhook = buildWebhook(TEST_SUPABASE_USER_ID, null);
 
     userSyncService.handleUserCreated(webhook);
 
-    var savedUser = findUserBySupabaseId();
-    assertNotNull(savedUser);
-    assertEquals(TEST_NAME, savedUser.getName());
+    assertFalse(userRepository.existsBySupabaseUserId(TEST_SUPABASE_USER_ID));
   }
 
   @Test
@@ -354,7 +349,7 @@ class UserSyncServiceIT extends FacadeIT {
             name,
             UserSyncServiceIT.TEST_PROFILE_IMG_URL,
             metadata != null ? metadata : Map.of(),
-            Map.of(),
+            buildAppMetadata(metadata),
             TEST_CREATED_AT,
             TEST_UPDATED_AT,
             null);
@@ -370,11 +365,21 @@ class UserSyncServiceIT extends FacadeIT {
             TEST_NAME,
             TEST_PROFILE_IMG_URL,
             metadata != null ? metadata : Map.of(),
-            Map.of(),
+            buildAppMetadata(metadata),
             TEST_CREATED_AT,
             TEST_UPDATED_AT,
             null);
     return new SupabaseWebhook("DELETE", "profiles", "public", null, profileRecord);
+  }
+
+  private Map<String, Object> buildAppMetadata(Map<String, Object> metadata) {
+    if (metadata == null || !metadata.containsKey("user_type")) return Map.of();
+
+    var appMetadata = new HashMap<String, Object>();
+    appMetadata.put("user_type", metadata.get("user_type"));
+    if (metadata.containsKey("manager_role"))
+      appMetadata.put("manager_role", metadata.get("manager_role"));
+    return appMetadata;
   }
 
   private JUser findUserBySupabaseId() {

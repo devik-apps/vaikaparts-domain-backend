@@ -14,26 +14,26 @@ public interface DemandPublishedNotificationRepository
     extends JpaRepository<JDemandPublishedNotification, String> {
 
   @Query(
-      "SELECT n FROM JDemandPublishedNotification n WHERE n.seller.id = :sellerId ORDER BY"
+      "SELECT n FROM JDemandPublishedNotification n WHERE n.recipient.id = :recipientId ORDER BY"
           + " n.createdAt DESC")
-  Page<JDemandPublishedNotification> findBySellerIdOrderByCreatedAtDesc(
-      @Param("sellerId") String sellerId, Pageable pageable);
+  Page<JDemandPublishedNotification> findByRecipientIdOrderByCreatedAtDesc(
+      @Param("recipientId") String recipientId, Pageable pageable);
 
   @Query(
-      "SELECT n FROM JDemandPublishedNotification n WHERE n.seller.id = :sellerId AND n.read ="
-          + " :isRead ORDER BY n.createdAt DESC")
-  Page<JDemandPublishedNotification> findBySellerIdAndIsReadOrderByCreatedAtDesc(
-      @Param("sellerId") String sellerId, @Param("isRead") boolean isRead, Pageable pageable);
+      "SELECT n FROM JDemandPublishedNotification n WHERE n.recipient.id = :recipientId AND n.read"
+          + " = :isRead ORDER BY n.createdAt DESC")
+  Page<JDemandPublishedNotification> findByRecipientIdAndIsReadOrderByCreatedAtDesc(
+      @Param("recipientId") String recipientId, @Param("isRead") boolean isRead, Pageable pageable);
 
   @Query(
-      "SELECT COUNT(n) FROM JDemandPublishedNotification n WHERE n.seller.id = :sellerId AND n.read"
-          + " = :isRead")
-  long countBySellerIdAndIsRead(
-      @Param("sellerId") String sellerId, @Param("isRead") boolean isRead);
+      "SELECT COUNT(n) FROM JDemandPublishedNotification n WHERE n.recipient.id = :recipientId AND"
+          + " n.read = :isRead")
+  long countByRecipientIdAndIsRead(
+      @Param("recipientId") String recipientId, @Param("isRead") boolean isRead);
 
   @Query(
-      "SELECT n FROM JDemandPublishedNotification n WHERE n.id = :notificationId AND n.seller.id ="
-          + " :sellerId")
-  Optional<JDemandPublishedNotification> findByIdAndSellerId(
-      @Param("notificationId") String notificationId, @Param("sellerId") String sellerId);
+      "SELECT n FROM JDemandPublishedNotification n WHERE n.id = :notificationId AND n.recipient.id"
+          + " = :recipientId")
+  Optional<JDemandPublishedNotification> findByIdAndRecipientId(
+      @Param("notificationId") String notificationId, @Param("recipientId") String recipientId);
 }

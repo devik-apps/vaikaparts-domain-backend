@@ -1,5 +1,7 @@
 package com.devikapps.vaikaparts.config;
 
+import com.auth0.jwt.interfaces.DecodedJWT;
+import com.devikapps.vaikaparts.config.sec.AuthenticatedSupabaseUser;
 import com.devikapps.vaikaparts.service.JwtValidationService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -7,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,19 +62,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         .validateToken(token)
         .ifPresent(
             jwt -> {
-              String userId = jwt.getSubject();
+              var user = createPrincipal(jwt);
               UsernamePasswordAuthenticationToken authentication =
-                  createAuthentication(userId, request);
+                  createAuthentication(user, request);
               SecurityContextHolder.getContext().setAuthentication(authentication);
-              log.debug("User authenticated: {}", userId);
+              log.debug("User authenticated: {}", user.id());
             });
   }
 
+  private AuthenticatedSupabaseUser createPrincipal(DecodedJWT jwt) {
+    return new AuthenticatedSupabaseUser(
+        jwt.getSubject(),
+        jwt.getClaim("email").asString(),
+        jwt.getClaim("phone").asString(),
+        nullableClaimMap(jwt, "user_metadata"),
+        nullableClaimMap(jwt, "app_metadata"));
+  }
+
+  private Map<String, Object> nullableClaimMap(DecodedJWT jwt, String claimName) {
+    var claim = jwt.getClaim(claimName);
+    return claim.isNull() ? null : claim.asMap();
+  }
+
   private UsernamePasswordAuthenticationToken createAuthentication(
-      String userId, HttpServletRequest request) {
+      AuthenticatedSupabaseUser user, HttpServletRequest request) {
     UsernamePasswordAuthenticationToken authentication =
         new UsernamePasswordAuthenticationToken(
-            userId, null, Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+            user, null, Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
     return authentication;
   }

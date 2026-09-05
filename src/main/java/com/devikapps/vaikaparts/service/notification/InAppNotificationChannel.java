@@ -1,19 +1,19 @@
 package com.devikapps.vaikaparts.service.notification;
 
 import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.IN_APP;
-import static java.lang.String.format;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.exception.NotificationDeliveryException;
-import com.devikapps.vaikaparts.exception.UserNotFoundException;
 import com.devikapps.vaikaparts.model.classifier.NotificationChannelType;
-import com.devikapps.vaikaparts.model.notification.DemandPublishedNotification;
+import com.devikapps.vaikaparts.model.exchange.Demand;
+import com.devikapps.vaikaparts.model.exchange.Offer;
+import com.devikapps.vaikaparts.model.notification.Notification;
 import com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
+import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotification;
-import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -28,29 +28,25 @@ public class InAppNotificationChannel implements NotificationChannel {
   private final NotificationRequestedRepository notificationRequestedRepository;
   private final NotificationWebSocketService webSocketService;
   private final DemandRepository demandRepository;
+  private final OfferRepository offerRepository;
 
   @Override
-  public void send(DemandPublishedNotification demandPublishedNotification) {
+  public void send(Notification notification) {
     log.info(
-        "Sending in-app notification to seller: {}",
-        forJava(demandPublishedNotification.getSeller().getId()));
+        "Sending in-app notification type={} to user={} ({})",
+        notification.getNotificationType(),
+        forJava(notification.getRecipient().getId()),
+        notification.getRecipient().getUserType());
 
     try {
-      saveNotificationToDatabase(demandPublishedNotification);
-      sendViaWebSocket(demandPublishedNotification);
+      saveNotificationToDatabase(notification);
+      sendViaWebSocket(notification);
 
-      log.info(
-          "Successfully sent in-app notification: {}",
-          forJava(demandPublishedNotification.getId()));
+      log.info("Successfully sent in-app notification: {}", forJava(notification.getId()));
     } catch (Exception e) {
-      log.error(
-          "Failed to send in-app notification: {}",
-          forJava(demandPublishedNotification.getId()),
-          e);
+      log.error("Failed to send in-app notification: {}", forJava(notification.getId()), e);
       throw new NotificationDeliveryException(
-          "Failed to send in-app notification to seller: "
-              + demandPublishedNotification.getSeller().getId(),
-          e);
+          "Failed to send in-app notification to user: " + notification.getRecipient().getId(), e);
     }
   }
 
@@ -64,53 +60,53 @@ public class InAppNotificationChannel implements NotificationChannel {
     return true;
   }
 
-  private void saveNotificationToDatabase(DemandPublishedNotification demandPublishedNotification) {
+  private void saveNotificationToDatabase(Notification notification) {
     var jNotificationRequested =
-        notificationRequestedRepository.getReferenceById(
-            demandPublishedNotification.getNotificationRequestedId());
-    var jSeller =
-        userRepository
-            .findJUserById(demandPublishedNotification.getSeller().getId())
-            .map(u -> (JSeller) u)
-            .orElseThrow(
-                () ->
-                    new UserNotFoundException(
-                        format(
-                            "No seller with id=%s not found.",
-                            demandPublishedNotification.getSeller().getId())));
+        notification.getNotificationRequestedId() == null
+            ? null
+            : notificationRequestedRepository.getReferenceById(
+                notification.getNotificationRequestedId());
+    var jRecipient = userRepository.getReferenceById(notification.getRecipient().getId());
     var jDemand =
-        demandRepository.getReferenceById(demandPublishedNotification.getDemand().getId());
+        notification.getResource() instanceof Demand demand
+            ? demandRepository.getReferenceById(demand.getId())
+            : null;
+    var jOffer =
+        notification.getResource() instanceof Offer offer
+            ? offerRepository.getReferenceById(offer.getId())
+            : null;
 
     var jNotification =
         JDemandPublishedNotification.builder()
-            .id(demandPublishedNotification.getId())
+            .id(notification.getId())
             .notificationRequested(jNotificationRequested)
-            .seller(jSeller)
+            .recipient(jRecipient)
             .demand(jDemand)
-            .message(demandPublishedNotification.getMessage())
-            .notificationType(demandPublishedNotification.getNotificationType())
-            .read(demandPublishedNotification.isRead())
-            .clickAction(demandPublishedNotification.getClickAction())
-            .createdAt(demandPublishedNotification.getCreatedAt())
-            .readAt(demandPublishedNotification.getReadAt())
+            .offer(jOffer)
+            .message(notification.getMessage())
+            .notificationType(notification.getNotificationType())
+            .read(notification.isRead())
+            .clickAction(notification.getClickAction())
+            .createdAt(notification.getCreatedAt())
+            .readAt(notification.getReadAt())
             .build();
 
     demandPublishedNotificationRepository.save(jNotification);
-    log.debug(
-        "Saved notification to database with id={}", forJava(demandPublishedNotification.getId()));
+    log.debug("Saved notification to database with id={}", forJava(notification.getId()));
   }
 
-  private void sendViaWebSocket(DemandPublishedNotification demandPublishedNotification) {
+  private void sendViaWebSocket(Notification notification) {
     try {
-      webSocketService.sendNotificationToSeller(
-          demandPublishedNotification.getSeller().getId(), demandPublishedNotification);
+      webSocketService.sendNotificationToUser(notification.getRecipient().getId(), notification);
       log.debug(
-          "Sent WebSocket notification to seller: {}",
-          forJava(demandPublishedNotification.getSeller().getId()));
+          "Sent WebSocket notification to user={} ({})",
+          forJava(notification.getRecipient().getId()),
+          notification.getRecipient().getUserType());
     } catch (Exception e) {
       log.warn(
-          "WebSocket delivery failed for seller: {} (notification saved in DB)",
-          forJava(demandPublishedNotification.getSeller().getId()),
+          "WebSocket delivery failed for user={} ({}) (notification saved in DB)",
+          forJava(notification.getRecipient().getId()),
+          notification.getRecipient().getUserType(),
           e);
     }
   }

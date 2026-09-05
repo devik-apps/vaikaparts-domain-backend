@@ -179,6 +179,21 @@ public class OfferService {
   }
 
   @Transactional(readOnly = true)
+  public Offer getOfferByIdWithoutAuthFilter(String offerId) {
+    log.info("Fetching offer without authentication filter: {}", forJava(offerId));
+
+    var jOffer =
+        offerRepository
+            .findByIdWithRelations(offerId)
+            .orElseThrow(
+                () ->
+                    new ResourceNotFoundException(
+                        format("No offer with id=%s was found.", forJava(offerId))));
+
+    return offerMapper.toDomain(jOffer);
+  }
+
+  @Transactional(readOnly = true)
   public Page<Offer> getOffersByDemandId(String demandId, Integer page, Integer size) {
     log.info("Fetching offers for demand: {}", forJava(demandId));
 
