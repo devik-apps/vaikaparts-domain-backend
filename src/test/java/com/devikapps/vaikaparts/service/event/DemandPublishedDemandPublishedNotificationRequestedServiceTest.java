@@ -21,8 +21,8 @@ import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
-import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
+import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
@@ -59,7 +59,7 @@ class DemandPublishedDemandPublishedNotificationRequestedServiceTest {
   @InjectMocks private DemandPublishedNotificationRequestedService service;
 
   private DemandPublishedNotificationRequested testEvent;
-  private JDemandPublishedNotificationRequested testEventLog;
+  private JNotificationRequested testEventLog;
   private JDemandPublishedRequested testParent;
   private JDemand testDemand;
   private JUser testSeller;
@@ -89,7 +89,7 @@ class DemandPublishedDemandPublishedNotificationRequestedServiceTest {
     testParent = JDemandPublishedRequested.builder().id(TEST_PARENT_ID).demand(testDemand).build();
 
     testEventLog =
-        JDemandPublishedNotificationRequested.builder()
+        JNotificationRequested.builder()
             .id(TEST_EVENT_ID)
             .demandPublishedRequested(testParent)
             .seller(JSeller.builder().id(TEST_SELLER_ID).build())
@@ -107,15 +107,15 @@ class DemandPublishedDemandPublishedNotificationRequestedServiceTest {
         .thenReturn(Optional.of(testParent));
     when(userRepository.findJUserById(TEST_SELLER_ID)).thenReturn(Optional.of(testSeller));
     when(demandRepository.findById(TEST_DEMAND_ID)).thenReturn(Optional.of(testDemand));
-    when(notificationRequestedRepository.save(any(JDemandPublishedNotificationRequested.class)))
+    when(notificationRequestedRepository.save(any(JNotificationRequested.class)))
         .thenReturn(testEventLog);
     when(notificationService.createAndSendNotification(any(NotificationRequest.class)))
         .thenReturn(mock(Notification.class));
 
     service.accept(testEvent);
 
-    ArgumentCaptor<JDemandPublishedNotificationRequested> captor =
-        ArgumentCaptor.forClass(JDemandPublishedNotificationRequested.class);
+    ArgumentCaptor<JNotificationRequested> captor =
+        ArgumentCaptor.forClass(JNotificationRequested.class);
     verify(notificationRequestedRepository, atLeastOnce()).save(captor.capture());
 
     var createdLog = captor.getAllValues().getFirst();
@@ -132,7 +132,7 @@ class DemandPublishedDemandPublishedNotificationRequestedServiceTest {
   void should_call_notification_service_with_correct_request() {
     when(notificationRequestedRepository.findById(TEST_EVENT_ID))
         .thenReturn(Optional.of(testEventLog));
-    when(notificationRequestedRepository.save(any(JDemandPublishedNotificationRequested.class)))
+    when(notificationRequestedRepository.save(any(JNotificationRequested.class)))
         .thenReturn(testEventLog);
     when(notificationService.createAndSendNotification(any(NotificationRequest.class)))
         .thenReturn(mock(Notification.class));
@@ -158,15 +158,15 @@ class DemandPublishedDemandPublishedNotificationRequestedServiceTest {
   void should_update_status_to_success_when_processing_completes() {
     when(notificationRequestedRepository.findById(TEST_EVENT_ID))
         .thenReturn(Optional.of(testEventLog));
-    when(notificationRequestedRepository.save(any(JDemandPublishedNotificationRequested.class)))
+    when(notificationRequestedRepository.save(any(JNotificationRequested.class)))
         .thenReturn(testEventLog);
     when(notificationService.createAndSendNotification(any(NotificationRequest.class)))
         .thenReturn(mock(Notification.class));
 
     service.accept(testEvent);
 
-    ArgumentCaptor<JDemandPublishedNotificationRequested> captor =
-        ArgumentCaptor.forClass(JDemandPublishedNotificationRequested.class);
+    ArgumentCaptor<JNotificationRequested> captor =
+        ArgumentCaptor.forClass(JNotificationRequested.class);
     verify(notificationRequestedRepository, atLeastOnce()).save(captor.capture());
 
     var finalLog = captor.getAllValues().getLast();
@@ -179,15 +179,15 @@ class DemandPublishedDemandPublishedNotificationRequestedServiceTest {
   void should_set_status_to_failed_on_exception() {
     when(notificationRequestedRepository.findById(TEST_EVENT_ID))
         .thenReturn(Optional.of(testEventLog));
-    when(notificationRequestedRepository.save(any(JDemandPublishedNotificationRequested.class)))
+    when(notificationRequestedRepository.save(any(JNotificationRequested.class)))
         .thenReturn(testEventLog);
     when(notificationService.createAndSendNotification(any(NotificationRequest.class)))
         .thenThrow(new RuntimeException("Notification failed"));
 
     assertThrows(RuntimeException.class, () -> service.accept(testEvent));
 
-    ArgumentCaptor<JDemandPublishedNotificationRequested> captor =
-        ArgumentCaptor.forClass(JDemandPublishedNotificationRequested.class);
+    ArgumentCaptor<JNotificationRequested> captor =
+        ArgumentCaptor.forClass(JNotificationRequested.class);
     verify(notificationRequestedRepository, atLeastOnce()).save(captor.capture());
 
     var finalLog = captor.getAllValues().getLast();
@@ -224,15 +224,15 @@ class DemandPublishedDemandPublishedNotificationRequestedServiceTest {
 
     when(notificationRequestedRepository.findById(TEST_EVENT_ID))
         .thenReturn(Optional.of(testEventLog));
-    when(notificationRequestedRepository.save(any(JDemandPublishedNotificationRequested.class)))
+    when(notificationRequestedRepository.save(any(JNotificationRequested.class)))
         .thenReturn(testEventLog);
     when(notificationService.createAndSendNotification(any(NotificationRequest.class)))
         .thenReturn(mock(Notification.class));
 
     service.accept(testEvent);
 
-    ArgumentCaptor<JDemandPublishedNotificationRequested> captor =
-        ArgumentCaptor.forClass(JDemandPublishedNotificationRequested.class);
+    ArgumentCaptor<JNotificationRequested> captor =
+        ArgumentCaptor.forClass(JNotificationRequested.class);
     verify(notificationRequestedRepository, atLeastOnce()).save(captor.capture());
 
     var finalLog = captor.getAllValues().getLast();

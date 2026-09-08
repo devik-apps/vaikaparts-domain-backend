@@ -10,7 +10,7 @@ import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.OfferRepository;
-import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
+import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.service.notification.NotificationService;
 import java.time.LocalDateTime;
@@ -67,8 +67,7 @@ public class OfferNotificationRequestedService implements Consumer<OfferNotifica
     }
   }
 
-  private JDemandPublishedNotificationRequested createOrUpdateEventLog(
-      OfferNotificationRequested event) {
+  private JNotificationRequested createOrUpdateEventLog(OfferNotificationRequested event) {
     var existing = notificationRequestedRepository.findById(event.getId());
     if (existing.isPresent()) {
       var eventLog = existing.get();
@@ -91,7 +90,7 @@ public class OfferNotificationRequestedService implements Consumer<OfferNotifica
       throw new IllegalArgumentException("Notification recipient must own the offer's demand");
     }
     var now = LocalDateTime.now();
-    return JDemandPublishedNotificationRequested.builder()
+    return JNotificationRequested.builder()
         .id(event.getId())
         .researcher(researcher)
         .offer(offer)
@@ -103,8 +102,7 @@ public class OfferNotificationRequestedService implements Consumer<OfferNotifica
         .build();
   }
 
-  private void updateEventLogStatus(
-      JDemandPublishedNotificationRequested eventLog, ProcessStatus status) {
+  private void updateEventLogStatus(JNotificationRequested eventLog, ProcessStatus status) {
     eventLog.setStatus(status);
     eventLog.setUpdatedAt(LocalDateTime.now());
     notificationRequestedRepository.save(eventLog);
@@ -130,9 +128,7 @@ public class OfferNotificationRequestedService implements Consumer<OfferNotifica
   }
 
   private void handleEventProcessingError(
-      JDemandPublishedNotificationRequested eventLog,
-      OfferNotificationRequested event,
-      Exception e) {
+      JNotificationRequested eventLog, OfferNotificationRequested event, Exception e) {
     log.error(
         "Failed OfferNotificationRequested event={}, recipientType=RESEARCHER, recipientId={},"
             + " attempt={}",

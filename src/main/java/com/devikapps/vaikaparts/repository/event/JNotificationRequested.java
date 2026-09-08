@@ -28,6 +28,10 @@ import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+/**
+ * Processing log shared by demand and offer notification requests. Demand requests reference their
+ * publication parent; offer requests have no parent.
+ */
 @Entity
 @Table(name = "notification_requested")
 @NoArgsConstructor
@@ -36,7 +40,7 @@ import org.hibernate.type.SqlTypes;
 @Setter
 @Builder
 @EqualsAndHashCode(of = "id")
-public class JDemandPublishedNotificationRequested {
+public class JNotificationRequested {
 
   @Id
   @Column(name = "id", nullable = false)

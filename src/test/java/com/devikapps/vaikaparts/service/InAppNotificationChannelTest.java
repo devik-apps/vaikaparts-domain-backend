@@ -29,7 +29,7 @@ import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotification;
-import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
+import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.repository.model.user.JManager;
@@ -65,15 +65,15 @@ class InAppNotificationChannelTest {
   @InjectMocks private InAppNotificationChannel inAppChannel;
 
   private Notification testNotification;
-  private JDemandPublishedNotificationRequested jDemandPublishedNotificationRequested;
+  private JNotificationRequested jNotificationRequested;
   private JSeller jSeller;
   private JDemand jDemand;
   private JDemandPublishedNotification testJDemandPublishedNotification;
 
   @BeforeEach
   void setUp() {
-    jDemandPublishedNotificationRequested =
-        JDemandPublishedNotificationRequested.builder().id(TEST_NOTIFICATION_REQUESTED_ID).build();
+    jNotificationRequested =
+        JNotificationRequested.builder().id(TEST_NOTIFICATION_REQUESTED_ID).build();
 
     jSeller = JSeller.builder().id(TEST_SELLER_ID).build();
 
@@ -82,7 +82,7 @@ class InAppNotificationChannelTest {
     testJDemandPublishedNotification =
         JDemandPublishedNotification.builder()
             .id(TEST_NOTIFICATION_ID)
-            .notificationRequested(jDemandPublishedNotificationRequested)
+            .notificationRequested(jNotificationRequested)
             .recipient(jSeller)
             .demand(jDemand)
             .message(TEST_MESSAGE)
@@ -150,11 +150,7 @@ class InAppNotificationChannelTest {
     var researcher = JResearcher.builder().id("researcher").userType(UserType.RESEARCHER).build();
     var offer = JOffer.builder().id("offer").build();
     var request =
-        JDemandPublishedNotificationRequested.builder()
-            .id("request")
-            .offer(offer)
-            .researcher(researcher)
-            .build();
+        JNotificationRequested.builder().id("request").offer(offer).researcher(researcher).build();
     var notification =
         Notification.builder()
             .id(TEST_NOTIFICATION_ID)
@@ -219,7 +215,7 @@ class InAppNotificationChannelTest {
 
   private void mockRepositoryReferences() {
     when(notificationRequestedRepository.getReferenceById(TEST_NOTIFICATION_REQUESTED_ID))
-        .thenReturn(jDemandPublishedNotificationRequested);
+        .thenReturn(jNotificationRequested);
     when(userRepository.getReferenceById(TEST_SELLER_ID)).thenReturn(jSeller);
     when(demandRepository.getReferenceById(TEST_DEMAND_ID)).thenReturn(jDemand);
   }

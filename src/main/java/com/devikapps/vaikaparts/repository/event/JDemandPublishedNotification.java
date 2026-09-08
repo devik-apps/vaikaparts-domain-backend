@@ -37,7 +37,7 @@ public class JDemandPublishedNotification {
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "notification_requested_id")
-  private JDemandPublishedNotificationRequested notificationRequested;
+  private JNotificationRequested notificationRequested;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "recipient_user_id", nullable = false)

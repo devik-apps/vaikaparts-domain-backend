@@ -12,7 +12,7 @@ import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.OfferRepository;
-import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
+import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
@@ -37,7 +37,7 @@ class OfferNotificationRequestedServiceTest {
   @Mock NotificationService notificationService;
   @InjectMocks OfferNotificationRequestedService service;
   @Captor ArgumentCaptor<NotificationRequest> requests;
-  @Captor ArgumentCaptor<JDemandPublishedNotificationRequested> logs;
+  @Captor ArgumentCaptor<JNotificationRequested> logs;
   OfferNotificationRequested event;
   JOffer offer;
 
@@ -96,7 +96,7 @@ class OfferNotificationRequestedServiceTest {
     when(repository.findById("event"))
         .thenReturn(
             Optional.of(
-                JDemandPublishedNotificationRequested.builder()
+                JNotificationRequested.builder()
                     .id("event")
                     .offer(offer)
                     .researcher(offer.getDemand().getResearcher())
@@ -143,7 +143,7 @@ class OfferNotificationRequestedServiceTest {
   @Test
   void retry_reuses_log_and_clears_previous_error() {
     var log =
-        JDemandPublishedNotificationRequested.builder()
+        JNotificationRequested.builder()
             .id("event")
             .offer(offer)
             .researcher(offer.getDemand().getResearcher())
