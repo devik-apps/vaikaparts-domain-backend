@@ -1204,7 +1204,7 @@ components:
       description: Physical condition of automotive part
     NotificationType:
       type: string
-      enum: [DEMAND_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED, DEMAND_CANCELED, SYSTEM_ANNOUNCEMENT]
+      enum: [DEMAND_PUBLISHED, OFFER_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED, DEMAND_CANCELED, SYSTEM_ANNOUNCEMENT]
       description: Notification event type
     NotificationChannel:
       type: string

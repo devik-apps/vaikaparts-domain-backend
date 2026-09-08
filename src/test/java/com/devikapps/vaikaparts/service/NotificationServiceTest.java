@@ -292,6 +292,31 @@ class NotificationServiceTest {
   }
 
   @Test
+  void should_notify_researcher_of_published_offer() {
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    var request =
+        NotificationRequest.builder()
+            .recipientUserId("researcher")
+            .resourceId("offer")
+            .notificationType(NotificationType.OFFER_PUBLISHED)
+            .message("New offer")
+            .build();
+    var offer = Offer.builder().id("offer").build();
+    when(userRepository.findJUserById("researcher"))
+        .thenReturn(Optional.of(JResearcher.builder().userType(UserType.RESEARCHER).build()));
+    when(researcherMapper.toResearcher(any(JResearcher.class)))
+        .thenReturn(Researcher.builder().id("researcher").userType(UserType.RESEARCHER).build());
+    when(offerService.getOfferByIdWithoutAuthFilter("offer")).thenReturn(offer);
+
+    var notification = notificationService.createAndSendNotification(request);
+
+    assertEquals("researcher", notification.getRecipient().getId());
+    assertEquals(NotificationType.OFFER_PUBLISHED, notification.getNotificationType());
+    assertEquals(offer, notification.getResource());
+    verify(inAppChannel).send(notification);
+  }
+
+  @Test
   void should_reject_demand_published_notification_for_researcher() {
     var researcherId = "researcher-123";
     var request =

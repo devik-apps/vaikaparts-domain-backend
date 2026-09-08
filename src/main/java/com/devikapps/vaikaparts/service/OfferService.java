@@ -8,6 +8,8 @@ import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPartInfo;
+import com.devikapps.vaikaparts.event.model.EventProducer;
+import com.devikapps.vaikaparts.event.model.OfferNotificationRequested;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.mapper.exchange.DemandMapper;
@@ -35,6 +37,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Service
@@ -52,6 +56,7 @@ public class OfferService {
   private final Paginator paginator;
   private final BucketComponent bucketComponent;
   private final ImageUploader imageUploader;
+  private final EventProducer<OfferNotificationRequested> offerNotificationRequestedProducer;
 
   @Transactional
   public Offer createOffer(String demandId, String description, RestPartInfo restPartInfo) {
@@ -109,17 +114,57 @@ public class OfferService {
 
     var currentSeller = sellerService.getCurrentSeller();
     var jOffer = findOfferByIdAndSeller(offerId, currentSeller.getId());
+    var shouldNotifyResearcher = shouldPublishNotifications(newStatus);
 
     validateStatusTransition(jOffer.getStatus(), newStatus);
     applyStatusUpdate(jOffer, newStatus);
-
     var updatedJOffer = offerRepository.save(jOffer);
+
+    if (shouldNotifyResearcher) publishOfferNotificationEvent(updatedJOffer);
     log.info(
         "Successfully updated offer {} to status {}",
         forJava(offerId),
         forJava(newStatus.toString()));
 
     return offerMapper.toDomain(updatedJOffer);
+  }
+
+  private void publishOfferNotificationEvent(JOffer offer) {
+    var event =
+        OfferNotificationRequested.builder()
+            .id(randomUUID().toString())
+            .offerId(offer.getId())
+            .researcherId(offer.getDemand().getResearcher().getId())
+            .build();
+
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+      TransactionSynchronizationManager.registerSynchronization(
+          new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+              publishNotificationRequest(event);
+            }
+          });
+    } else {
+      log.warn(
+          "No active transaction synchronization. Publishing OfferNotificationRequested"
+              + " immediately.");
+      publishNotificationRequest(event);
+    }
+  }
+
+  private void publishNotificationRequest(OfferNotificationRequested event) {
+    offerNotificationRequestedProducer.accept(List.of(event));
+    log.info(
+        "Published OfferNotificationRequested event={}, offer={}, recipientType=RESEARCHER,"
+            + " recipientId={}",
+        forJava(event.getId()),
+        forJava(event.getOfferId()),
+        forJava(event.getResearcherId()));
+  }
+
+  private boolean shouldPublishNotifications(PostStatus newStatus) {
+    return newStatus == PostStatus.PUBLISHED;
   }
 
   @Transactional(readOnly = true)
