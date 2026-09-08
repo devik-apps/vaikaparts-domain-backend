@@ -826,6 +826,13 @@ paths:
         optional and bound under `part_info.images`; maximum 5 files per offer.
 
         **Authorization**: Seller role required.
+      parameters:
+        - name: published
+          in: query
+          required: false
+          description: apply or not default published status on the to be created offer.
+          schema:
+            type: boolean
       requestBody:
         required: true
         content:

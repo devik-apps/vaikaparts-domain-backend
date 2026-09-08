@@ -27,9 +27,12 @@ public class OfferController {
   private final OfferService offerService;
 
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-  public ResponseEntity<Offer> createOffer(@Valid @ModelAttribute CreateOfferRequest request) {
+  public ResponseEntity<Offer> createOffer(@Valid @ModelAttribute CreateOfferRequest request, @RequestParam(defaultValue = "true") Boolean published) {
     var offer =
         offerService.createOffer(request.demandId(), request.description(), request.partInfo());
+    if(published) {
+      offerService.updateOfferStatus(offer.getId(),PostStatus.PUBLISHED);
+    }
     return ResponseEntity.status(HttpStatus.CREATED).body(offer);
   }
 
