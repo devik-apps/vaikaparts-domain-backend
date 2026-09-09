@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.devikapps.vaikaparts.conf.FacadeIT;
-import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
+import com.devikapps.vaikaparts.event.model.NotificationBatchRequested;
 import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
 import com.devikapps.vaikaparts.model.Location;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
@@ -38,7 +38,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 @Slf4j
-class DemandPublishedRequestedServiceIT extends FacadeIT {
+class NotificationBatchRequestedServiceIT extends FacadeIT {
 
   private static final String TEST_DEMAND_ID = "demand-123";
   private static final String TEST_RESEARCHER_ID = randomUUID().toString();
@@ -48,7 +48,7 @@ class DemandPublishedRequestedServiceIT extends FacadeIT {
   private static final String TEST_CAR_MODEL = "Corolla";
   private static final int TEST_CAR_YEAR = 2015;
 
-  @Autowired private DemandPublishedRequestedService service;
+  @Autowired private NotificationBatchRequestedService service;
   @Autowired private DemandPublishedRequestedRepository demandPublishedRequestedRepository;
   @Autowired private NotificationRequestedRepository notificationRequestedRepository;
   @Autowired private DemandRepository demandRepository;
@@ -130,7 +130,7 @@ class DemandPublishedRequestedServiceIT extends FacadeIT {
   @Test
   void should_set_status_to_failed_when_demand_not_found() {
     val event =
-        DemandPublishedRequested.builder()
+        NotificationBatchRequested.builder()
             .id(randomUUID().toString())
             .demandId("non-existent-demand")
             .build();
@@ -240,8 +240,8 @@ class DemandPublishedRequestedServiceIT extends FacadeIT {
         log -> assertEquals(savedLog.get().getId(), log.getDemandPublishedRequested().getId()));
   }
 
-  private DemandPublishedRequested buildTestEvent() {
-    return DemandPublishedRequested.builder()
+  private NotificationBatchRequested buildTestEvent() {
+    return NotificationBatchRequested.builder()
         .id(randomUUID().toString())
         .demandId(testDemand.getId())
         .build();

@@ -5,10 +5,10 @@ import static com.devikapps.vaikaparts.model.classifier.UserType.SELLER;
 import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
-import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested;
-import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.event.model.EventProducer;
-import com.devikapps.vaikaparts.exception.DemandPublishedRequestedException;
+import com.devikapps.vaikaparts.event.model.NotificationBatchRequested;
+import com.devikapps.vaikaparts.event.model.NotificationRequested;
+import com.devikapps.vaikaparts.exception.NotificationBatchRequestedException;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.user.Seller;
@@ -31,19 +31,19 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class DemandPublishedRequestedService implements Consumer<DemandPublishedRequested> {
+public class NotificationBatchRequestedService implements Consumer<NotificationBatchRequested> {
 
   private final DemandPublishedRequestedRepository demandPublishedRequestedRepository;
   private final DemandRepository demandRepository;
   private final UserRepository userRepository;
   private final SellerMapper sellerMapper;
-  private final EventProducer<DemandPublishedNotificationRequested> notificationRequestedProducer;
+  private final EventProducer<NotificationRequested> notificationRequestedProducer;
 
   @Override
   @Transactional
-  public void accept(DemandPublishedRequested event) {
+  public void accept(NotificationBatchRequested event) {
     log.info(
-        "Processing DemandPublishedRequested event: {}, demand: {}, attempt: {}",
+        "Processing NotificationBatchRequested event: {}, demand: {}, attempt: {}",
         forJava(event.getId()),
         forJava(event.getDemandId()),
         event.getAttemptNb());
@@ -69,7 +69,7 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
       demandPublishedRequestedRepository.save(eventLog);
 
       log.info(
-          "Successfully processed DemandPublishedRequested: {}, notified {} sellers",
+          "Successfully processed NotificationBatchRequested: {}, notified {} sellers",
           forJava(event.getId()),
           sellers.size());
 
@@ -79,7 +79,7 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
   }
 
   private JDemandPublishedRequested fetchOrCreateEventLog(
-      DemandPublishedRequested event, JDemand demand) {
+      NotificationBatchRequested event, JDemand demand) {
     return demandPublishedRequestedRepository
         .findById(event.getId())
         .orElseGet(
@@ -127,7 +127,7 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
   }
 
   private void publishNotificationRequests(
-      DemandPublishedRequested parentEvent, JDemand demand, List<Seller> sellers) {
+      NotificationBatchRequested parentEvent, JDemand demand, List<Seller> sellers) {
 
     if (sellers.isEmpty()) {
       return;
@@ -137,7 +137,7 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
         sellers.stream()
             .map(
                 seller ->
-                    DemandPublishedNotificationRequested.builder()
+                    NotificationRequested.builder()
                         .id(randomUUID().toString())
                         .demandPublishedRequestedId(parentEvent.getId())
                         .sellerId(seller.getId())
@@ -166,10 +166,10 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
   }
 
   private void handleEventProcessingError(
-      JDemandPublishedRequested eventLog, DemandPublishedRequested event, Exception e) {
+      JDemandPublishedRequested eventLog, NotificationBatchRequested event, Exception e) {
 
     log.error(
-        "Failed to process DemandPublishedRequested: {}, attempt: {}",
+        "Failed to process NotificationBatchRequested: {}, attempt: {}",
         forJava(event.getId()),
         event.getAttemptNb(),
         e);
@@ -181,6 +181,7 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
     eventLog.setCompletedAt(LocalDateTime.now());
     demandPublishedRequestedRepository.save(eventLog);
 
-    throw new DemandPublishedRequestedException("DemandPublishedRequested processing failed", e);
+    throw new NotificationBatchRequestedException(
+        "NotificationBatchRequested processing failed", e);
   }
 }

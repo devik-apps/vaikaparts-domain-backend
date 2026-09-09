@@ -12,7 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.NotificationRequest;
-import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested;
+import com.devikapps.vaikaparts.event.model.NotificationRequested;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
@@ -38,7 +38,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class DemandPublishedDemandPublishedNotificationRequestedServiceTest {
+class NotificationRequestedServiceTest {
 
   private static final String TEST_EVENT_ID = "event-123";
   private static final String TEST_PARENT_ID = "parent-456";
@@ -56,9 +56,9 @@ class DemandPublishedDemandPublishedNotificationRequestedServiceTest {
   @Mock private SellerMapper sellerMapper;
   @Mock private NotificationService notificationService;
 
-  @InjectMocks private DemandPublishedNotificationRequestedService service;
+  @InjectMocks private NotificationRequestedService service;
 
-  private DemandPublishedNotificationRequested testEvent;
+  private NotificationRequested testEvent;
   private JDemandPublishedNotificationRequested testEventLog;
   private JDemandPublishedRequested testParent;
   private JDemand testDemand;
@@ -67,7 +67,7 @@ class DemandPublishedDemandPublishedNotificationRequestedServiceTest {
   @BeforeEach
   void setUp() {
     testEvent =
-        DemandPublishedNotificationRequested.builder()
+        NotificationRequested.builder()
             .id(TEST_EVENT_ID)
             .demandPublishedRequestedId(TEST_PARENT_ID)
             .sellerId(TEST_SELLER_ID)

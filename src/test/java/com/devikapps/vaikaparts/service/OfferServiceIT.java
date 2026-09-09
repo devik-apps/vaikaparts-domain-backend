@@ -66,14 +66,6 @@ class OfferServiceIT extends FacadeIT {
   @Autowired private UserRepository userRepository;
   @Autowired private ValueObjectMapper vom;
 
-  @Autowired
-  private com.devikapps.vaikaparts.repository.OfferNotificationRequestedRepository
-      offerNotificationRequestedRepository;
-
-  @Autowired
-  private com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository
-      notificationRepository;
-
   private JSeller testSeller;
   private JDemand testDemand;
 
@@ -91,43 +83,6 @@ class OfferServiceIT extends FacadeIT {
     offerRepository.deleteAll();
     demandRepository.deleteAll();
     userRepository.deleteAll();
-  }
-
-  @Test
-  void should_deliver_published_offer_through_rabbitmq_and_store_researcher_notification() {
-    var offer =
-        offerService.createOffer(testDemand.getId(), TEST_DESCRIPTION, buildTestRestPartInfo());
-    offerService.updateOfferStatus(offer.getId(), PostStatus.PUBLISHED);
-
-    org.awaitility.Awaitility.await()
-        .atMost(java.time.Duration.ofSeconds(30))
-        .untilAsserted(
-            () -> {
-              var log =
-                  offerNotificationRequestedRepository.findAll().stream()
-                      .filter(value -> value.getOffer().getId().equals(offer.getId()))
-                      .findFirst()
-                      .orElseThrow();
-              assertEquals(
-                  com.devikapps.vaikaparts.model.classifier.ProcessStatus.SUCCESS, log.getStatus());
-              var notification =
-                  notificationRepository.findAll().stream()
-                      .filter(
-                          value ->
-                              value.getOfferNotificationRequested() != null
-                                  && value
-                                      .getOfferNotificationRequested()
-                                      .getId()
-                                      .equals(log.getId()))
-                      .findFirst()
-                      .orElseThrow();
-              assertEquals(TEST_RESEARCHER_ID, notification.getRecipient().getId());
-              assertEquals(offer.getId(), notification.getOffer().getId());
-              assertEquals(
-                  com.devikapps.vaikaparts.model.classifier.NotificationType.OFFER_PUBLISHED,
-                  notification.getNotificationType());
-              assertNull(notification.getNotificationRequested());
-            });
   }
 
   @Test

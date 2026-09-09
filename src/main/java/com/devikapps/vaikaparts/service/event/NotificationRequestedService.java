@@ -4,8 +4,8 @@ import static java.lang.String.format;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.NotificationRequest;
-import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested;
-import com.devikapps.vaikaparts.exception.DemandPublishedNotificationRequestedException;
+import com.devikapps.vaikaparts.event.model.NotificationRequested;
+import com.devikapps.vaikaparts.exception.NotificationRequestedException;
 import com.devikapps.vaikaparts.exception.UserNotFoundException;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
@@ -30,8 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class DemandPublishedNotificationRequestedService
-    implements Consumer<DemandPublishedNotificationRequested> {
+public class NotificationRequestedService implements Consumer<NotificationRequested> {
 
   private final NotificationRequestedRepository notificationRequestedRepository;
   private final DemandPublishedRequestedRepository demandPublishedRequestedRepository;
@@ -42,7 +41,7 @@ public class DemandPublishedNotificationRequestedService
 
   @Override
   @Transactional
-  public void accept(DemandPublishedNotificationRequested event) {
+  public void accept(NotificationRequested event) {
     log.info(
         "Processing NotificationRequested event: {}, seller: {}, demand: {}, attempt: {}",
         forJava(event.getId()),
@@ -76,14 +75,13 @@ public class DemandPublishedNotificationRequestedService
   }
 
   private JDemandPublishedNotificationRequested createOrUpdateEventLog(
-      DemandPublishedNotificationRequested event) {
+      NotificationRequested event) {
     return notificationRequestedRepository
         .findById(event.getId())
         .orElseGet(() -> createNewEventLog(event));
   }
 
-  private JDemandPublishedNotificationRequested createNewEventLog(
-      DemandPublishedNotificationRequested event) {
+  private JDemandPublishedNotificationRequested createNewEventLog(NotificationRequested event) {
     var parent = fetchParentEventLog(event.getDemandPublishedRequestedId());
     var seller = fetchSeller(event.getSellerId());
     var demand = fetchDemand(event.getDemandId());
@@ -160,9 +158,7 @@ public class DemandPublishedNotificationRequestedService
   }
 
   private void handleEventProcessingError(
-      JDemandPublishedNotificationRequested eventLog,
-      DemandPublishedNotificationRequested event,
-      Exception e) {
+      JDemandPublishedNotificationRequested eventLog, NotificationRequested event, Exception e) {
 
     log.error(
         "Failed to process NotificationRequested: {}, seller: {}, attempt: {}",
@@ -178,7 +174,6 @@ public class DemandPublishedNotificationRequestedService
     eventLog.setCompletedAt(LocalDateTime.now());
     notificationRequestedRepository.save(eventLog);
 
-    throw new DemandPublishedNotificationRequestedException(
-        "NotificationRequested processing failed", e);
+    throw new NotificationRequestedException("NotificationRequested processing failed", e);
   }
 }

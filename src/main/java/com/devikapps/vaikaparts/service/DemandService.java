@@ -8,7 +8,7 @@ import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPart;
-import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
+import com.devikapps.vaikaparts.event.model.NotificationBatchRequested;
 import com.devikapps.vaikaparts.event.model.EventProducer;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
@@ -56,7 +56,7 @@ public class DemandService {
   private final Paginator paginator;
   private final BucketComponent bucketComponent;
   private final ImageUploader imageUploader;
-  private final EventProducer<DemandPublishedRequested> demandPublishedRequestedProducer;
+  private final EventProducer<NotificationBatchRequested> notificationBatchRequestedProducer;
 
   @Transactional
   public Demand createDemand(String description, RestPart restPart) {
@@ -140,7 +140,7 @@ public class DemandService {
 
     var updatedJDemand = demandRepository.save(jDemand);
 
-    if (shouldNotifySellers) publishDemandPublishedEvent(updatedJDemand);
+    if (shouldNotifySellers) publishNotificationBatchEvent(updatedJDemand);
 
     log.info(
         "Successfully updated demand {} to status {}",
@@ -285,16 +285,16 @@ public class DemandService {
     return newStatus == PostStatus.PUBLISHED;
   }
 
-  private void publishDemandPublishedEvent(JDemand jDemand) {
+  private void publishNotificationBatchEvent(JDemand jDemand) {
     var event =
-        DemandPublishedRequested.builder()
+        NotificationBatchRequested.builder()
             .id(randomUUID().toString())
             .demandId(jDemand.getId())
             .build();
 
-    demandPublishedRequestedProducer.accept(List.of(event));
+    notificationBatchRequestedProducer.accept(List.of(event));
 
-    log.info("Published DemandPublishedRequested event for demand: {}", forJava(jDemand.getId()));
+    log.info("Published NotificationBatchRequested event for demand: {}", forJava(jDemand.getId()));
   }
 
   @SneakyThrows
