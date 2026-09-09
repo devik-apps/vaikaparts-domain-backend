@@ -1,7 +1,7 @@
 package com.devikapps.vaikaparts.repository;
 
-import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
+import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface NotificationRequestedRepository
-    extends JpaRepository<JNotificationRequested, String> {}
+    extends JpaRepository<JDemandPublishedNotificationRequested, String> {}

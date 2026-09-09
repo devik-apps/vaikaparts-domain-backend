@@ -26,10 +26,12 @@ import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
+import com.devikapps.vaikaparts.repository.OfferNotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotification;
-import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
+import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
+import com.devikapps.vaikaparts.repository.event.JOfferNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.repository.model.user.JManager;
@@ -60,20 +62,21 @@ class InAppNotificationChannelTest {
   @Mock private DemandRepository demandRepository;
   @Mock private UserRepository userRepository;
   @Mock private OfferRepository offerRepository;
+  @Mock private OfferNotificationRequestedRepository offerNotificationRequestedRepository;
   @Mock private NotificationWebSocketService webSocketService;
 
   @InjectMocks private InAppNotificationChannel inAppChannel;
 
   private Notification testNotification;
-  private JNotificationRequested jNotificationRequested;
+  private JDemandPublishedNotificationRequested jDemandPublishedNotificationRequested;
   private JSeller jSeller;
   private JDemand jDemand;
   private JDemandPublishedNotification testJDemandPublishedNotification;
 
   @BeforeEach
   void setUp() {
-    jNotificationRequested =
-        JNotificationRequested.builder().id(TEST_NOTIFICATION_REQUESTED_ID).build();
+    jDemandPublishedNotificationRequested =
+        JDemandPublishedNotificationRequested.builder().id(TEST_NOTIFICATION_REQUESTED_ID).build();
 
     jSeller = JSeller.builder().id(TEST_SELLER_ID).build();
 
@@ -82,7 +85,7 @@ class InAppNotificationChannelTest {
     testJDemandPublishedNotification =
         JDemandPublishedNotification.builder()
             .id(TEST_NOTIFICATION_ID)
-            .notificationRequested(jNotificationRequested)
+            .notificationRequested(jDemandPublishedNotificationRequested)
             .recipient(jSeller)
             .demand(jDemand)
             .message(TEST_MESSAGE)
@@ -146,11 +149,15 @@ class InAppNotificationChannelTest {
   }
 
   @Test
-  void should_save_offer_notification_and_send_to_researcher() {
+  void should_save_offer_notification_with_dedicated_request_and_send_to_researcher() {
     var researcher = JResearcher.builder().id("researcher").userType(UserType.RESEARCHER).build();
     var offer = JOffer.builder().id("offer").build();
     var request =
-        JNotificationRequested.builder().id("request").offer(offer).researcher(researcher).build();
+        JOfferNotificationRequested.builder()
+            .id("request")
+            .offer(offer)
+            .researcher(researcher)
+            .build();
     var notification =
         Notification.builder()
             .id(TEST_NOTIFICATION_ID)
@@ -161,7 +168,7 @@ class InAppNotificationChannelTest {
             .message("New offer")
             .createdAt(LocalDateTime.now())
             .build();
-    when(notificationRequestedRepository.getReferenceById("request")).thenReturn(request);
+    when(offerNotificationRequestedRepository.getReferenceById("request")).thenReturn(request);
     when(userRepository.getReferenceById("researcher")).thenReturn(researcher);
     when(offerRepository.getReferenceById("offer")).thenReturn(offer);
 
@@ -169,12 +176,13 @@ class InAppNotificationChannelTest {
 
     var captor = ArgumentCaptor.forClass(JDemandPublishedNotification.class);
     verify(demandPublishedNotificationRepository).save(captor.capture());
-    assertEquals(request, captor.getValue().getNotificationRequested());
+    assertEquals(request, captor.getValue().getOfferNotificationRequested());
+    assertNull(captor.getValue().getNotificationRequested());
+    assertNull(captor.getValue().getDemand());
     assertEquals(researcher, captor.getValue().getRecipient());
     assertEquals(offer, captor.getValue().getOffer());
-    assertNull(captor.getValue().getDemand());
+    verify(notificationRequestedRepository, never()).getReferenceById(anyString());
     verify(webSocketService).sendNotificationToUser("researcher", notification);
-    verify(demandRepository, never()).getReferenceById(anyString());
   }
 
   @Test
@@ -215,7 +223,7 @@ class InAppNotificationChannelTest {
 
   private void mockRepositoryReferences() {
     when(notificationRequestedRepository.getReferenceById(TEST_NOTIFICATION_REQUESTED_ID))
-        .thenReturn(jNotificationRequested);
+        .thenReturn(jDemandPublishedNotificationRequested);
     when(userRepository.getReferenceById(TEST_SELLER_ID)).thenReturn(jSeller);
     when(demandRepository.getReferenceById(TEST_DEMAND_ID)).thenReturn(jDemand);
   }

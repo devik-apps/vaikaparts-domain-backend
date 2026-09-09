@@ -93,17 +93,12 @@ public class EventDispatcher implements Consumer<InfraEvent>, ApplicationContext
             + EXPECTED_CONSUMER_NAME_SUFFIX;
 
     try {
-      log.info(
-          "Resolving event handler: eventType={}, expectedBean={}",
-          eventSimpleName,
-          serviceBeanName);
       @SuppressWarnings("unchecked")
       Consumer<InfraEvent> consumer =
           (Consumer<InfraEvent>) applicationContext.getBean(serviceBeanName);
 
       log.info("Dispatching {} to {}", eventSimpleName, serviceBeanName);
       consumer.accept(event);
-      log.info("Event handler completed: eventType={}, bean={}", eventSimpleName, serviceBeanName);
     } catch (NoSuchBeanDefinitionException e) {
       log.warn(
           "No service found for event {} (looking for bean: {})", eventSimpleName, serviceBeanName);

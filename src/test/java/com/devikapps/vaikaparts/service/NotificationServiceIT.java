@@ -28,8 +28,8 @@ import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
+import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
-import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
@@ -82,7 +82,7 @@ class NotificationServiceIT extends FacadeIT {
   private JSeller testSeller;
   private JResearcher testResearcher;
   private JDemand testDemand;
-  private JNotificationRequested testNotificationRequested;
+  private JDemandPublishedNotificationRequested testNotificationRequested;
 
   @BeforeEach
   void setUp() {
@@ -534,7 +534,8 @@ class NotificationServiceIT extends FacadeIT {
         .build();
   }
 
-  private JNotificationRequested createTestNotificationRequested(JSeller seller, JDemand demand) {
+  private JDemandPublishedNotificationRequested createTestNotificationRequested(
+      JSeller seller, JDemand demand) {
     val jDemandPublishedRequested =
         jDemandPublishedRequestedRepository.save(
             JDemandPublishedRequested.builder()
@@ -549,7 +550,7 @@ class NotificationServiceIT extends FacadeIT {
                 .build());
 
     return notificationRequestedRepository.save(
-        JNotificationRequested.builder()
+        JDemandPublishedNotificationRequested.builder()
             .id("nr-" + currentTimeMillis())
             .demandPublishedRequested(jDemandPublishedRequested)
             .seller(seller)

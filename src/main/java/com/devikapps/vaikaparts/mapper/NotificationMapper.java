@@ -32,9 +32,11 @@ public class NotificationMapper {
     return Notification.builder()
         .id(notification.getId())
         .notificationRequestedId(
-            notification.getNotificationRequested() == null
-                ? null
-                : notification.getNotificationRequested().getId())
+            notification.getOfferNotificationRequested() != null
+                ? notification.getOfferNotificationRequested().getId()
+                : notification.getNotificationRequested() == null
+                    ? null
+                    : notification.getNotificationRequested().getId())
         .recipient(mapRecipient(notification.getRecipient()))
         .resource(mapResource(notification))
         .message(notification.getMessage())

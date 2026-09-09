@@ -195,7 +195,7 @@ public class NotificationService {
     return switch (notificationType) {
       case DEMAND_PUBLISHED, DEMAND_CANCELED ->
           demandService.getDemandByIdWithoutAuthFilter(requireResourceId(request));
-      case OFFER_ACCEPTED, OFFER_REJECTED , OFFER_PUBLISHED ->
+      case OFFER_ACCEPTED, OFFER_REJECTED, OFFER_PUBLISHED ->
           offerService.getOfferByIdWithoutAuthFilter(requireResourceId(request));
       case SYSTEM_ANNOUNCEMENT -> null;
     };
@@ -205,10 +205,10 @@ public class NotificationService {
       NotificationType notificationType, UserType recipientUserType) {
     boolean supported =
         switch (notificationType) {
-          case SYSTEM_ANNOUNCEMENT, DEMAND_CANCELED  -> true;
+          case SYSTEM_ANNOUNCEMENT, DEMAND_CANCELED -> true;
+          case OFFER_PUBLISHED -> recipientUserType == UserType.RESEARCHER;
           case DEMAND_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED ->
               recipientUserType == UserType.SELLER || recipientUserType == UserType.MANAGER;
-          case OFFER_PUBLISHED -> recipientUserType == UserType.RESEARCHER;
         };
 
     if (!supported) {

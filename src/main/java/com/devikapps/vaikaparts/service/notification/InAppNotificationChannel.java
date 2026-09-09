@@ -5,12 +5,14 @@ import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.exception.NotificationDeliveryException;
 import com.devikapps.vaikaparts.model.classifier.NotificationChannelType;
+import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.exchange.Offer;
 import com.devikapps.vaikaparts.model.notification.Notification;
 import com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
+import com.devikapps.vaikaparts.repository.OfferNotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotification;
@@ -29,6 +31,7 @@ public class InAppNotificationChannel implements NotificationChannel {
   private final NotificationWebSocketService webSocketService;
   private final DemandRepository demandRepository;
   private final OfferRepository offerRepository;
+  private final OfferNotificationRequestedRepository offerNotificationRequestedRepository;
 
   @Override
   public void send(Notification notification) {
@@ -61,11 +64,17 @@ public class InAppNotificationChannel implements NotificationChannel {
   }
 
   private void saveNotificationToDatabase(Notification notification) {
+    var isOfferPublication = notification.getNotificationType() == NotificationType.OFFER_PUBLISHED;
     var jNotificationRequested =
-        notification.getNotificationRequestedId() == null
+        notification.getNotificationRequestedId() == null || isOfferPublication
             ? null
             : notificationRequestedRepository.getReferenceById(
                 notification.getNotificationRequestedId());
+    var jOfferNotificationRequested =
+        notification.getNotificationRequestedId() != null && isOfferPublication
+            ? offerNotificationRequestedRepository.getReferenceById(
+                notification.getNotificationRequestedId())
+            : null;
     var jRecipient = userRepository.getReferenceById(notification.getRecipient().getId());
     var jDemand =
         notification.getResource() instanceof Demand demand
@@ -80,6 +89,7 @@ public class InAppNotificationChannel implements NotificationChannel {
         JDemandPublishedNotification.builder()
             .id(notification.getId())
             .notificationRequested(jNotificationRequested)
+            .offerNotificationRequested(jOfferNotificationRequested)
             .recipient(jRecipient)
             .demand(jDemand)
             .offer(jOffer)

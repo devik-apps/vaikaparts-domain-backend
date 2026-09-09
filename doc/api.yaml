@@ -819,6 +819,14 @@ paths:
       operationId: createOffer
       tags: [Offers]
       summary: Submit a new offer in response to a demand
+      parameters:
+        - name: published
+          in: query
+          required: false
+          description: Publish the offer and notify the demand owner; false saves a draft.
+          schema:
+            type: boolean
+            default: true
       description: |
         Creates a new offer on behalf of the authenticated seller. The request is
         submitted as `multipart/form-data`. Part info fields are bound using Spring
@@ -826,13 +834,6 @@ paths:
         optional and bound under `part_info.images`; maximum 5 files per offer.
 
         **Authorization**: Seller role required.
-      parameters:
-        - name: published
-          in: query
-          required: false
-          description: apply or not default published status on the to be created offer.
-          schema:
-            type: boolean
       requestBody:
         required: true
         content:

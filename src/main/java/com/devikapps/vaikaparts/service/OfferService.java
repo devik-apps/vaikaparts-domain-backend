@@ -114,78 +114,20 @@ public class OfferService {
 
     var currentSeller = sellerService.getCurrentSeller();
     var jOffer = findOfferByIdAndSeller(offerId, currentSeller.getId());
-    var shouldNotifyResearcher = shouldPublishNotifications(newStatus);
 
     validateStatusTransition(jOffer.getStatus(), newStatus);
     applyStatusUpdate(jOffer, newStatus);
-    var updatedJOffer = offerRepository.save(jOffer);
 
-    if (shouldNotifyResearcher) publishOfferNotificationEvent(updatedJOffer);
+    var updatedJOffer = offerRepository.save(jOffer);
+    if (newStatus == PostStatus.PUBLISHED) {
+      publishOfferNotificationRequest(updatedJOffer);
+    }
     log.info(
         "Successfully updated offer {} to status {}",
         forJava(offerId),
         forJava(newStatus.toString()));
 
     return offerMapper.toDomain(updatedJOffer);
-  }
-
-  private void publishOfferNotificationEvent(JOffer offer) {
-    var event =
-        OfferNotificationRequested.builder()
-            .id(randomUUID().toString())
-            .offerId(offer.getId())
-            .researcherId(offer.getDemand().getResearcher().getId())
-            .build();
-
-    if (TransactionSynchronizationManager.isSynchronizationActive()) {
-      log.info(
-          "Offer notification scheduled after commit: eventId={}, offerId={}",
-          event.getId(),
-          event.getOfferId());
-      TransactionSynchronizationManager.registerSynchronization(
-          new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-              log.info(
-                  "Offer transaction committed; starting notification publication: eventId={},"
-                      + " offerId={}",
-                  event.getId(),
-                  event.getOfferId());
-              publishNotificationRequest(event);
-            }
-
-            @Override
-            public void afterCompletion(int status) {
-              if (status != STATUS_COMMITTED) {
-                log.warn(
-                    "Offer transaction did not commit; notification not published: eventId={},"
-                        + " offerId={}, transactionStatus={}",
-                    event.getId(),
-                    event.getOfferId(),
-                    status);
-              }
-            }
-          });
-    } else {
-      log.warn(
-          "No active transaction synchronization. Publishing OfferNotificationRequested"
-              + " immediately.");
-      publishNotificationRequest(event);
-    }
-  }
-
-  private void publishNotificationRequest(OfferNotificationRequested event) {
-    offerNotificationRequestedProducer.accept(List.of(event));
-    log.info(
-        "Publication attempt finished for OfferNotificationRequested event={}, offer={},"
-            + " recipientType=RESEARCHER, recipientId={}",
-        forJava(event.getId()),
-        forJava(event.getOfferId()),
-        forJava(event.getResearcherId()));
-  }
-
-  private boolean shouldPublishNotifications(PostStatus newStatus) {
-    return newStatus == PostStatus.PUBLISHED;
   }
 
   @Transactional(readOnly = true)
@@ -211,6 +153,39 @@ public class OfferService {
         forJava(sellerId));
 
     return jOffers.map(offerMapper::toDomain);
+  }
+
+  private void publishOfferNotificationRequest(JOffer offer) {
+    var event =
+        OfferNotificationRequested.builder()
+            .id(randomUUID().toString())
+            .offerId(offer.getId())
+            .researcherId(offer.getDemand().getResearcher().getId())
+            .build();
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+      TransactionSynchronizationManager.registerSynchronization(
+          new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+              publishNotificationRequest(event);
+            }
+          });
+    } else {
+      log.warn(
+          "No active transaction synchronization for offer notification event={}",
+          forJava(event.getId()));
+      publishNotificationRequest(event);
+    }
+  }
+
+  private void publishNotificationRequest(OfferNotificationRequested event) {
+    offerNotificationRequestedProducer.accept(List.of(event));
+    log.info(
+        "Publication attempted for OfferNotificationRequested event={}, offer={},"
+            + " recipientType=RESEARCHER, recipientId={}",
+        forJava(event.getId()),
+        forJava(event.getOfferId()),
+        forJava(event.getResearcherId()));
   }
 
   @Transactional(readOnly = true)

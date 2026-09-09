@@ -25,8 +25,8 @@ import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
+import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
-import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
@@ -117,7 +117,7 @@ class InAppNotificationChannelIT extends FacadeIT {
                 .build());
 
     notificationRequestedRepository.save(
-        JNotificationRequested.builder()
+        JDemandPublishedNotificationRequested.builder()
             .id(TEST_NOTIFICATION_REQUESTED_ID)
             .demandPublishedRequested(jDemandPublishedRequested)
             .seller(jSeller)

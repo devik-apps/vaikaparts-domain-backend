@@ -1,7 +1,6 @@
 package com.devikapps.vaikaparts.config;
 
 import com.devikapps.vaikaparts.InfraGenerated;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
@@ -38,7 +37,6 @@ import org.springframework.context.annotation.Configuration;
  */
 @InfraGenerated
 @Configuration
-@Slf4j
 public class RabbitConf {
 
   @Value("${spring.rabbitmq.queue}")
@@ -99,11 +97,6 @@ public class RabbitConf {
    */
   @Bean
   public Binding binding(Queue myQueue, DirectExchange myExchange) {
-    log.info(
-        "RabbitMQ binding configured: exchange={}, routingKey={}, queue={}",
-        myExchange.getName(),
-        routingKey,
-        myQueue.getName());
     return BindingBuilder.bind(myQueue).to(myExchange).with(routingKey);
   }
 }

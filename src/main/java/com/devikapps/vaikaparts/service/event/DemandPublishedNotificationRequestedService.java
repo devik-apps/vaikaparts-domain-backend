@@ -15,8 +15,8 @@ import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
+import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
-import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.service.notification.NotificationService;
@@ -75,20 +75,21 @@ public class DemandPublishedNotificationRequestedService
     }
   }
 
-  private JNotificationRequested createOrUpdateEventLog(
+  private JDemandPublishedNotificationRequested createOrUpdateEventLog(
       DemandPublishedNotificationRequested event) {
     return notificationRequestedRepository
         .findById(event.getId())
         .orElseGet(() -> createNewEventLog(event));
   }
 
-  private JNotificationRequested createNewEventLog(DemandPublishedNotificationRequested event) {
+  private JDemandPublishedNotificationRequested createNewEventLog(
+      DemandPublishedNotificationRequested event) {
     var parent = fetchParentEventLog(event.getDemandPublishedRequestedId());
     var seller = fetchSeller(event.getSellerId());
     var demand = fetchDemand(event.getDemandId());
     var now = LocalDateTime.now();
 
-    return JNotificationRequested.builder()
+    return JDemandPublishedNotificationRequested.builder()
         .id(event.getId())
         .demandPublishedRequested(parent)
         .seller(sellerMapper.toPersistence(seller))
@@ -101,7 +102,8 @@ public class DemandPublishedNotificationRequestedService
         .build();
   }
 
-  private void updateEventLogStatus(JNotificationRequested eventLog, ProcessStatus status) {
+  private void updateEventLogStatus(
+      JDemandPublishedNotificationRequested eventLog, ProcessStatus status) {
     eventLog.setStatus(status);
     eventLog.setUpdatedAt(LocalDateTime.now());
     notificationRequestedRepository.save(eventLog);
@@ -158,7 +160,9 @@ public class DemandPublishedNotificationRequestedService
   }
 
   private void handleEventProcessingError(
-      JNotificationRequested eventLog, DemandPublishedNotificationRequested event, Exception e) {
+      JDemandPublishedNotificationRequested eventLog,
+      DemandPublishedNotificationRequested event,
+      Exception e) {
 
     log.error(
         "Failed to process NotificationRequested: {}, seller: {}, attempt: {}",

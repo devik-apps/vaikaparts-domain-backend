@@ -8,9 +8,9 @@ import com.devikapps.vaikaparts.event.model.OfferNotificationRequested;
 import com.devikapps.vaikaparts.exception.OfferNotificationRequestedException;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
-import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
+import com.devikapps.vaikaparts.repository.OfferNotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.OfferRepository;
-import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
+import com.devikapps.vaikaparts.repository.event.JOfferNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.service.notification.NotificationService;
 import java.time.LocalDateTime;
@@ -25,12 +25,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class OfferNotificationRequestedService implements Consumer<OfferNotificationRequested> {
 
-  private final NotificationRequestedRepository notificationRequestedRepository;
+  private final OfferNotificationRequestedRepository notificationRequestedRepository;
   private final OfferRepository offerRepository;
   private final NotificationService notificationService;
 
   @Override
-  @Transactional
+  @Transactional(noRollbackFor = OfferNotificationRequestedException.class)
   public void accept(OfferNotificationRequested event) {
     log.info(
         "Processing OfferNotificationRequested event={}, offer={}, recipientType=RESEARCHER,"
@@ -67,7 +67,7 @@ public class OfferNotificationRequestedService implements Consumer<OfferNotifica
     }
   }
 
-  private JNotificationRequested createOrUpdateEventLog(OfferNotificationRequested event) {
+  private JOfferNotificationRequested createOrUpdateEventLog(OfferNotificationRequested event) {
     var existing = notificationRequestedRepository.findById(event.getId());
     if (existing.isPresent()) {
       var eventLog = existing.get();
@@ -90,19 +90,21 @@ public class OfferNotificationRequestedService implements Consumer<OfferNotifica
       throw new IllegalArgumentException("Notification recipient must own the offer's demand");
     }
     var now = LocalDateTime.now();
-    return JNotificationRequested.builder()
-        .id(event.getId())
-        .researcher(researcher)
-        .offer(offer)
-        .notificationType(NotificationType.OFFER_PUBLISHED)
-        .status(ProcessStatus.PENDING)
-        .attemptNb(event.getAttemptNb())
-        .createdAt(now)
-        .updatedAt(now)
-        .build();
+    var eventLog =
+        JOfferNotificationRequested.builder()
+            .id(event.getId())
+            .researcher(researcher)
+            .offer(offer)
+            .notificationType(NotificationType.OFFER_PUBLISHED)
+            .status(ProcessStatus.PENDING)
+            .attemptNb(event.getAttemptNb())
+            .createdAt(now)
+            .updatedAt(now)
+            .build();
+    return notificationRequestedRepository.save(eventLog);
   }
 
-  private void updateEventLogStatus(JNotificationRequested eventLog, ProcessStatus status) {
+  private void updateEventLogStatus(JOfferNotificationRequested eventLog, ProcessStatus status) {
     eventLog.setStatus(status);
     eventLog.setUpdatedAt(LocalDateTime.now());
     notificationRequestedRepository.save(eventLog);
@@ -128,7 +130,7 @@ public class OfferNotificationRequestedService implements Consumer<OfferNotifica
   }
 
   private void handleEventProcessingError(
-      JNotificationRequested eventLog, OfferNotificationRequested event, Exception e) {
+      JOfferNotificationRequested eventLog, OfferNotificationRequested event, Exception e) {
     log.error(
         "Failed OfferNotificationRequested event={}, recipientType=RESEARCHER, recipientId={},"
             + " attempt={}",

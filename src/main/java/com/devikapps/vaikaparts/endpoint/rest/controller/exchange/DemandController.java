@@ -29,7 +29,7 @@ public class DemandController {
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   public ResponseEntity<Demand> createDemand(
       @Valid @ModelAttribute CreateDemandRequest request,
-      @RequestParam(name = "published", required = false, defaultValue = "true") Boolean published) {
+      @RequestParam(name = "published", required = false, defaultValue = "false") Boolean published) {
     var demand = demandService.createDemand(request.description(), request.part());
     if (published) {
       demand = demandService.updateDemandStatus(demand.getId(), PostStatus.PUBLISHED);

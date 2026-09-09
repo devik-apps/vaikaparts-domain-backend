@@ -10,9 +10,9 @@ import com.devikapps.vaikaparts.event.model.OfferNotificationRequested;
 import com.devikapps.vaikaparts.exception.OfferNotificationRequestedException;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
-import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
+import com.devikapps.vaikaparts.repository.OfferNotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.OfferRepository;
-import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
+import com.devikapps.vaikaparts.repository.event.JOfferNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
@@ -32,17 +32,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class OfferNotificationRequestedServiceTest {
-  @Mock NotificationRequestedRepository repository;
+  @Mock OfferNotificationRequestedRepository repository;
   @Mock OfferRepository offerRepository;
   @Mock NotificationService notificationService;
   @InjectMocks OfferNotificationRequestedService service;
   @Captor ArgumentCaptor<NotificationRequest> requests;
-  @Captor ArgumentCaptor<JNotificationRequested> logs;
+  @Captor ArgumentCaptor<JOfferNotificationRequested> logs;
   OfferNotificationRequested event;
   JOffer offer;
 
   @BeforeEach
   void setUp() {
+    lenient().when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
     event =
         OfferNotificationRequested.builder()
             .id("event")
@@ -80,11 +81,8 @@ class OfferNotificationRequestedServiceTest {
     assertEquals("VIEW_OFFER", action.get("action").asText());
     assertEquals("offer", action.get("offerId").asText());
     assertEquals("demand", action.get("demandId").asText());
-    verify(repository, times(2)).save(logs.capture());
+    verify(repository, times(3)).save(logs.capture());
     var log = logs.getValue();
-    assertNull(log.getDemandPublishedRequested());
-    assertNull(log.getSeller());
-    assertNull(log.getDemand());
     assertEquals("researcher", log.getResearcher().getId());
     assertEquals("offer", log.getOffer().getId());
     assertEquals(ProcessStatus.SUCCESS, log.getStatus());
@@ -96,7 +94,7 @@ class OfferNotificationRequestedServiceTest {
     when(repository.findById("event"))
         .thenReturn(
             Optional.of(
-                JNotificationRequested.builder()
+                JOfferNotificationRequested.builder()
                     .id("event")
                     .offer(offer)
                     .researcher(offer.getDemand().getResearcher())
@@ -134,7 +132,7 @@ class OfferNotificationRequestedServiceTest {
         .thenThrow(new IllegalStateException("failed"));
     event.setAttemptNb(2);
     assertThrows(OfferNotificationRequestedException.class, () -> service.accept(event));
-    verify(repository, times(2)).save(logs.capture());
+    verify(repository, times(3)).save(logs.capture());
     assertEquals(ProcessStatus.FAILED, logs.getValue().getStatus());
     assertEquals("failed", logs.getValue().getErrorMessage());
     assertEquals(2, logs.getValue().getAttemptNb());
@@ -143,7 +141,7 @@ class OfferNotificationRequestedServiceTest {
   @Test
   void retry_reuses_log_and_clears_previous_error() {
     var log =
-        JNotificationRequested.builder()
+        JOfferNotificationRequested.builder()
             .id("event")
             .offer(offer)
             .researcher(offer.getDemand().getResearcher())
@@ -165,7 +163,7 @@ class OfferNotificationRequestedServiceTest {
 
   @Test
   void rabbitmq_payload_round_trip_preserves_recipient_and_attempt() throws Exception {
-    var mapper = new ObjectMapper();
+    var mapper = new com.devikapps.vaikaparts.config.JacksonConf().objectMapper();
     mapper.registerSubtypes(
         new NamedType(OfferNotificationRequested.class, "OfferNotificationRequested"));
     event.setAttemptNb(3);

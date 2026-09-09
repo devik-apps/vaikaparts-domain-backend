@@ -25,8 +25,8 @@ import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotification;
+import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
-import com.devikapps.vaikaparts.repository.event.JNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
@@ -341,7 +341,8 @@ class NotificationClientIT extends FacadeIT {
             .build());
   }
 
-  private JNotificationRequested createNotificationRequested(JSeller seller, JDemand demand) {
+  private JDemandPublishedNotificationRequested createNotificationRequested(
+      JSeller seller, JDemand demand) {
     val dpr =
         demandPublishedRequestedRepository.save(
             JDemandPublishedRequested.builder()
@@ -356,7 +357,7 @@ class NotificationClientIT extends FacadeIT {
                 .build());
 
     return notificationRequestedRepository.save(
-        JNotificationRequested.builder()
+        JDemandPublishedNotificationRequested.builder()
             .id(randomUUID().toString())
             .demandPublishedRequested(dpr)
             .seller(seller)
