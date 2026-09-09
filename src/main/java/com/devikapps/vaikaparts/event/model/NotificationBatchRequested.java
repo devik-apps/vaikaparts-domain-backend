@@ -13,7 +13,7 @@ import lombok.Setter;
 @Setter
 @Builder
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class DemandPublishedRequested extends InfraEvent {
+public class NotificationBatchRequested extends InfraEvent {
 
   private static final Duration MAX_CONSUMER_DURATION = ofMinutes(5L);
   private static final Duration MAX_CONSUMER_BACKOFF = ofSeconds(30L);

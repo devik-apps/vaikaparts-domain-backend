@@ -8,14 +8,13 @@ import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPart;
-import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.event.model.EventProducer;
+import com.devikapps.vaikaparts.event.model.NotificationBatchRequested;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.mapper.exchange.DemandMapper;
 import com.devikapps.vaikaparts.mapper.exchange.OfferMapper;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
-import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.exchange.Offer;
 import com.devikapps.vaikaparts.model.exchange.Part;
@@ -56,7 +55,7 @@ public class DemandService {
   private final Paginator paginator;
   private final BucketComponent bucketComponent;
   private final ImageUploader imageUploader;
-  private final EventProducer<DemandPublishedRequested> demandPublishedRequestedProducer;
+  private final EventProducer<NotificationBatchRequested> notificationBatchRequestedProducer;
 
   @Transactional
   public Demand createDemand(String description, RestPart restPart) {
@@ -80,23 +79,20 @@ public class DemandService {
   }
 
   @Transactional(readOnly = true)
-  public Page<Demand> getAllDemands(Integer page , Integer size) {
+  public Page<Demand> getAllDemands(Integer page, Integer size) {
 
     var currentSeller = userService.getCurrentSeller();
     var sellerId = currentSeller.getId();
     var pagination = paginator.apply(page, size);
     var pageable =
-            PageRequest.of(
-                    pagination.get(PAGE_FIELD),
-                    pagination.get(SIZE_FIELD),
-                    Sort.by(CREATED_AT_FIELD).descending());
+        PageRequest.of(
+            pagination.get(PAGE_FIELD),
+            pagination.get(SIZE_FIELD),
+            Sort.by(CREATED_AT_FIELD).descending());
 
-    log.info(
-            "Fetching demands for authenticated seller : {}",sellerId);
+    log.info("Fetching demands for authenticated seller : {}", sellerId);
 
-
-    Page<JDemand> jDemands =
-            demandRepository.findByStatus(PostStatus.PUBLISHED,pageable);
+    Page<JDemand> jDemands = demandRepository.findByStatus(PostStatus.PUBLISHED, pageable);
     return jDemands.map(demandMapper::toDomain);
   }
 
@@ -140,7 +136,7 @@ public class DemandService {
 
     var updatedJDemand = demandRepository.save(jDemand);
 
-    if (shouldNotifySellers) publishDemandPublishedEvent(updatedJDemand);
+    if (shouldNotifySellers) publishNotificationBatchEvent(updatedJDemand);
 
     log.info(
         "Successfully updated demand {} to status {}",
@@ -285,16 +281,24 @@ public class DemandService {
     return newStatus == PostStatus.PUBLISHED;
   }
 
-  private void publishDemandPublishedEvent(JDemand jDemand) {
+  private void publishNotificationBatchEvent(JDemand jDemand) {
     var event =
-        DemandPublishedRequested.builder()
+        NotificationBatchRequested.builder()
             .id(randomUUID().toString())
             .demandId(jDemand.getId())
             .build();
 
-    demandPublishedRequestedProducer.accept(List.of(event));
+    log.info(
+        "[NOTIF-PIPELINE][DEMAND] Publication requested: eventId={}, demandId={}",
+        forJava(event.getId()),
+        forJava(jDemand.getId()));
+    notificationBatchRequestedProducer.accept(List.of(event));
 
-    log.info("Published DemandPublishedRequested event for demand: {}", forJava(jDemand.getId()));
+    log.info(
+        "[NOTIF-PIPELINE][DEMAND] Producer returned: eventId={}, demandId={} (not delivery"
+            + " confirmation)",
+        forJava(event.getId()),
+        forJava(jDemand.getId()));
   }
 
   @SneakyThrows

@@ -59,7 +59,7 @@ public class NotificationService {
     var notificationType =
         Objects.requireNonNull(request.getNotificationType(), "Notification type is required");
     log.info(
-        "Creating notification type={} for recipient user={}",
+        "[NOTIF-PIPELINE][NOTIFICATION] Creating notification type={} for recipient user={}",
         forJava(notificationType.toString()),
         forJava(request.getRecipientUserId()));
 
@@ -67,7 +67,8 @@ public class NotificationService {
     sendThroughChannels(notification);
 
     log.info(
-        "Notification created and sent: id={}, recipientType={}",
+        "[NOTIF-PIPELINE][NOTIFICATION] Channel attempts finished: id={}, recipientType={} (inspect"
+            + " channel results)",
         forJava(notification.getId()),
         forJava(notification.getRecipient().getUserType().toString()));
     return notification;
@@ -82,7 +83,8 @@ public class NotificationService {
 
     var pageable = PageRequest.of(fPage, fSize);
     log.info(
-        "Fetching notifications for current user={} ({}) with page={}, size={}",
+        "[NOTIF-PIPELINE][NOTIFICATION] Fetching notifications for current user={} ({}) with"
+            + " page={}, size={}",
         forJava(currentUser.getId()),
         currentUser.getUserType(),
         fPage,
@@ -112,7 +114,9 @@ public class NotificationService {
   @Transactional
   public Notification markAsRead(@NotNull @NotBlank String notificationId) {
     log.info(
-        "Processing marking notification with notification id={} as read", forJava(notificationId));
+        "[NOTIF-PIPELINE][NOTIFICATION] Processing marking notification with notification id={} as"
+            + " read",
+        forJava(notificationId));
     var currentUser = userService.getCurrentUser();
     var notification =
         demandPublishedNotificationRepository
@@ -124,16 +128,22 @@ public class NotificationService {
                             "No notification found with given id=%s to mark as read",
                             forJava(notificationId))));
 
-    log.info("Notification read state : {}", notification.isRead());
+    log.info("[NOTIF-PIPELINE][NOTIFICATION] Notification read state : {}", notification.isRead());
     notification.setRead(true);
     notification.setReadAt(LocalDateTime.now());
 
     var persisted = demandPublishedNotificationRepository.save(notification);
-    log.info("Notification read state after processing : {}", persisted.isRead());
+    log.info(
+        "[NOTIF-PIPELINE][NOTIFICATION] Notification read state after processing : {}",
+        persisted.isRead());
     return notificationMapper.toDomain(persisted);
   }
 
   private Notification buildNotification(NotificationRequest request) {
+    log.info(
+        "[NOTIF-PIPELINE][BUILD_START] eventId={}, notificationType={}",
+        forJava(request.getNotificationRequestedId()),
+        request.getNotificationType());
     var jUser =
         userRepository
             .findJUserById(request.getRecipientUserId())
@@ -145,6 +155,10 @@ public class NotificationService {
                             forJava(request.getRecipientUserId()))));
 
     var recipient = mapRecipient(jUser);
+    log.info(
+        "[NOTIF-PIPELINE][RECIPIENT_RESOLVED] eventId={}, recipientType={}",
+        forJava(request.getNotificationRequestedId()),
+        recipient.getUserType());
     var resource = handleNotificationType(request, recipient.getUserType());
 
     return Notification.builder()
@@ -166,15 +180,22 @@ public class NotificationService {
         .forEach(
             channel -> {
               try {
-                log.debug(
-                    "Sending notification type={} to recipientType={} via channel={}",
+                log.info(
+                    "[NOTIF-PIPELINE][NOTIFICATION] Sending notification type={} to"
+                        + " recipientType={} via channel={}",
                     notification.getNotificationType(),
                     notification.getRecipient().getUserType(),
                     channel.getChannelType());
                 channel.send(notification);
+                log.info(
+                    "[NOTIF-PIPELINE][CHANNEL_RETURNED] notificationId={}, channel={}",
+                    forJava(notification.getId()),
+                    channel.getChannelType());
               } catch (Exception e) {
                 log.error(
-                    "Failed to send notification via channel: {}", channel.getChannelType(), e);
+                    "[NOTIF-PIPELINE][NOTIFICATION] Failed to send notification via channel: {}",
+                    channel.getChannelType(),
+                    e);
               }
             });
   }

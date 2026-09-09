@@ -36,7 +36,7 @@ public class InAppNotificationChannel implements NotificationChannel {
   @Override
   public void send(Notification notification) {
     log.info(
-        "Sending in-app notification type={} to user={} ({})",
+        "[NOTIF-PIPELINE][IN_APP] Sending in-app notification type={} to user={} ({})",
         notification.getNotificationType(),
         forJava(notification.getRecipient().getId()),
         notification.getRecipient().getUserType());
@@ -45,9 +45,14 @@ public class InAppNotificationChannel implements NotificationChannel {
       saveNotificationToDatabase(notification);
       sendViaWebSocket(notification);
 
-      log.info("Successfully sent in-app notification: {}", forJava(notification.getId()));
+      log.info(
+          "[NOTIF-PIPELINE][IN_APP] Successfully sent in-app notification: {}",
+          forJava(notification.getId()));
     } catch (Exception e) {
-      log.error("Failed to send in-app notification: {}", forJava(notification.getId()), e);
+      log.error(
+          "[NOTIF-PIPELINE][IN_APP] Failed to send in-app notification: {}",
+          forJava(notification.getId()),
+          e);
       throw new NotificationDeliveryException(
           "Failed to send in-app notification to user: " + notification.getRecipient().getId(), e);
     }
@@ -64,6 +69,10 @@ public class InAppNotificationChannel implements NotificationChannel {
   }
 
   private void saveNotificationToDatabase(Notification notification) {
+    log.info(
+        "[NOTIF-PIPELINE][DB_SAVE_START] notificationId={}, eventId={}",
+        forJava(notification.getId()),
+        forJava(notification.getNotificationRequestedId()));
     var isOfferPublication = notification.getNotificationType() == NotificationType.OFFER_PUBLISHED;
     var jNotificationRequested =
         notification.getNotificationRequestedId() == null || isOfferPublication
@@ -102,19 +111,22 @@ public class InAppNotificationChannel implements NotificationChannel {
             .build();
 
     demandPublishedNotificationRepository.save(jNotification);
-    log.debug("Saved notification to database with id={}", forJava(notification.getId()));
+    log.info(
+        "[NOTIF-PIPELINE][DB_SAVE_RETURNED] notificationId={} (commit may be pending)",
+        forJava(notification.getId()));
   }
 
   private void sendViaWebSocket(Notification notification) {
     try {
       webSocketService.sendNotificationToUser(notification.getRecipient().getId(), notification);
       log.debug(
-          "Sent WebSocket notification to user={} ({})",
+          "[NOTIF-PIPELINE][IN_APP] Sent WebSocket notification to user={} ({})",
           forJava(notification.getRecipient().getId()),
           notification.getRecipient().getUserType());
     } catch (Exception e) {
       log.warn(
-          "WebSocket delivery failed for user={} ({}) (notification saved in DB)",
+          "[NOTIF-PIPELINE][IN_APP] WebSocket delivery failed for user={} ({}) (notification saved"
+              + " in DB)",
           forJava(notification.getRecipient().getId()),
           notification.getRecipient().getUserType(),
           e);

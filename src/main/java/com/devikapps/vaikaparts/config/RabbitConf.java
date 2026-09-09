@@ -37,6 +37,7 @@ import org.springframework.context.annotation.Configuration;
  */
 @InfraGenerated
 @Configuration
+@lombok.extern.slf4j.Slf4j
 public class RabbitConf {
 
   @Value("${spring.rabbitmq.queue}")
@@ -97,6 +98,12 @@ public class RabbitConf {
    */
   @Bean
   public Binding binding(Queue myQueue, DirectExchange myExchange) {
+    log.info(
+        "[NOTIF-PIPELINE][BINDING_CONFIG] exchange={}, queue={}, routingKey={} (declaration"
+            + " configuration)",
+        exchangeName,
+        queueName,
+        routingKey);
     return BindingBuilder.bind(myQueue).to(myExchange).with(routingKey);
   }
 }

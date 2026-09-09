@@ -13,8 +13,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPart;
-import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.event.model.EventProducer;
+import com.devikapps.vaikaparts.event.model.NotificationBatchRequested;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.file.FilenameSanitizer;
@@ -68,7 +68,7 @@ class DemandServiceTest {
   @Mock private Paginator paginator;
   @Mock private FilenameSanitizer filenameSanitizer;
   @Mock private ImageUploader imageUploader;
-  @Mock private EventProducer<DemandPublishedRequested> demandPublishedRequestedProducer;
+  @Mock private EventProducer<NotificationBatchRequested> notificationBatchRequestedProducer;
 
   @InjectMocks private DemandService demandService;
 
@@ -153,7 +153,7 @@ class DemandServiceTest {
     assertNull(testJDemand.getCanceledAt());
     assertNull(testJDemand.getSuspendedAt());
     verify(demandRepository, times(1)).save(testJDemand);
-    verify(demandPublishedRequestedProducer, times(1)).accept(anyList());
+    verify(notificationBatchRequestedProducer, times(1)).accept(anyList());
   }
 
   @Test
@@ -168,10 +168,10 @@ class DemandServiceTest {
 
     demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.PUBLISHED);
 
-    ArgumentCaptor<List<DemandPublishedRequested>> captor = ArgumentCaptor.forClass(List.class);
-    verify(demandPublishedRequestedProducer, times(1)).accept(captor.capture());
+    ArgumentCaptor<List<NotificationBatchRequested>> captor = ArgumentCaptor.forClass(List.class);
+    verify(notificationBatchRequestedProducer, times(1)).accept(captor.capture());
 
-    List<DemandPublishedRequested> events = captor.getValue();
+    List<NotificationBatchRequested> events = captor.getValue();
     assertEquals(1, events.size());
     assertEquals(TEST_DEMAND_ID, events.getFirst().getDemandId());
     assertNotNull(events.getFirst().getId());
@@ -202,7 +202,7 @@ class DemandServiceTest {
 
     demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.SUSPENDED);
 
-    verify(demandPublishedRequestedProducer, never()).accept(anyList());
+    verify(notificationBatchRequestedProducer, never()).accept(anyList());
   }
 
   @Test

@@ -93,15 +93,26 @@ public class EventDispatcher implements Consumer<InfraEvent>, ApplicationContext
             + EXPECTED_CONSUMER_NAME_SUFFIX;
 
     try {
+      log.info(
+          "[NOTIF-PIPELINE][BEAN_LOOKUP] eventType={}, beanName={}, present={}",
+          eventSimpleName,
+          serviceBeanName,
+          applicationContext.containsBean(serviceBeanName));
       @SuppressWarnings("unchecked")
       Consumer<InfraEvent> consumer =
           (Consumer<InfraEvent>) applicationContext.getBean(serviceBeanName);
 
-      log.info("Dispatching {} to {}", eventSimpleName, serviceBeanName);
+      log.info("[NOTIF-PIPELINE][DISPATCH] Dispatching {} to {}", eventSimpleName, serviceBeanName);
       consumer.accept(event);
+      log.info(
+          "[NOTIF-PIPELINE][HANDLER_RETURNED] eventType={}, beanName={}",
+          eventSimpleName,
+          serviceBeanName);
     } catch (NoSuchBeanDefinitionException e) {
       log.warn(
-          "No service found for event {} (looking for bean: {})", eventSimpleName, serviceBeanName);
+          "[NOTIF-PIPELINE][DISPATCH] No service found for event {} (looking for bean: {})",
+          eventSimpleName,
+          serviceBeanName);
     }
   }
 }
