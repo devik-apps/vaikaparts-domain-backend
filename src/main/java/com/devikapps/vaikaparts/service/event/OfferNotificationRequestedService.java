@@ -30,7 +30,7 @@ public class OfferNotificationRequestedService implements Consumer<OfferNotifica
   private final NotificationService notificationService;
 
   @Override
-  @Transactional(noRollbackFor = OfferNotificationRequestedException.class)
+  @Transactional
   public void accept(OfferNotificationRequested event) {
     log.info(
         "Processing OfferNotificationRequested event={}, offer={}, recipientType=RESEARCHER,"

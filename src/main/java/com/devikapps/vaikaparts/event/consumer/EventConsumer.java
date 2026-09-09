@@ -4,6 +4,7 @@ import com.devikapps.vaikaparts.InfraGenerated;
 import com.devikapps.vaikaparts.event.model.InfraEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
@@ -45,6 +46,7 @@ public class EventConsumer implements Consumer<String> {
   private final EventDispatcher eventHandler;
   private final ObjectMapper objectMapper;
   private final ExecutorService executor;
+  private final String consumerInstanceId = UUID.randomUUID().toString();
 
   /**
    * Constructs an EventConsumer with required dependencies and configuration.
@@ -59,6 +61,10 @@ public class EventConsumer implements Consumer<String> {
     this.eventHandler = eventHandler;
     this.objectMapper = om;
     this.executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    log.info(
+        "RabbitMQ consumer initialized: consumerInstanceId={}, workerCount={}",
+        consumerInstanceId,
+        Runtime.getRuntime().availableProcessors());
     Runtime.getRuntime()
         .addShutdownHook(
             new Thread(
@@ -79,6 +85,10 @@ public class EventConsumer implements Consumer<String> {
    */
   @RabbitListener(queues = "${spring.rabbitmq.queue}")
   public void onMessage(String rawMessage) {
+    log.info(
+        "RabbitMQ listener received a message: consumerInstanceId={}, characters={}",
+        consumerInstanceId,
+        rawMessage == null ? 0 : rawMessage.length());
     accept(rawMessage);
   }
 
@@ -101,18 +111,45 @@ public class EventConsumer implements Consumer<String> {
    */
   @Override
   public void accept(String rawMessage) {
+    var receptionId = UUID.randomUUID().toString();
+    var submittedAt = System.nanoTime();
+    log.info(
+        "RabbitMQ processing submitted: consumerInstanceId={}, receptionId={}",
+        consumerInstanceId,
+        receptionId);
     executor.submit(
         () -> {
+          log.info(
+              "RabbitMQ worker started: receptionId={}, queueWaitMs={}",
+              receptionId,
+              (System.nanoTime() - submittedAt) / 1_000_000);
           try {
+            var metadata = objectMapper.readTree(rawMessage);
+            log.info(
+                "RabbitMQ deserialization started: receptionId={}, eventType={}, eventId={}",
+                receptionId,
+                metadata.path("@type").asText("unknown"),
+                metadata.path("id").asText("unknown"));
             InfraEvent event = deserialize(rawMessage);
             if (event == null) {
-              log.warn("Received unprocessable event: {}", rawMessage);
+              log.warn("RabbitMQ message could not be deserialized: receptionId={}", receptionId);
               return;
             }
+            log.info(
+                "RabbitMQ deserialization succeeded: receptionId={}, eventType={}, eventId={},"
+                    + " attempt={}",
+                receptionId,
+                event.getClass().getSimpleName(),
+                metadata.path("id").asText("unknown"),
+                event.getAttemptNb());
             eventHandler.accept(event);
-            log.info("Event dispatched: {}", event.getClass().getSimpleName());
+            log.info(
+                "RabbitMQ dispatcher returned: receptionId={}, eventType={}, eventId={}",
+                receptionId,
+                event.getClass().getSimpleName(),
+                metadata.path("id").asText("unknown"));
           } catch (Exception e) {
-            log.error("Error while consuming event: {}", rawMessage, e);
+            log.error("Error while consuming event: receptionId={}", receptionId, e);
           }
         });
   }

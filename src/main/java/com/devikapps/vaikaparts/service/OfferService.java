@@ -138,11 +138,32 @@ public class OfferService {
             .build();
 
     if (TransactionSynchronizationManager.isSynchronizationActive()) {
+      log.info(
+          "Offer notification scheduled after commit: eventId={}, offerId={}",
+          event.getId(),
+          event.getOfferId());
       TransactionSynchronizationManager.registerSynchronization(
           new TransactionSynchronization() {
             @Override
             public void afterCommit() {
+              log.info(
+                  "Offer transaction committed; starting notification publication: eventId={},"
+                      + " offerId={}",
+                  event.getId(),
+                  event.getOfferId());
               publishNotificationRequest(event);
+            }
+
+            @Override
+            public void afterCompletion(int status) {
+              if (status != STATUS_COMMITTED) {
+                log.warn(
+                    "Offer transaction did not commit; notification not published: eventId={},"
+                        + " offerId={}, transactionStatus={}",
+                    event.getId(),
+                    event.getOfferId(),
+                    status);
+              }
             }
           });
     } else {
@@ -156,8 +177,8 @@ public class OfferService {
   private void publishNotificationRequest(OfferNotificationRequested event) {
     offerNotificationRequestedProducer.accept(List.of(event));
     log.info(
-        "Published OfferNotificationRequested event={}, offer={}, recipientType=RESEARCHER,"
-            + " recipientId={}",
+        "Publication attempt finished for OfferNotificationRequested event={}, offer={},"
+            + " recipientType=RESEARCHER, recipientId={}",
         forJava(event.getId()),
         forJava(event.getOfferId()),
         forJava(event.getResearcherId()));

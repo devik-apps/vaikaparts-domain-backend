@@ -2,6 +2,7 @@ package com.devikapps.vaikaparts.event.model;
 
 import com.devikapps.vaikaparts.InfraGenerated;
 import com.devikapps.vaikaparts.datastructure.ListGrouper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -38,6 +39,7 @@ import org.springframework.context.annotation.Configuration;
  */
 @InfraGenerated
 @Configuration
+@Slf4j
 public class EventConf {
 
   @Value("${spring.rabbitmq.username}")
@@ -92,6 +94,13 @@ public class EventConf {
 
     factory.setPublisherConfirmType(CachingConnectionFactory.ConfirmType.CORRELATED);
     factory.setPublisherReturns(true);
+    log.info(
+        "RabbitMQ connection configured: host={}, port={}, vhost={}, ssl={},"
+            + " publisherConfirms=CORRELATED, publisherReturns=true",
+        host,
+        port,
+        factory.getVirtualHost(),
+        sslEnabled);
     return factory;
   }
 
@@ -112,6 +121,27 @@ public class EventConf {
   public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
     RabbitTemplate template = new RabbitTemplate(connectionFactory);
     template.setMandatory(true);
+    template.setConfirmCallback(
+        (correlation, ack, cause) -> {
+          var id = correlation == null ? "unknown" : correlation.getId();
+          if (ack) {
+            log.info(
+                "RabbitMQ broker ACK: correlationId={} (not a consumer processing confirmation)",
+                id);
+          } else {
+            log.error("RabbitMQ broker NACK: correlationId={}, cause={}", id, cause);
+          }
+        });
+    template.setReturnsCallback(
+        returned ->
+            log.error(
+                "RabbitMQ message returned: messageId={}, exchange={}, routingKey={}, replyCode={},"
+                    + " replyText={}",
+                returned.getMessage().getMessageProperties().getMessageId(),
+                returned.getExchange(),
+                returned.getRoutingKey(),
+                returned.getReplyCode(),
+                returned.getReplyText()));
     return template;
   }
 

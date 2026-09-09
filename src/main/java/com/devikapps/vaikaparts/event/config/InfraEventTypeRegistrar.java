@@ -73,7 +73,7 @@ public class InfraEventTypeRegistrar implements PolymorphicTypeRegistrar {
     for (Class<? extends InfraEvent> eventClass : eventClasses) {
       String typeName = eventClass.getSimpleName();
       mapper.registerSubtypes(new NamedType(eventClass, typeName));
-      log.debug(
+      log.info(
           "Registered polymorphic type: {} -> {}",
           forJava(typeName),
           forJava(eventClass.getName()));

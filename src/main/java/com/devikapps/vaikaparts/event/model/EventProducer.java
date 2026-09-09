@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -125,14 +126,34 @@ public class EventProducer<T extends InfraEvent> implements Consumer<Collection<
    * @param event the event to publish (non-null)
    */
   private void publishEvent(T event) {
+    String eventType = event.getClass().getSimpleName();
+    String eventId = "unknown";
     try {
+      log.info("RabbitMQ serialization started: eventType={}", eventType);
       String payload = serializeEvent(event);
-      sendToRabbitMQ(payload);
-      logSuccessfulPublish(event);
+      eventId = objectMapper.readTree(payload).path("id").asText("unknown");
+      log.info(
+          "RabbitMQ send started: eventType={}, eventId={}, exchange={}, routingKey={}",
+          eventType,
+          eventId,
+          exchangeName,
+          routingKey);
+      sendToRabbitMQ(payload, eventType + ":" + eventId);
+      log.info(
+          "RabbitMQ send call returned: eventType={}, eventId={} (broker confirmation is"
+              + " asynchronous)",
+          eventType,
+          eventId);
     } catch (JsonProcessingException e) {
-      logSerializationError(event, e);
+      log.error("RabbitMQ serialization failed: eventType={}, eventId={}", eventType, eventId, e);
     } catch (Exception e) {
-      logPublishingError(event, e);
+      log.error(
+          "RabbitMQ send failed: eventType={}, eventId={}, exchange={}, routingKey={}",
+          eventType,
+          eventId,
+          exchangeName,
+          routingKey,
+          e);
     }
   }
 
@@ -160,36 +181,15 @@ public class EventProducer<T extends InfraEvent> implements Consumer<Collection<
    *
    * @param payload the JSON payload to send
    */
-  private void sendToRabbitMQ(String payload) {
-    rabbitTemplate.convertAndSend(exchangeName, routingKey, payload);
-  }
-
-  /**
-   * Logs successful event publication at DEBUG level.
-   *
-   * @param event the successfully published event
-   */
-  private void logSuccessfulPublish(T event) {
-    log.debug("Published event: {}", event.getClass().getSimpleName());
-  }
-
-  /**
-   * Logs serialization errors at ERROR level with full exception details.
-   *
-   * @param event the event that failed to serialize
-   * @param e the serialization exception
-   */
-  private void logSerializationError(T event, JsonProcessingException e) {
-    log.error("Serialization failed for event: {}", event, e);
-  }
-
-  /**
-   * Logs publishing errors at ERROR level with full exception details.
-   *
-   * @param event the event that failed to publish
-   * @param e the publishing exception
-   */
-  private void logPublishingError(T event, Exception e) {
-    log.error("Publishing failed for event: {}", event, e);
+  private void sendToRabbitMQ(String payload, String correlationId) {
+    rabbitTemplate.convertAndSend(
+        exchangeName,
+        routingKey,
+        payload,
+        message -> {
+          message.getMessageProperties().setMessageId(correlationId);
+          return message;
+        },
+        new CorrelationData(correlationId));
   }
 }
