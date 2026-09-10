@@ -16,7 +16,7 @@ import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
-import com.devikapps.vaikaparts.model.notification.DemandPublishedNotification;
+import com.devikapps.vaikaparts.model.notification.Notification;
 import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
@@ -111,22 +111,22 @@ class NotificationWebSocketServiceIT extends FacadeIT {
 
   @Test
   void should_deliver_notification_to_correct_seller_topic() throws Exception {
-    BlockingQueue<DemandPublishedNotification> queue = new LinkedBlockingQueue<>();
+    BlockingQueue<Notification> queue = new LinkedBlockingQueue<>();
     var notification = buildTestNotification();
     var destination = TOPIC_NOTIFICATIONS_ENDPOINT + TEST_SELLER_ID;
 
     var session = connectAndSubscribe(destination, queue);
 
     authenticateSeller();
-    notificationWebSocketService.sendNotificationToSeller(TEST_SELLER_ID, notification);
+    notificationWebSocketService.sendNotificationToUser(TEST_SELLER_ID, notification);
 
     var received = queue.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
     assertNotNull(received, "Expected to receive a WebSocket notification but got none");
     assertEquals(TEST_NOTIFICATION_ID, received.getId());
     assertEquals(TEST_MESSAGE, received.getMessage());
-    assertEquals(TEST_SELLER_ID, received.getSeller().getId());
-    assertEquals(TEST_DEMAND_ID, received.getDemand().getId());
+    assertEquals(TEST_SELLER_ID, received.getRecipient().getId());
+    assertEquals(TEST_DEMAND_ID, received.getResource().getId());
     assertEquals(NotificationType.DEMAND_PUBLISHED, received.getNotificationType());
     assertFalse(received.isRead());
     assertEquals(TEST_CLICK_ACTION, received.getClickAction());
@@ -139,7 +139,7 @@ class NotificationWebSocketServiceIT extends FacadeIT {
 
   @Test
   void should_not_deliver_notification_to_different_seller_topic() throws Exception {
-    BlockingQueue<DemandPublishedNotification> otherSellerQueue = new LinkedBlockingQueue<>();
+    BlockingQueue<Notification> otherSellerQueue = new LinkedBlockingQueue<>();
     var otherSellerId = "other-seller-ws-456";
     var otherDestination = TOPIC_NOTIFICATIONS_ENDPOINT + otherSellerId;
     var notification = buildTestNotification();
@@ -147,7 +147,7 @@ class NotificationWebSocketServiceIT extends FacadeIT {
     var session = connectAndSubscribe(otherDestination, otherSellerQueue);
 
     authenticateSeller();
-    notificationWebSocketService.sendNotificationToSeller(TEST_SELLER_ID, notification);
+    notificationWebSocketService.sendNotificationToUser(TEST_SELLER_ID, notification);
 
     var received = otherSellerQueue.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
@@ -159,8 +159,8 @@ class NotificationWebSocketServiceIT extends FacadeIT {
 
   @Test
   void should_deliver_multiple_notifications_to_correct_sellers() throws Exception {
-    BlockingQueue<DemandPublishedNotification> seller1Queue = new LinkedBlockingQueue<>();
-    BlockingQueue<DemandPublishedNotification> seller2Queue = new LinkedBlockingQueue<>();
+    BlockingQueue<Notification> seller1Queue = new LinkedBlockingQueue<>();
+    BlockingQueue<Notification> seller2Queue = new LinkedBlockingQueue<>();
 
     var seller2 = createAnotherSeller();
     var notification1 = buildTestNotification();
@@ -171,8 +171,8 @@ class NotificationWebSocketServiceIT extends FacadeIT {
         connectAndSubscribe(TOPIC_NOTIFICATIONS_ENDPOINT + seller2.getId(), seller2Queue);
 
     authenticateSeller();
-    notificationWebSocketService.sendNotificationToSeller(TEST_SELLER_ID, notification1);
-    notificationWebSocketService.sendNotificationToSeller(seller2.getId(), notification2);
+    notificationWebSocketService.sendNotificationToUser(TEST_SELLER_ID, notification1);
+    notificationWebSocketService.sendNotificationToUser(seller2.getId(), notification2);
 
     var received1 = seller1Queue.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
     var received2 = seller2Queue.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -180,14 +180,14 @@ class NotificationWebSocketServiceIT extends FacadeIT {
     // seller 1 receives correct notification
     assertNotNull(received1, "Seller 1 expected notification but got none");
     assertEquals(TEST_NOTIFICATION_ID, received1.getId());
-    assertEquals(TEST_SELLER_ID, received1.getSeller().getId());
+    assertEquals(TEST_SELLER_ID, received1.getRecipient().getId());
     assertEquals(NotificationType.DEMAND_PUBLISHED, received1.getNotificationType());
     assertFalse(received1.isRead());
 
     // seller 2 receives correct notification
     assertNotNull(received2, "Seller 2 expected notification but got none");
     assertEquals("notification-ws-456", received2.getId());
-    assertEquals(seller2.getId(), received2.getSeller().getId());
+    assertEquals(seller2.getId(), received2.getRecipient().getId());
     assertEquals(NotificationType.DEMAND_PUBLISHED, received2.getNotificationType());
     assertFalse(received2.isRead());
 
@@ -211,17 +211,17 @@ class NotificationWebSocketServiceIT extends FacadeIT {
 
     assertThrows(
         AuthenticationCredentialsNotFoundException.class,
-        () -> notificationWebSocketService.sendNotificationToSeller(TEST_SELLER_ID, notification));
+        () -> notificationWebSocketService.sendNotificationToUser(TEST_SELLER_ID, notification));
   }
 
   @Test
   void should_deliver_notification_with_null_click_action() throws Exception {
-    BlockingQueue<DemandPublishedNotification> queue = new LinkedBlockingQueue<>();
+    BlockingQueue<Notification> queue = new LinkedBlockingQueue<>();
     var notification =
-        DemandPublishedNotification.builder()
+        Notification.builder()
             .id(TEST_NOTIFICATION_ID)
-            .seller(buildSeller(TEST_SELLER_ID))
-            .demand(buildDemand())
+            .recipient(buildSeller(TEST_SELLER_ID))
+            .resource(buildDemand())
             .message(TEST_MESSAGE)
             .notificationType(NotificationType.DEMAND_PUBLISHED)
             .read(false)
@@ -232,7 +232,7 @@ class NotificationWebSocketServiceIT extends FacadeIT {
     var session = connectAndSubscribe(TOPIC_NOTIFICATIONS_ENDPOINT + TEST_SELLER_ID, queue);
 
     authenticateSeller();
-    notificationWebSocketService.sendNotificationToSeller(TEST_SELLER_ID, notification);
+    notificationWebSocketService.sendNotificationToUser(TEST_SELLER_ID, notification);
 
     var received = queue.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
@@ -244,8 +244,8 @@ class NotificationWebSocketServiceIT extends FacadeIT {
     SecurityContextHolder.clearContext();
   }
 
-  private StompSession connectAndSubscribe(
-      String destination, BlockingQueue<DemandPublishedNotification> queue) throws Exception {
+  private StompSession connectAndSubscribe(String destination, BlockingQueue<Notification> queue)
+      throws Exception {
 
     String url = "ws://localhost:" + port + "/ws";
 
@@ -259,12 +259,12 @@ class NotificationWebSocketServiceIT extends FacadeIT {
         new StompFrameHandler() {
           @Override
           public @NonNull Type getPayloadType(@NonNull StompHeaders headers) {
-            return DemandPublishedNotification.class;
+            return Notification.class;
           }
 
           @Override
           public void handleFrame(@NonNull StompHeaders headers, Object payload) {
-            var notification = (DemandPublishedNotification) payload;
+            var notification = (Notification) payload;
             if (!queue.offer(notification)) {
               log.warn("Failed to enqueue WebSocket notification with id={}", notification.getId());
             }
@@ -287,16 +287,15 @@ class NotificationWebSocketServiceIT extends FacadeIT {
     SecurityContextHolder.getContext().setAuthentication(authentication);
   }
 
-  private DemandPublishedNotification buildTestNotification() {
+  private Notification buildTestNotification() {
     return buildNotificationForSeller(TEST_SELLER_ID, TEST_NOTIFICATION_ID);
   }
 
-  private DemandPublishedNotification buildNotificationForSeller(
-      String sellerId, String notificationId) {
-    return DemandPublishedNotification.builder()
+  private Notification buildNotificationForSeller(String sellerId, String notificationId) {
+    return Notification.builder()
         .id(notificationId)
-        .seller(buildSeller(sellerId))
-        .demand(buildDemand())
+        .recipient(buildSeller(sellerId))
+        .resource(buildDemand())
         .message(TEST_MESSAGE)
         .notificationType(NotificationType.DEMAND_PUBLISHED)
         .read(false)

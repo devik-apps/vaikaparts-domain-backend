@@ -14,6 +14,7 @@ import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
+import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
@@ -36,6 +37,7 @@ public class DemandPublishedNotificationRequestedService
   private final NotificationRequestedRepository notificationRequestedRepository;
   private final DemandPublishedRequestedRepository demandPublishedRequestedRepository;
   private final DemandRepository demandRepository;
+  private final OfferRepository offerRepository;
   private final SellerMapper sellerMapper;
   private final UserRepository userRepository;
   private final NotificationService notificationService;
@@ -44,19 +46,28 @@ public class DemandPublishedNotificationRequestedService
   @Transactional
   public void accept(DemandPublishedNotificationRequested event) {
     log.info(
-        "Processing NotificationRequested event: {}, seller: {}, demand: {}, attempt: {}",
+        "[NOTIF-PIPELINE][CHILD] Processing DemandPublishedNotificationRequested event: {}, recipient:"
+            + " {}, demand: {}, attempt: {}",
         forJava(event.getId()),
-        forJava(event.getSellerId()),
+        forJava(event.getOfferId() == null ? event.getSellerId() : event.getResearcherId()),
         forJava(event.getDemandId()),
         event.getAttemptNb());
 
     var eventLog = createOrUpdateEventLog(event);
+    log.info(
+        "[NOTIF-PIPELINE][CHILD] Event log resolved: eventId={}, parentId={}, recipientType={}",
+        forJava(event.getId()),
+        forJava(event.getDemandPublishedRequestedId()),
+        event.getOfferId() == null ? "SELLER" : "RESEARCHER");
 
     try {
       updateEventLogStatus(eventLog, ProcessStatus.PROCESSING);
 
       var demand = eventLog.getDemand();
-      var notificationRequest = buildNotificationRequest(demand, event.getSellerId());
+      var notificationRequest =
+          eventLog.getOffer() == null
+              ? buildNotificationRequest(demand, event.getSellerId())
+              : buildOfferNotificationRequest(eventLog);
       notificationRequest.setNotificationRequestedId(event.getId());
 
       notificationService.createAndSendNotification(notificationRequest);
@@ -66,7 +77,8 @@ public class DemandPublishedNotificationRequestedService
       notificationRequestedRepository.save(eventLog);
 
       log.info(
-          "Successfully processed NotificationRequested: {}, seller: {}",
+          "[NOTIF-PIPELINE][CHILD] Successfully processed DemandPublishedNotificationRequested: {},"
+              + " seller: {}",
           forJava(event.getId()),
           forJava(event.getSellerId()));
 
@@ -85,6 +97,33 @@ public class DemandPublishedNotificationRequestedService
   private JDemandPublishedNotificationRequested createNewEventLog(
       DemandPublishedNotificationRequested event) {
     var parent = fetchParentEventLog(event.getDemandPublishedRequestedId());
+    if (event.getOfferId() != null) {
+      var offer =
+          offerRepository
+              .findById(event.getOfferId())
+              .orElseThrow(
+                  () -> new IllegalStateException("Offer not found: " + event.getOfferId()));
+      var demand = offer.getDemand();
+      var researcher = demand.getResearcher();
+      if (event.getSellerId() != null
+          || !demand.getId().equals(event.getDemandId())
+          || !demand.getId().equals(parent.getDemand().getId())
+          || !researcher.getId().equals(event.getResearcherId())) {
+        throw new IllegalArgumentException("Offer notification resource or recipient mismatch");
+      }
+      var now = LocalDateTime.now();
+      return JDemandPublishedNotificationRequested.builder()
+          .id(event.getId())
+          .demandPublishedRequested(parent)
+          .offer(offer)
+          .researcher(researcher)
+          .notificationType(NotificationType.OFFER_PUBLISHED)
+          .status(ProcessStatus.PENDING)
+          .attemptNb(event.getAttemptNb())
+          .createdAt(now)
+          .updatedAt(now)
+          .build();
+    }
     var seller = fetchSeller(event.getSellerId());
     var demand = fetchDemand(event.getDemandId());
     var now = LocalDateTime.now();
@@ -107,6 +146,10 @@ public class DemandPublishedNotificationRequestedService
     eventLog.setStatus(status);
     eventLog.setUpdatedAt(LocalDateTime.now());
     notificationRequestedRepository.save(eventLog);
+    log.info(
+        "[NOTIF-PIPELINE][EVENT_LOG] Save returned: eventId={}, status={} (commit may be pending)",
+        forJava(eventLog.getId()),
+        status);
   }
 
   private JDemandPublishedRequested fetchParentEventLog(String parentId) {
@@ -114,7 +157,8 @@ public class DemandPublishedNotificationRequestedService
         .findById(parentId)
         .orElseThrow(
             () -> {
-              log.error("Parent event log not found: {}", forJava(parentId));
+              log.error(
+                  "[NOTIF-PIPELINE][CHILD] Parent event log not found: {}", forJava(parentId));
               return new IllegalStateException("Parent event log not found: " + parentId);
             });
   }
@@ -136,7 +180,7 @@ public class DemandPublishedNotificationRequestedService
         .findById(demandId)
         .orElseThrow(
             () -> {
-              log.error("Demand not found: {}", forJava(demandId));
+              log.error("[NOTIF-PIPELINE][CHILD] Demand not found: {}", forJava(demandId));
               return new IllegalStateException("Demand not found: " + demandId);
             });
   }
@@ -145,17 +189,32 @@ public class DemandPublishedNotificationRequestedService
     var part = demand.getPart();
     var message =
         format(
-            "New demand: %s %s %s (%d)",
+            "Nouvelle demande - %s %s %s (%d)",
             part.getCarBrand(), part.getCarModel(), part.getPartName(), part.getCarYear());
 
     var clickAction = format("{\"action\":\"VIEW_DEMAND\",\"demandId\":\"%s\"}", demand.getId());
 
     return NotificationRequest.builder()
-        .sellerId(sellerId)
-        .demandId(demand.getId())
+        .recipientUserId(sellerId)
+        .resourceId(demand.getId())
         .message(message)
         .notificationType(NotificationType.DEMAND_PUBLISHED)
         .clickAction(clickAction)
+        .build();
+  }
+
+  private NotificationRequest buildOfferNotificationRequest(
+      JDemandPublishedNotificationRequested eventLog) {
+    var offer = eventLog.getOffer();
+    return NotificationRequest.builder()
+        .recipientUserId(eventLog.getResearcher().getId())
+        .resourceId(offer.getId())
+        .notificationType(NotificationType.OFFER_PUBLISHED)
+        .message("Nouvelle offre reçue pour votre demande")
+        .clickAction(
+            format(
+                "{\"action\":\"VIEW_OFFER\",\"offerId\":\"%s\",\"demandId\":\"%s\"}",
+                offer.getId(), offer.getDemand().getId()))
         .build();
   }
 
@@ -165,7 +224,8 @@ public class DemandPublishedNotificationRequestedService
       Exception e) {
 
     log.error(
-        "Failed to process NotificationRequested: {}, seller: {}, attempt: {}",
+        "[NOTIF-PIPELINE][CHILD] Failed to process DemandPublishedNotificationRequested: {},"
+            + " seller: {}, attempt: {}",
         forJava(event.getId()),
         forJava(event.getSellerId()),
         event.getAttemptNb(),
@@ -179,6 +239,6 @@ public class DemandPublishedNotificationRequestedService
     notificationRequestedRepository.save(eventLog);
 
     throw new DemandPublishedNotificationRequestedException(
-        "NotificationRequested processing failed", e);
+        "DemandPublishedNotificationRequested processing failed", e);
   }
 }

@@ -22,6 +22,11 @@ public class ResearcherService {
     return researcherMapper.toResearcher(userService.getCurrentResearcher());
   }
 
+  public Researcher getOrCreateCurrentResearcher() {
+    log.info("Retrieving or creating current active researcher");
+    return researcherMapper.toResearcher(userService.getOrCreateCurrentResearcher());
+  }
+
   public Page<Researcher> getResearchers(Integer page, Integer size) {
     return userService
         .getJUsers(page, size, RESEARCHER)

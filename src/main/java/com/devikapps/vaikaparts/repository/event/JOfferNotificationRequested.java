@@ -2,10 +2,8 @@ package com.devikapps.vaikaparts.repository.event;
 
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
-import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
-import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -29,37 +27,25 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "notification_requested")
+@Table(name = "offer_notification_requested")
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
 @Builder
 @EqualsAndHashCode(of = "id")
-public class JDemandPublishedNotificationRequested {
+public class JOfferNotificationRequested {
 
   @Id
   @Column(name = "id", nullable = false)
   private String id;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "demand_published_requested_id")
-  private JDemandPublishedRequested demandPublishedRequested;
-
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "seller_id")
-  private JSeller seller;
-
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "demand_id")
-  private JDemand demand;
-
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "researcher_id")
+  @JoinColumn(name = "researcher_id", nullable = false)
   private JResearcher researcher;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "offer_id")
+  @JoinColumn(name = "offer_id", nullable = false)
   private JOffer offer;
 
   @Enumerated(EnumType.STRING)
@@ -87,7 +73,7 @@ public class JDemandPublishedNotificationRequested {
   @Column(name = "completed_at")
   private LocalDateTime completedAt;
 
-  @OneToMany(mappedBy = "notificationRequested", fetch = FetchType.LAZY)
+  @OneToMany(mappedBy = "offerNotificationRequested", fetch = FetchType.LAZY)
   @Builder.Default
   private List<JDemandPublishedNotification> notifications = new ArrayList<>();
 }

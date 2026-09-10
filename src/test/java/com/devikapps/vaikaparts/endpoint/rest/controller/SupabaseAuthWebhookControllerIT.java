@@ -116,9 +116,8 @@ class SupabaseAuthWebhookControllerIT extends FacadeIT {
         """;
     metadata.put("user_type", "RESEARCHER");
     metadata.put("location", location);
-    record.put("user_metadata", metadata);
-
-    record.put("app_metadata", Map.of());
+    record.put("raw_user_meta_data", metadata);
+    record.put("raw_app_meta_data", Map.of("user_type", "RESEARCHER"));
     record.put("created_at", now());
     record.put("updated_at", now());
     record.put("deleted_at", null);

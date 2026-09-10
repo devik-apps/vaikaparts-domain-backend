@@ -2,7 +2,6 @@ package com.devikapps.vaikaparts.repository.model.user;
 
 import static java.lang.String.format;
 
-import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotification;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.JLatLon;
 import com.devikapps.vaikaparts.repository.model.JLocation;
@@ -41,10 +40,6 @@ public class JSeller extends JUser {
   @OneToMany(mappedBy = "seller", fetch = FetchType.LAZY)
   @Builder.Default
   private List<JDemandPublishedNotificationRequested> notificationRequestedLogs = new ArrayList<>();
-
-  @OneToMany(mappedBy = "seller", fetch = FetchType.LAZY)
-  @Builder.Default
-  private List<JDemandPublishedNotification> notifications = new ArrayList<>();
 
   @Override
   public String toString() {
