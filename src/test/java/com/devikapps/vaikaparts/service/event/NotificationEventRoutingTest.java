@@ -12,6 +12,8 @@ import com.devikapps.vaikaparts.event.consumer.EventDispatcher;
 import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.event.model.InfraEvent;
+import com.rabbitmq.client.Channel;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
@@ -77,19 +79,24 @@ class NotificationEventRoutingTest {
     assertEquals(
         original.getClass().getSimpleName(), mapper.readTree(payload).get("@type").asText());
     Consumer<InfraEvent> handler = mock(Consumer.class);
+    Channel channel = mock(Channel.class);
+    long deliveryTag = 1L;
     try (var context = new StaticApplicationContext()) {
       context.getBeanFactory().registerSingleton(beanName, handler);
       var dispatcher = new EventDispatcher();
       dispatcher.setApplicationContext(context);
       var consumer = new EventConsumer(dispatcher, mapper);
       try {
-        consumer.onMessage(payload);
+        consumer.onMessage(payload, channel, deliveryTag);
         var captor = ArgumentCaptor.forClass(InfraEvent.class);
         verify(handler, timeout(5000)).accept(captor.capture());
         assertEquals(original.getClass(), captor.getValue().getClass());
         assertEquals(mapper.readTree(payload), mapper.valueToTree(captor.getValue()));
+        verify(channel).basicAck(deliveryTag, false);
       } finally {
-        ((ExecutorService) ReflectionTestUtils.getField(consumer, "executor")).shutdownNow();
+        ((ExecutorService)
+                Objects.requireNonNull(ReflectionTestUtils.getField(consumer, "executor")))
+            .shutdownNow();
       }
     }
   }

@@ -1,34 +1,18 @@
 package com.devikapps.vaikaparts.service;
 
-import static com.devikapps.vaikaparts.model.classifier.UserType.RESEARCHER;
-import static com.devikapps.vaikaparts.model.classifier.UserType.SELLER;
-import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
-import com.devikapps.vaikaparts.endpoint.rest.controller.model.user.ProfileRecord;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.user.SupabaseWebhook;
-import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
-import com.devikapps.vaikaparts.model.LatLon;
-import com.devikapps.vaikaparts.model.Location;
-import com.devikapps.vaikaparts.model.classifier.City;
-import com.devikapps.vaikaparts.model.classifier.ManagerRole;
-import com.devikapps.vaikaparts.model.classifier.Region;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.repository.UserRepository;
-import com.devikapps.vaikaparts.repository.model.user.JManager;
-import com.devikapps.vaikaparts.repository.model.user.JResearcher;
-import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.repository.model.user.JUser;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
@@ -41,15 +25,14 @@ public class UserSyncService {
 
   private final UserRepository userRepository;
 
-
   @Transactional
   public void handleUserCreated(SupabaseWebhook webhook) {
     var profile = webhook.record();
     var profileId = profile.id();
-    log.info("webhook body {}",webhook);
+    log.info("webhook body {}", webhook);
     log.info("Processing INSERT event for profile ID: {}", forJava(profileId));
 
-    log.info("metadata {}",profile.appMetadata());
+    log.info("metadata {}", profile.appMetadata());
     extractUserType(profile.appMetadata())
         .ifPresentOrElse(
             userType -> userCreationService.createUserIfAbsent(profile, userType),
@@ -85,7 +68,8 @@ public class UserSyncService {
                         userType -> userCreationService.createUserIfAbsent(profile, userType),
                         () ->
                             log.info(
-                                "Skipping UPDATE for unknown profile {} because user_type is not available yet",
+                                "Skipping UPDATE for unknown profile {} because user_type is not"
+                                    + " available yet",
                                 forJava(profileId))));
   }
 
@@ -118,7 +102,9 @@ public class UserSyncService {
   }
 
   private Optional<UserType> extractUserType(Map<String, Object> appMetadata) {
-    log.info("ROLE USER IN METADATA {}", userCreationService.extractMetadataValue(appMetadata, USER_TYPE_KEY).orElse(null));
+    log.info(
+        "ROLE USER IN METADATA {}",
+        userCreationService.extractMetadataValue(appMetadata, USER_TYPE_KEY).orElse(null));
     return Optional.ofNullable(appMetadata)
         .map(metadata -> metadata.get(USER_TYPE_KEY))
         .map(Object::toString)
@@ -134,12 +120,4 @@ public class UserSyncService {
       return Optional.empty();
     }
   }
-
-
-
-
-
-
-
-
 }

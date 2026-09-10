@@ -1,6 +1,5 @@
 package com.devikapps.vaikaparts.endpoint.rest.controller;
 
-import static java.time.LocalDateTime.now;
 import static java.util.UUID.randomUUID;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -25,6 +24,7 @@ import com.devikapps.vaikaparts.repository.model.JLatLon;
 import com.devikapps.vaikaparts.repository.model.user.JManager;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
+import java.time.OffsetDateTime;
 import java.util.Collections;
 import lombok.val;
 import org.junit.jupiter.api.AfterEach;
@@ -252,8 +252,8 @@ class UserControllerIT extends FacadeIT {
   }
 
   private JResearcher createResearcher() {
-    var creationDate = now();
-    val researcher =
+    var creationDate = OffsetDateTime.now();
+    var researcher =
         JResearcher.builder()
             .id(randomUUID().toString())
             .supabaseUserId("researcher-supabase-id")
@@ -270,7 +270,7 @@ class UserControllerIT extends FacadeIT {
   }
 
   private JSeller createSeller() {
-    var creationDate = now();
+    var creationDate = OffsetDateTime.now();
     val seller =
         JSeller.builder()
             .id(randomUUID().toString())
@@ -290,7 +290,7 @@ class UserControllerIT extends FacadeIT {
   }
 
   private JManager createManager() {
-    var creationDate = now();
+    var creationDate = OffsetDateTime.now();
     val manager =
         JManager.builder()
             .id(randomUUID().toString())

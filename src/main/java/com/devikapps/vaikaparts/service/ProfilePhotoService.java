@@ -11,7 +11,6 @@ import com.devikapps.vaikaparts.repository.model.user.JUser;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;

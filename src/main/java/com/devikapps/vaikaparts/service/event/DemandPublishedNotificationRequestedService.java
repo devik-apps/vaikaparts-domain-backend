@@ -46,8 +46,8 @@ public class DemandPublishedNotificationRequestedService
   @Transactional
   public void accept(DemandPublishedNotificationRequested event) {
     log.info(
-        "[NOTIF-PIPELINE][CHILD] Processing DemandPublishedNotificationRequested event: {}, recipient:"
-            + " {}, demand: {}, attempt: {}",
+        "[NOTIF-PIPELINE][CHILD] Processing DemandPublishedNotificationRequested event: {},"
+            + " recipient: {}, demand: {}, attempt: {}",
         forJava(event.getId()),
         forJava(event.getOfferId() == null ? event.getSellerId() : event.getResearcherId()),
         forJava(event.getDemandId()),

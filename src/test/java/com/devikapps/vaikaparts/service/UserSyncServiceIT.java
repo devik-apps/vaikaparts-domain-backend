@@ -1,7 +1,6 @@
 package com.devikapps.vaikaparts.service;
 
 import static java.lang.String.format;
-import static java.time.LocalDateTime.now;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -20,7 +19,7 @@ import com.devikapps.vaikaparts.repository.model.user.JManager;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.repository.model.user.JUser;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -36,8 +35,8 @@ class UserSyncServiceIT extends FacadeIT {
   private static final String TEST_NAME = "John Doe";
   private static final String TEST_PROFILE_IMG_URL = "https://example.com/profile.jpg";
   private static final String TEST_GARAGE_NAME = "Joe's Garage";
-  private static final LocalDateTime TEST_CREATED_AT = now();
-  private static final LocalDateTime TEST_UPDATED_AT = now();
+  private static final OffsetDateTime TEST_CREATED_AT = OffsetDateTime.now();
+  private static final OffsetDateTime TEST_UPDATED_AT = OffsetDateTime.now();
 
   @Autowired private UserSyncService userSyncService;
   @Autowired private UserRepository userRepository;

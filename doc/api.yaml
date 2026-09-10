@@ -787,7 +787,7 @@ paths:
   /v1/demands/all:
     get:
       operationId: get all demands
-      tags: [ Demands ]
+      tags: [Demands]
       summary: List demands with pagination
       description: |
         Returns a paginated list of demands belonging to the authenticated Seller.

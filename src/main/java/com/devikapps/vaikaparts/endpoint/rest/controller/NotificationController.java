@@ -32,8 +32,7 @@ public class NotificationController {
   }
 
   @PatchMapping("/demand-published/mark-as-read/{notificationId}")
-  public ResponseEntity<Notification> markAsRead(
-      @PathVariable String notificationId) {
+  public ResponseEntity<Notification> markAsRead(@PathVariable String notificationId) {
     return new ResponseEntity<>(
         notificationService.markAsRead(notificationId), HttpStatus.ACCEPTED);
   }

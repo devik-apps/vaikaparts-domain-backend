@@ -1,6 +1,5 @@
 package com.devikapps.vaikaparts.service;
 
-import static java.time.LocalDateTime.now;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -23,6 +22,7 @@ import com.devikapps.vaikaparts.repository.model.JLatLon;
 import com.devikapps.vaikaparts.repository.model.user.JManager;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
+import java.time.OffsetDateTime;
 import java.util.Collections;
 import lombok.val;
 import org.junit.jupiter.api.AfterEach;
@@ -332,8 +332,8 @@ class UserServiceIT extends FacadeIT {
             .location(vom.map(new Location(City.ANTANANARIVO, Region.ANALAMANGA, "Tesita")))
             .userType(UserType.RESEARCHER)
             .status(UserStatus.ENABLED)
-            .createdAt(now())
-            .updatedAt(now())
+            .createdAt(OffsetDateTime.now())
+            .updatedAt(OffsetDateTime.now())
             .build();
     return userRepository.save(researcher);
   }
@@ -350,8 +350,8 @@ class UserServiceIT extends FacadeIT {
             .latLon(new JLatLon(1.1, 2.2))
             .userType(UserType.SELLER)
             .status(UserStatus.ENABLED)
-            .createdAt(now())
-            .updatedAt(now())
+            .createdAt(OffsetDateTime.now())
+            .updatedAt(OffsetDateTime.now())
             .build();
     return userRepository.save(seller);
   }
@@ -366,8 +366,8 @@ class UserServiceIT extends FacadeIT {
             .status(UserStatus.ENABLED)
             .managerRole(ManagerRole.ADMIN)
             .phoneNumber("+26122222222")
-            .createdAt(now())
-            .updatedAt(now())
+            .createdAt(OffsetDateTime.now())
+            .updatedAt(OffsetDateTime.now())
             .build();
     return userRepository.save(manager);
   }

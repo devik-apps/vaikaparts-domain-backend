@@ -13,11 +13,8 @@ import com.auth0.jwt.interfaces.JWTVerifier;
 import com.devikapps.vaikaparts.config.SupabaseConf;
 import com.devikapps.vaikaparts.exception.JwtClaimExtractionException;
 import jakarta.annotation.PostConstruct;
-
 import java.net.URI;
-import java.security.PublicKey;
 import java.security.interfaces.ECPublicKey;
-import java.security.interfaces.RSAPublicKey;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +32,7 @@ public class JwtValidationService {
 
   @PostConstruct
   public void init() {
-     this.issuer = supabaseConf.getUrl() + "/auth/v1";
+    this.issuer = supabaseConf.getUrl() + "/auth/v1";
     log.info("JWT verifier initialized successfully");
     try {
       URI jwksUri = URI.create(supabaseConf.getDiscoveryUrl());
@@ -57,9 +54,9 @@ public class JwtValidationService {
     try {
       DecodedJWT decodedJwt = JWT.decode(token);
       DecodedJWT verifiedJwt;
-        log.debug("Processing new RS256 asymmetric token");
-        verifiedJwt = validateJWT(decodedJwt, token);
-        log.debug("Token validation successful for user authentication");
+      log.debug("Processing new RS256 asymmetric token");
+      verifiedJwt = validateJWT(decodedJwt, token);
+      log.debug("Token validation successful for user authentication");
       return Optional.of(verifiedJwt);
     } catch (TokenExpiredException e) {
       log.warn("Token validation failed: token has expired");
@@ -80,7 +77,7 @@ public class JwtValidationService {
       log.warn("Token validation failed: invalid public key");
       return Optional.empty();
     } catch (JwkException e) {
-        log.warn("Token validation failed: {}", e.getMessage());
+      log.warn("Token validation failed: {}", e.getMessage());
       return Optional.empty();
     }
   }
@@ -159,12 +156,14 @@ public class JwtValidationService {
     }
   }
 
-  public DecodedJWT validateJWT(DecodedJWT jwt,String token) throws JwkException{
+  public DecodedJWT validateJWT(DecodedJWT jwt, String token) throws JwkException {
     Jwk jwk = jwkProvider.get(jwt.getKeyId());
     ECPublicKey publicKey = (ECPublicKey) jwk.getPublicKey();
 
     Algorithm algorithm = Algorithm.ECDSA256(publicKey, null);
-    JWTVerifier verifier = JWT.require(algorithm).withIssuer(issuer)
+    JWTVerifier verifier =
+        JWT.require(algorithm)
+            .withIssuer(issuer)
             .withAudience("authenticated") // Recommandé par Supabase
             .build();
     return verifier.verify(token);

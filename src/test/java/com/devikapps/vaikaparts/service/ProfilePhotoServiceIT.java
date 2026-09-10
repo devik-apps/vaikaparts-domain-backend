@@ -1,6 +1,5 @@
 package com.devikapps.vaikaparts.service;
 
-import static java.time.LocalDateTime.now;
 import static java.util.UUID.randomUUID;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -18,6 +17,7 @@ import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
+import java.time.OffsetDateTime;
 import lombok.val;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,8 +45,8 @@ class ProfilePhotoServiceIT extends FacadeIT {
             .location(vom.map(new Location(City.ANTANANARIVO, Region.ANALAMANGA, "Test Address")))
             .userType(UserType.RESEARCHER)
             .status(UserStatus.ENABLED)
-            .createdAt(now())
-            .updatedAt(now())
+            .createdAt(OffsetDateTime.now())
+            .updatedAt(OffsetDateTime.now())
             .build();
 
     userRepository.save(testUser);
