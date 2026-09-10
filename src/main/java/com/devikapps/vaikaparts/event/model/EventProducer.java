@@ -91,7 +91,7 @@ public class EventProducer<T extends InfraEvent> implements Consumer<Collection<
   @Override
   public void accept(Collection<T> events) {
     if (events == null || events.isEmpty()) {
-      log.warn("[NOTIF-PIPELINE][PRODUCER] No events to publish.");
+      log.warn("No events to publish.");
       return;
     }
 
@@ -108,8 +108,7 @@ public class EventProducer<T extends InfraEvent> implements Consumer<Collection<
    */
   private void publishBatch(List<T> batch) {
     log.info(
-        "[NOTIF-PIPELINE][PRODUCER] Publishing batch of {} events to exchange '{}' with routing"
-            + " '{}'",
+        "Publishing batch of {} events to exchange '{}' with routing '{}'",
         batch.size(),
         exchangeName,
         routingKey);
@@ -127,29 +126,8 @@ public class EventProducer<T extends InfraEvent> implements Consumer<Collection<
    */
   private void publishEvent(T event) {
     try {
-      log.info(
-          "[NOTIF-PIPELINE][SERIALIZE_START] eventType={}, mapperIdentity={}",
-          event.getClass().getSimpleName(),
-          System.identityHashCode(objectMapper));
       String payload = serializeEvent(event);
-      String eventId =
-          event instanceof NotificationBatchRequested batch
-              ? batch.getId()
-              : event instanceof NotificationRequested child ? child.getId() : "unavailable";
-      log.info(
-          "[NOTIF-PIPELINE][SEND_START] eventType={}, eventId={}, exchange={}, routingKey={},"
-              + " payloadChars={}",
-          event.getClass().getSimpleName(),
-          org.owasp.encoder.Encode.forJava(eventId),
-          exchangeName,
-          routingKey,
-          payload.length());
       sendToRabbitMQ(payload);
-      log.info(
-          "[NOTIF-PIPELINE][SEND_RETURNED] eventType={}, eventId={} (not broker or consumer"
-              + " confirmation)",
-          event.getClass().getSimpleName(),
-          org.owasp.encoder.Encode.forJava(eventId));
       logSuccessfulPublish(event);
     } catch (JsonProcessingException e) {
       logSerializationError(event, e);
@@ -192,7 +170,7 @@ public class EventProducer<T extends InfraEvent> implements Consumer<Collection<
    * @param event the successfully published event
    */
   private void logSuccessfulPublish(T event) {
-    log.debug("[NOTIF-PIPELINE][PRODUCER] Published event: {}", event.getClass().getSimpleName());
+    log.debug("Published event: {}", event.getClass().getSimpleName());
   }
 
   /**
@@ -202,7 +180,7 @@ public class EventProducer<T extends InfraEvent> implements Consumer<Collection<
    * @param e the serialization exception
    */
   private void logSerializationError(T event, JsonProcessingException e) {
-    log.error("[NOTIF-PIPELINE][PRODUCER] Serialization failed for event: {}", event, e);
+    log.error("Serialization failed for event: {}", event, e);
   }
 
   /**
@@ -212,6 +190,6 @@ public class EventProducer<T extends InfraEvent> implements Consumer<Collection<
    * @param e the publishing exception
    */
   private void logPublishingError(T event, Exception e) {
-    log.error("[NOTIF-PIPELINE][PRODUCER] Publishing failed for event: {}", event, e);
+    log.error("Publishing failed for event: {}", event, e);
   }
 }

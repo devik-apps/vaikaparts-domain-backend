@@ -2,8 +2,6 @@ package com.devikapps.vaikaparts.event.consumer;
 
 import com.devikapps.vaikaparts.InfraGenerated;
 import com.devikapps.vaikaparts.event.model.InfraEvent;
-import com.devikapps.vaikaparts.event.model.NotificationBatchRequested;
-import com.devikapps.vaikaparts.event.model.NotificationRequested;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.concurrent.ExecutorService;
@@ -58,10 +56,6 @@ public class EventConsumer implements Consumer<String> {
    * @param eventHandler the dispatcher responsible for routing events to appropriate handlers
    */
   public EventConsumer(EventDispatcher eventHandler, ObjectMapper om) {
-    log.info(
-        "[NOTIF-PIPELINE][STARTUP] Consumer initialized: mapperIdentity={}, workers={}",
-        System.identityHashCode(om),
-        Runtime.getRuntime().availableProcessors());
     this.eventHandler = eventHandler;
     this.objectMapper = om;
     this.executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
@@ -69,7 +63,7 @@ public class EventConsumer implements Consumer<String> {
         .addShutdownHook(
             new Thread(
                 () -> {
-                  log.info("[NOTIF-PIPELINE][CONSUMER] Shutting down event consumer executor");
+                  log.info("Shutting down event consumer executor");
                   executor.shutdown();
                 }));
   }
@@ -85,12 +79,7 @@ public class EventConsumer implements Consumer<String> {
    */
   @RabbitListener(queues = "${spring.rabbitmq.queue}")
   public void onMessage(String rawMessage) {
-    log.info(
-        "[NOTIF-PIPELINE][RECEIVED] Listener entered: payloadChars={}",
-        rawMessage == null ? 0 : rawMessage.length());
     accept(rawMessage);
-    log.info(
-        "[NOTIF-PIPELINE][SUBMITTED] Listener returning; worker processing may still be pending");
   }
 
   /**
@@ -112,34 +101,18 @@ public class EventConsumer implements Consumer<String> {
    */
   @Override
   public void accept(String rawMessage) {
-    String receiptId = java.util.UUID.randomUUID().toString();
-    log.info("[NOTIF-PIPELINE][ENQUEUE] receiptId={}", receiptId);
     executor.submit(
         () -> {
-          log.info("[NOTIF-PIPELINE][WORKER_START] receiptId={}", receiptId);
           try {
             InfraEvent event = deserialize(rawMessage);
             if (event == null) {
-              log.warn("[NOTIF-PIPELINE][CONSUMER] Unprocessable event: receiptId={}", receiptId);
+              log.warn("Received unprocessable event: {}", rawMessage);
               return;
             }
-            String eventId =
-                event instanceof NotificationBatchRequested batch
-                    ? batch.getId()
-                    : event instanceof NotificationRequested child ? child.getId() : "unavailable";
-            log.info(
-                "[NOTIF-PIPELINE][EVENT_RESOLVED] receiptId={}, eventType={}, eventId={}",
-                receiptId,
-                event.getClass().getSimpleName(),
-                org.owasp.encoder.Encode.forJava(eventId));
             eventHandler.accept(event);
-            log.info(
-                "[NOTIF-PIPELINE][CONSUMER] Event dispatched: {}",
-                event.getClass().getSimpleName());
+            log.info("Event dispatched: {}", event.getClass().getSimpleName());
           } catch (Exception e) {
-            log.error("[NOTIF-PIPELINE][CONSUMER] Processing failed: receiptId={}", receiptId, e);
-          } finally {
-            log.info("[NOTIF-PIPELINE][WORKER_END] receiptId={}", receiptId);
+            log.error("Error while consuming event: {}", rawMessage, e);
           }
         });
   }
@@ -158,19 +131,9 @@ public class EventConsumer implements Consumer<String> {
    */
   private InfraEvent deserialize(String rawMessage) {
     try {
-      log.info(
-          "[NOTIF-PIPELINE][DESERIALIZE_START] mapperIdentity={}",
-          System.identityHashCode(objectMapper));
-      InfraEvent event = objectMapper.readValue(rawMessage, InfraEvent.class);
-      log.info(
-          "[NOTIF-PIPELINE][DESERIALIZE_OK] eventType={}",
-          event == null ? null : event.getClass().getSimpleName());
-      return event;
+      return objectMapper.readValue(rawMessage, InfraEvent.class);
     } catch (JsonProcessingException e) {
-      log.error(
-          "[NOTIF-PIPELINE][DESERIALIZE_FAILED] exceptionType={}, detail={}",
-          e.getClass().getSimpleName(),
-          org.owasp.encoder.Encode.forJava(e.getOriginalMessage()));
+      log.error("Deserialization failed: {}", rawMessage, e);
       return null;
     }
   }

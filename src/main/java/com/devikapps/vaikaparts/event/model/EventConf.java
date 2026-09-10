@@ -38,7 +38,6 @@ import org.springframework.context.annotation.Configuration;
  */
 @InfraGenerated
 @Configuration
-@lombok.extern.slf4j.Slf4j
 public class EventConf {
 
   @Value("${spring.rabbitmq.username}")
@@ -78,12 +77,6 @@ public class EventConf {
    */
   @Bean
   public CachingConnectionFactory connectionFactory() {
-    log.info(
-        "[NOTIF-PIPELINE][CONNECTION_CONFIG] host={}, port={}, vhost={}, ssl={}",
-        host,
-        port,
-        vhost,
-        sslEnabled);
     CachingConnectionFactory factory = new CachingConnectionFactory(host, port);
     factory.setUsername(username);
     factory.setPassword(password);
@@ -119,23 +112,6 @@ public class EventConf {
   public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
     RabbitTemplate template = new RabbitTemplate(connectionFactory);
     template.setMandatory(true);
-    template.setConfirmCallback(
-        (correlation, ack, cause) ->
-            log.info(
-                "[NOTIF-PIPELINE][BROKER_CONFIRM] ack={}, correlationId={}, cause={} (not consumer"
-                    + " confirmation)",
-                ack,
-                correlation == null ? null : correlation.getId(),
-                cause));
-    template.setReturnsCallback(
-        returned ->
-            log.warn(
-                "[NOTIF-PIPELINE][UNROUTABLE] exchange={}, routingKey={}, replyCode={},"
-                    + " replyText={}",
-                returned.getExchange(),
-                returned.getRoutingKey(),
-                returned.getReplyCode(),
-                returned.getReplyText()));
     return template;
   }
 

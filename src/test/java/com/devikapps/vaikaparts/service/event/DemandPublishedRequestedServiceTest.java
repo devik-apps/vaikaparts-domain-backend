@@ -14,9 +14,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested;
+import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.event.model.EventProducer;
-import com.devikapps.vaikaparts.event.model.NotificationBatchRequested;
-import com.devikapps.vaikaparts.event.model.NotificationRequested;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.user.Seller;
@@ -37,7 +37,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class NotificationBatchRequestedServiceTest {
+class DemandPublishedRequestedServiceTest {
 
   private static final String TEST_EVENT_ID = "event-123";
   private static final String TEST_DEMAND_ID = "demand-456";
@@ -48,11 +48,11 @@ class NotificationBatchRequestedServiceTest {
   @Mock private DemandRepository demandRepository;
   @Mock private UserRepository userRepository;
   @Mock private SellerMapper sellerMapper;
-  @Mock private EventProducer<NotificationRequested> notificationRequestedProducer;
+  @Mock private EventProducer<DemandPublishedNotificationRequested> notificationRequestedProducer;
 
-  @InjectMocks private NotificationBatchRequestedService service;
+  @InjectMocks private DemandPublishedRequestedService service;
 
-  private NotificationBatchRequested testEvent;
+  private DemandPublishedRequested testEvent;
   private JDemand testDemand;
   private JSeller testJSeller1;
   private JSeller testJSeller2;
@@ -63,7 +63,7 @@ class NotificationBatchRequestedServiceTest {
   @BeforeEach
   void setUp() {
     testEvent =
-        NotificationBatchRequested.builder().id(TEST_EVENT_ID).demandId(TEST_DEMAND_ID).build();
+        DemandPublishedRequested.builder().id(TEST_EVENT_ID).demandId(TEST_DEMAND_ID).build();
 
     testDemand = mock(JDemand.class);
     testJSeller1 = mock(JSeller.class);
@@ -146,7 +146,8 @@ class NotificationBatchRequestedServiceTest {
 
     service.accept(testEvent);
 
-    ArgumentCaptor<List<NotificationRequested>> captor = ArgumentCaptor.forClass(List.class);
+    ArgumentCaptor<List<DemandPublishedNotificationRequested>> captor =
+        ArgumentCaptor.forClass(List.class);
     verify(notificationRequestedProducer, times(1)).accept(captor.capture());
 
     var publishedEvents = captor.getValue();
