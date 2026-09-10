@@ -8,6 +8,8 @@ import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPartInfo;
+import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
+import com.devikapps.vaikaparts.event.model.EventProducer;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.mapper.exchange.DemandMapper;
@@ -35,6 +37,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Service
@@ -45,6 +49,7 @@ public class OfferService {
   private static final Duration PRESIGN_DURATION = Duration.ofDays(7);
   private static final String PART_INFO_BUCKET_PREFIX = "part-infos/";
   private final OfferRepository offerRepository;
+  private final EventProducer<DemandPublishedRequested> demandPublishedRequestedProducer;
   private final DemandRepository demandRepository;
   private final OfferMapper offerMapper;
   private final DemandMapper demandMapper;
@@ -111,15 +116,51 @@ public class OfferService {
     var jOffer = findOfferByIdAndSeller(offerId, currentSeller.getId());
 
     validateStatusTransition(jOffer.getStatus(), newStatus);
+    boolean shouldNotify =
+        newStatus == PostStatus.PUBLISHED && jOffer.getStatus() != PostStatus.PUBLISHED;
     applyStatusUpdate(jOffer, newStatus);
 
     var updatedJOffer = offerRepository.save(jOffer);
+    if (shouldNotify) publishOfferNotification(updatedJOffer);
     log.info(
         "Successfully updated offer {} to status {}",
         forJava(offerId),
         forJava(newStatus.toString()));
 
     return offerMapper.toDomain(updatedJOffer);
+  }
+
+  private void publishOfferNotification(JOffer offer) {
+    var event =
+        DemandPublishedRequested.builder()
+            .id(randomUUID().toString())
+            .demandId(offer.getDemand().getId())
+            .offerId(offer.getId())
+            .build();
+    Runnable publish =
+        () -> {
+          log.info(
+              "[NOTIF-PIPELINE][OFFER] Publishing DemandPublishedRequested: eventId={}, offerId={},"
+                  + " recipientType=RESEARCHER",
+              forJava(event.getId()),
+              forJava(event.getOfferId()));
+          demandPublishedRequestedProducer.accept(List.of(event));
+        };
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+      TransactionSynchronizationManager.registerSynchronization(
+          new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+              publish.run();
+            }
+          });
+    } else {
+      log.warn(
+          "[NOTIF-PIPELINE][OFFER] No transaction synchronization: publishing immediately,"
+              + " eventId={}",
+          forJava(event.getId()));
+      publish.run();
+    }
   }
 
   @Transactional(readOnly = true)

@@ -9,9 +9,9 @@ import com.devikapps.vaikaparts.config.JacksonConf;
 import com.devikapps.vaikaparts.event.config.InfraEventTypeRegistrar;
 import com.devikapps.vaikaparts.event.consumer.EventConsumer;
 import com.devikapps.vaikaparts.event.consumer.EventDispatcher;
+import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested;
+import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.event.model.InfraEvent;
-import com.devikapps.vaikaparts.event.model.NotificationBatchRequested;
-import com.devikapps.vaikaparts.event.model.NotificationRequested;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
@@ -21,22 +21,51 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 class NotificationEventRoutingTest {
   @Test
-  void routes_renamed_parent_with_production_jackson() throws Exception {
+  void routes_historical_parent_with_production_jackson() throws Exception {
     assertRoutes(
-        NotificationBatchRequested.builder().id("parent").demandId("demand").build(),
-        "notificationBatchRequestedService");
+        DemandPublishedRequested.builder().id("parent").demandId("demand").build(),
+        "demandPublishedRequestedService");
   }
 
   @Test
-  void routes_renamed_child_with_production_jackson() throws Exception {
+  void routes_historical_child_with_production_jackson() throws Exception {
     assertRoutes(
-        NotificationRequested.builder()
+        DemandPublishedNotificationRequested.builder()
             .id("child")
             .demandPublishedRequestedId("parent")
             .sellerId("seller")
             .demandId("demand")
             .build(),
-        "notificationRequestedService");
+        "demandPublishedNotificationRequestedService");
+  }
+
+  @Test
+  void routes_offer_using_historical_wire_names() throws Exception {
+    assertRoutes(
+        DemandPublishedRequested.builder().id("parent").demandId("demand").offerId("offer").build(),
+        "demandPublishedRequestedService");
+    assertRoutes(
+        DemandPublishedNotificationRequested.builder()
+            .id("child")
+            .demandPublishedRequestedId("parent")
+            .demandId("demand")
+            .offerId("offer")
+            .researcherId("researcher")
+            .build(),
+        "demandPublishedNotificationRequestedService");
+  }
+
+  @Test
+  void reads_legacy_payload_without_offer_fields() throws Exception {
+    var mapper = new JacksonConf().objectMapper();
+    new InfraEventTypeRegistrar(mapper).registerTypes();
+    var event =
+        (DemandPublishedRequested)
+            mapper.readValue(
+                "{\"@type\":\"DemandPublishedRequested\",\"id\":\"parent\",\"demand_id\":\"demand\"}",
+                InfraEvent.class);
+    assertEquals("demand", event.getDemandId());
+    org.junit.jupiter.api.Assertions.assertNull(event.getOfferId());
   }
 
   @SuppressWarnings("unchecked")

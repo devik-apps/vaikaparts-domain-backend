@@ -5,15 +5,16 @@ import static com.devikapps.vaikaparts.model.classifier.UserType.SELLER;
 import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
+import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested;
+import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.event.model.EventProducer;
-import com.devikapps.vaikaparts.event.model.NotificationBatchRequested;
-import com.devikapps.vaikaparts.event.model.NotificationRequested;
-import com.devikapps.vaikaparts.exception.NotificationBatchRequestedException;
+import com.devikapps.vaikaparts.exception.DemandPublishedRequestedException;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
+import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
@@ -31,19 +32,20 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class NotificationBatchRequestedService implements Consumer<NotificationBatchRequested> {
+public class DemandPublishedRequestedService implements Consumer<DemandPublishedRequested> {
 
   private final DemandPublishedRequestedRepository demandPublishedRequestedRepository;
   private final DemandRepository demandRepository;
+  private final OfferRepository offerRepository;
   private final UserRepository userRepository;
   private final SellerMapper sellerMapper;
-  private final EventProducer<NotificationRequested> notificationRequestedProducer;
+  private final EventProducer<DemandPublishedNotificationRequested> notificationRequestedProducer;
 
   @Override
   @Transactional
-  public void accept(NotificationBatchRequested event) {
+  public void accept(DemandPublishedRequested event) {
     log.info(
-        "[NOTIF-PIPELINE][BATCH] Processing NotificationBatchRequested event: {}, demand: {},"
+        "[NOTIF-PIPELINE][BATCH] Processing DemandPublishedRequested event: {}, demand: {},"
             + " attempt: {}",
         forJava(event.getId()),
         forJava(event.getDemandId()),
@@ -60,8 +62,10 @@ public class NotificationBatchRequestedService implements Consumer<NotificationB
     try {
       updateEventLogStatus(eventLog);
 
-      var sellers = fetchActiveSellers();
-      eventLog.setTotalSellersToNotify(sellers.size());
+      // Historical counter name retained; for an offer the recipient is one researcher.
+      var sellers = event.getOfferId() == null ? fetchActiveSellers() : List.<Seller>of();
+      int recipientCount = event.getOfferId() == null ? sellers.size() : 1;
+      eventLog.setTotalSellersToNotify(recipientCount);
       demandPublishedRequestedRepository.save(eventLog);
 
       publishNotificationRequests(event, demand, sellers);
@@ -69,7 +73,7 @@ public class NotificationBatchRequestedService implements Consumer<NotificationB
       eventLog.setStatus(ProcessStatus.SUCCESS);
       eventLog.setAttemptNb(event.getAttemptNb());
       eventLog.setErrorMessage(null);
-      eventLog.setNotificationsSentCount(sellers.size());
+      eventLog.setNotificationsSentCount(recipientCount);
       eventLog.setCompletedAt(LocalDateTime.now());
       eventLog.setUpdatedAt(LocalDateTime.now());
       demandPublishedRequestedRepository.save(eventLog);
@@ -78,7 +82,7 @@ public class NotificationBatchRequestedService implements Consumer<NotificationB
           "[NOTIF-PIPELINE][BATCH] Handler finishing: eventId={}, scheduledRecipients={} (not"
               + " delivery confirmation)",
           forJava(event.getId()),
-          sellers.size());
+          recipientCount);
 
     } catch (Exception e) {
       handleEventProcessingError(eventLog, event, e);
@@ -86,7 +90,7 @@ public class NotificationBatchRequestedService implements Consumer<NotificationB
   }
 
   private JDemandPublishedRequested fetchOrCreateEventLog(
-      NotificationBatchRequested event, JDemand demand) {
+      DemandPublishedRequested event, JDemand demand) {
     return demandPublishedRequestedRepository
         .findById(event.getId())
         .orElseGet(
@@ -134,24 +138,51 @@ public class NotificationBatchRequestedService implements Consumer<NotificationB
   }
 
   private void publishNotificationRequests(
-      NotificationBatchRequested parentEvent, JDemand demand, List<Seller> sellers) {
+      DemandPublishedRequested parentEvent, JDemand demand, List<Seller> sellers) {
 
-    if (sellers.isEmpty()) {
+    if (sellers.isEmpty() && parentEvent.getOfferId() == null) {
       log.info("[NOTIF-PIPELINE][BATCH] No recipients: parentId={}", forJava(parentEvent.getId()));
       return;
     }
 
-    var notificationEvents =
-        sellers.stream()
-            .map(
-                seller ->
-                    NotificationRequested.builder()
-                        .id(randomUUID().toString())
-                        .demandPublishedRequestedId(parentEvent.getId())
-                        .sellerId(seller.getId())
-                        .demandId(demand.getId())
-                        .build())
-            .toList();
+    List<DemandPublishedNotificationRequested> notificationEvents;
+    if (parentEvent.getOfferId() != null) {
+      var offer =
+          offerRepository
+              .findById(parentEvent.getOfferId())
+              .orElseThrow(
+                  () -> new IllegalStateException("Offer not found: " + parentEvent.getOfferId()));
+      if (!demand.getId().equals(offer.getDemand().getId())) {
+        throw new IllegalArgumentException("Offer does not belong to the event demand");
+      }
+      notificationEvents =
+          List.of(
+              DemandPublishedNotificationRequested.builder()
+                  .id(randomUUID().toString())
+                  .demandPublishedRequestedId(parentEvent.getId())
+                  .demandId(demand.getId())
+                  .offerId(offer.getId())
+                  .researcherId(demand.getResearcher().getId())
+                  .build());
+      log.info(
+          "[NOTIF-PIPELINE][BATCH] Offer child prepared: parentId={}, offerId={},"
+              + " recipientType=RESEARCHER, recipientId={}",
+          forJava(parentEvent.getId()),
+          forJava(offer.getId()),
+          forJava(demand.getResearcher().getId()));
+    } else {
+      notificationEvents =
+          sellers.stream()
+              .map(
+                  seller ->
+                      DemandPublishedNotificationRequested.builder()
+                          .id(randomUUID().toString())
+                          .demandPublishedRequestedId(parentEvent.getId())
+                          .sellerId(seller.getId())
+                          .demandId(demand.getId())
+                          .build())
+              .toList();
+    }
 
     if (TransactionSynchronizationManager.isSynchronizationActive()) {
       log.info(
@@ -168,8 +199,8 @@ public class NotificationBatchRequestedService implements Consumer<NotificationB
                   notificationEvents.size());
               notificationRequestedProducer.accept(notificationEvents);
               log.info(
-                  "[NOTIF-PIPELINE][BATCH] Producer returned for {} NotificationRequested events"
-                      + " after commit",
+                  "[NOTIF-PIPELINE][BATCH] Producer returned for {}"
+                      + " DemandPublishedNotificationRequested events after commit",
                   notificationEvents.size());
             }
 
@@ -185,17 +216,17 @@ public class NotificationBatchRequestedService implements Consumer<NotificationB
     } else {
       log.warn(
           "[NOTIF-PIPELINE][BATCH] No active transaction synchronization. Publishing {}"
-              + " NotificationRequested events immediately.",
+              + " DemandPublishedNotificationRequested events immediately.",
           notificationEvents.size());
       notificationRequestedProducer.accept(notificationEvents);
     }
   }
 
   private void handleEventProcessingError(
-      JDemandPublishedRequested eventLog, NotificationBatchRequested event, Exception e) {
+      JDemandPublishedRequested eventLog, DemandPublishedRequested event, Exception e) {
 
     log.error(
-        "[NOTIF-PIPELINE][BATCH] Failed to process NotificationBatchRequested: {}, attempt: {}",
+        "[NOTIF-PIPELINE][BATCH] Failed to process DemandPublishedRequested: {}, attempt: {}",
         forJava(event.getId()),
         event.getAttemptNb(),
         e);
@@ -207,7 +238,6 @@ public class NotificationBatchRequestedService implements Consumer<NotificationB
     eventLog.setCompletedAt(LocalDateTime.now());
     demandPublishedRequestedRepository.save(eventLog);
 
-    throw new NotificationBatchRequestedException(
-        "NotificationBatchRequested processing failed", e);
+    throw new DemandPublishedRequestedException("DemandPublishedRequested processing failed", e);
   }
 }

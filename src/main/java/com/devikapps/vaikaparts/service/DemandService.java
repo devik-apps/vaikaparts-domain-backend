@@ -8,8 +8,8 @@ import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPart;
+import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.event.model.EventProducer;
-import com.devikapps.vaikaparts.event.model.NotificationBatchRequested;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.mapper.exchange.DemandMapper;
@@ -55,7 +55,7 @@ public class DemandService {
   private final Paginator paginator;
   private final BucketComponent bucketComponent;
   private final ImageUploader imageUploader;
-  private final EventProducer<NotificationBatchRequested> notificationBatchRequestedProducer;
+  private final EventProducer<DemandPublishedRequested> demandPublishedRequestedProducer;
 
   @Transactional
   public Demand createDemand(String description, RestPart restPart) {
@@ -136,7 +136,7 @@ public class DemandService {
 
     var updatedJDemand = demandRepository.save(jDemand);
 
-    if (shouldNotifySellers) publishNotificationBatchEvent(updatedJDemand);
+    if (shouldNotifySellers) publishDemandPublishedEvent(updatedJDemand);
 
     log.info(
         "Successfully updated demand {} to status {}",
@@ -281,9 +281,9 @@ public class DemandService {
     return newStatus == PostStatus.PUBLISHED;
   }
 
-  private void publishNotificationBatchEvent(JDemand jDemand) {
+  private void publishDemandPublishedEvent(JDemand jDemand) {
     var event =
-        NotificationBatchRequested.builder()
+        DemandPublishedRequested.builder()
             .id(randomUUID().toString())
             .demandId(jDemand.getId())
             .build();
@@ -292,7 +292,7 @@ public class DemandService {
         "[NOTIF-PIPELINE][DEMAND] Publication requested: eventId={}, demandId={}",
         forJava(event.getId()),
         forJava(jDemand.getId()));
-    notificationBatchRequestedProducer.accept(List.of(event));
+    demandPublishedRequestedProducer.accept(List.of(event));
 
     log.info(
         "[NOTIF-PIPELINE][DEMAND] Producer returned: eventId={}, demandId={} (not delivery"

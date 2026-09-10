@@ -4,8 +4,8 @@ import static java.lang.String.format;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.NotificationRequest;
-import com.devikapps.vaikaparts.event.model.NotificationRequested;
-import com.devikapps.vaikaparts.exception.NotificationRequestedException;
+import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested;
+import com.devikapps.vaikaparts.exception.DemandPublishedNotificationRequestedException;
 import com.devikapps.vaikaparts.exception.UserNotFoundException;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
@@ -14,6 +14,7 @@ import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
+import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
@@ -30,37 +31,43 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class NotificationRequestedService implements Consumer<NotificationRequested> {
+public class DemandPublishedNotificationRequestedService
+    implements Consumer<DemandPublishedNotificationRequested> {
 
   private final NotificationRequestedRepository notificationRequestedRepository;
   private final DemandPublishedRequestedRepository demandPublishedRequestedRepository;
   private final DemandRepository demandRepository;
+  private final OfferRepository offerRepository;
   private final SellerMapper sellerMapper;
   private final UserRepository userRepository;
   private final NotificationService notificationService;
 
   @Override
   @Transactional
-  public void accept(NotificationRequested event) {
+  public void accept(DemandPublishedNotificationRequested event) {
     log.info(
-        "[NOTIF-PIPELINE][CHILD] Processing NotificationRequested event: {}, seller: {}, demand:"
-            + " {}, attempt: {}",
+        "[NOTIF-PIPELINE][CHILD] Processing DemandPublishedNotificationRequested event: {}, recipient:"
+            + " {}, demand: {}, attempt: {}",
         forJava(event.getId()),
-        forJava(event.getSellerId()),
+        forJava(event.getOfferId() == null ? event.getSellerId() : event.getResearcherId()),
         forJava(event.getDemandId()),
         event.getAttemptNb());
 
     var eventLog = createOrUpdateEventLog(event);
     log.info(
-        "[NOTIF-PIPELINE][CHILD] Event log resolved: eventId={}, parentId={}, recipientType=SELLER",
+        "[NOTIF-PIPELINE][CHILD] Event log resolved: eventId={}, parentId={}, recipientType={}",
         forJava(event.getId()),
-        forJava(event.getDemandPublishedRequestedId()));
+        forJava(event.getDemandPublishedRequestedId()),
+        event.getOfferId() == null ? "SELLER" : "RESEARCHER");
 
     try {
       updateEventLogStatus(eventLog, ProcessStatus.PROCESSING);
 
       var demand = eventLog.getDemand();
-      var notificationRequest = buildNotificationRequest(demand, event.getSellerId());
+      var notificationRequest =
+          eventLog.getOffer() == null
+              ? buildNotificationRequest(demand, event.getSellerId())
+              : buildOfferNotificationRequest(eventLog);
       notificationRequest.setNotificationRequestedId(event.getId());
 
       notificationService.createAndSendNotification(notificationRequest);
@@ -70,7 +77,8 @@ public class NotificationRequestedService implements Consumer<NotificationReques
       notificationRequestedRepository.save(eventLog);
 
       log.info(
-          "[NOTIF-PIPELINE][CHILD] Successfully processed NotificationRequested: {}, seller: {}",
+          "[NOTIF-PIPELINE][CHILD] Successfully processed DemandPublishedNotificationRequested: {},"
+              + " seller: {}",
           forJava(event.getId()),
           forJava(event.getSellerId()));
 
@@ -80,14 +88,42 @@ public class NotificationRequestedService implements Consumer<NotificationReques
   }
 
   private JDemandPublishedNotificationRequested createOrUpdateEventLog(
-      NotificationRequested event) {
+      DemandPublishedNotificationRequested event) {
     return notificationRequestedRepository
         .findById(event.getId())
         .orElseGet(() -> createNewEventLog(event));
   }
 
-  private JDemandPublishedNotificationRequested createNewEventLog(NotificationRequested event) {
+  private JDemandPublishedNotificationRequested createNewEventLog(
+      DemandPublishedNotificationRequested event) {
     var parent = fetchParentEventLog(event.getDemandPublishedRequestedId());
+    if (event.getOfferId() != null) {
+      var offer =
+          offerRepository
+              .findById(event.getOfferId())
+              .orElseThrow(
+                  () -> new IllegalStateException("Offer not found: " + event.getOfferId()));
+      var demand = offer.getDemand();
+      var researcher = demand.getResearcher();
+      if (event.getSellerId() != null
+          || !demand.getId().equals(event.getDemandId())
+          || !demand.getId().equals(parent.getDemand().getId())
+          || !researcher.getId().equals(event.getResearcherId())) {
+        throw new IllegalArgumentException("Offer notification resource or recipient mismatch");
+      }
+      var now = LocalDateTime.now();
+      return JDemandPublishedNotificationRequested.builder()
+          .id(event.getId())
+          .demandPublishedRequested(parent)
+          .offer(offer)
+          .researcher(researcher)
+          .notificationType(NotificationType.OFFER_PUBLISHED)
+          .status(ProcessStatus.PENDING)
+          .attemptNb(event.getAttemptNb())
+          .createdAt(now)
+          .updatedAt(now)
+          .build();
+    }
     var seller = fetchSeller(event.getSellerId());
     var demand = fetchDemand(event.getDemandId());
     var now = LocalDateTime.now();
@@ -153,7 +189,7 @@ public class NotificationRequestedService implements Consumer<NotificationReques
     var part = demand.getPart();
     var message =
         format(
-            "New demand: %s %s %s (%d)",
+            "Nouvelle demande - %s %s %s (%d)",
             part.getCarBrand(), part.getCarModel(), part.getPartName(), part.getCarYear());
 
     var clickAction = format("{\"action\":\"VIEW_DEMAND\",\"demandId\":\"%s\"}", demand.getId());
@@ -167,12 +203,29 @@ public class NotificationRequestedService implements Consumer<NotificationReques
         .build();
   }
 
+  private NotificationRequest buildOfferNotificationRequest(
+      JDemandPublishedNotificationRequested eventLog) {
+    var offer = eventLog.getOffer();
+    return NotificationRequest.builder()
+        .recipientUserId(eventLog.getResearcher().getId())
+        .resourceId(offer.getId())
+        .notificationType(NotificationType.OFFER_PUBLISHED)
+        .message("Nouvelle offre reçue pour votre demande")
+        .clickAction(
+            format(
+                "{\"action\":\"VIEW_OFFER\",\"offerId\":\"%s\",\"demandId\":\"%s\"}",
+                offer.getId(), offer.getDemand().getId()))
+        .build();
+  }
+
   private void handleEventProcessingError(
-      JDemandPublishedNotificationRequested eventLog, NotificationRequested event, Exception e) {
+      JDemandPublishedNotificationRequested eventLog,
+      DemandPublishedNotificationRequested event,
+      Exception e) {
 
     log.error(
-        "[NOTIF-PIPELINE][CHILD] Failed to process NotificationRequested: {}, seller: {}, attempt:"
-            + " {}",
+        "[NOTIF-PIPELINE][CHILD] Failed to process DemandPublishedNotificationRequested: {},"
+            + " seller: {}, attempt: {}",
         forJava(event.getId()),
         forJava(event.getSellerId()),
         event.getAttemptNb(),
@@ -185,6 +238,7 @@ public class NotificationRequestedService implements Consumer<NotificationReques
     eventLog.setCompletedAt(LocalDateTime.now());
     notificationRequestedRepository.save(eventLog);
 
-    throw new NotificationRequestedException("NotificationRequested processing failed", e);
+    throw new DemandPublishedNotificationRequestedException(
+        "DemandPublishedNotificationRequested processing failed", e);
   }
 }

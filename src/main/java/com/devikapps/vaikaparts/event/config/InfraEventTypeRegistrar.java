@@ -57,17 +57,13 @@ public class InfraEventTypeRegistrar implements PolymorphicTypeRegistrar {
 
   @Override
   public void registerTypes(ObjectMapper mapper) {
-    log.info(
-        "[NOTIF-PIPELINE][REGISTRY_START] package={}, mapperIdentity={}",
-        EVENT_BASE_PACKAGE,
-        System.identityHashCode(mapper));
     Set<Class<? extends InfraEvent>> eventClasses = findInfraEventSubclasses();
 
     if (eventClasses.isEmpty()) {
       log.warn(
           format(
               "%s %s",
-              "[NOTIF-PIPELINE][REGISTRY] No InfraEvent subtypes found in package '{}'.",
+              "No InfraEvent subtypes found in package '{}'.",
               "Verify that event classes exist and package path is correct."),
           forJava(EVENT_BASE_PACKAGE));
       return;
@@ -77,16 +73,15 @@ public class InfraEventTypeRegistrar implements PolymorphicTypeRegistrar {
     for (Class<? extends InfraEvent> eventClass : eventClasses) {
       String typeName = eventClass.getSimpleName();
       mapper.registerSubtypes(new NamedType(eventClass, typeName));
-      log.info(
-          "[NOTIF-PIPELINE][REGISTRY] Registered polymorphic type: {} -> {}",
+      log.debug(
+          "Registered polymorphic type: {} -> {}",
           forJava(typeName),
           forJava(eventClass.getName()));
       registeredCount++;
     }
 
     log.info(
-        "[NOTIF-PIPELINE][REGISTRY] Auto-registered {} InfraEvent subtypes for secure polymorphic"
-            + " deserialization",
+        "Auto-registered {} InfraEvent subtypes for secure polymorphic deserialization",
         registeredCount);
   }
 
@@ -127,7 +122,7 @@ public class InfraEventTypeRegistrar implements PolymorphicTypeRegistrar {
       Class<?> loadedClass = loadAndValidateClass(className);
       return (Class<? extends InfraEvent>) loadedClass;
     } catch (IllegalArgumentException | LinkageError e) {
-      log.error("[NOTIF-PIPELINE][REGISTRY] Failed to load event class: {}", forJava(className), e);
+      log.error("Failed to load event class: {}", forJava(className), e);
       return null;
     }
   }
@@ -156,17 +151,14 @@ public class InfraEventTypeRegistrar implements PolymorphicTypeRegistrar {
   private boolean isValidClassName(String className) {
     if (className == null || !className.startsWith(EVENT_BASE_PACKAGE)) {
       log.warn(
-          "[NOTIF-PIPELINE][REGISTRY] Rejecting class loading attempt for class outside expected"
-              + " package: {}",
+          "Rejecting class loading attempt for class outside expected package: {}",
           forJava(className));
       return false;
     }
 
     if (className.contains("..") || className.contains("/") || className.contains("\\")) {
       log.warn(
-          "[NOTIF-PIPELINE][REGISTRY] Rejecting class loading attempt with suspicious characters:"
-              + " {}",
-          forJava(className));
+          "Rejecting class loading attempt with suspicious characters: {}", forJava(className));
       return false;
     }
 
@@ -186,9 +178,7 @@ public class InfraEventTypeRegistrar implements PolymorphicTypeRegistrar {
         org.springframework.util.ClassUtils.resolveClassName(className, classLoader);
 
     if (!InfraEvent.class.isAssignableFrom(loadedClass)) {
-      log.warn(
-          "[NOTIF-PIPELINE][REGISTRY] Loaded class does not extend InfraEvent: {}",
-          forJava(className));
+      log.warn("Loaded class does not extend InfraEvent: {}", forJava(className));
       throw new IllegalArgumentException("Class does not extend InfraEvent: " + className);
     }
 

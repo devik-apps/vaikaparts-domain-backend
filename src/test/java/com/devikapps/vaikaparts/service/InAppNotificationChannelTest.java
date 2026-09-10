@@ -31,7 +31,6 @@ import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotification;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
-import com.devikapps.vaikaparts.repository.event.JOfferNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.repository.model.user.JManager;
@@ -149,11 +148,11 @@ class InAppNotificationChannelTest {
   }
 
   @Test
-  void should_save_offer_notification_with_dedicated_request_and_send_to_researcher() {
+  void should_save_offer_notification_with_shared_request_and_send_to_researcher() {
     var researcher = JResearcher.builder().id("researcher").userType(UserType.RESEARCHER).build();
     var offer = JOffer.builder().id("offer").build();
     var request =
-        JOfferNotificationRequested.builder()
+        JDemandPublishedNotificationRequested.builder()
             .id("request")
             .offer(offer)
             .researcher(researcher)
@@ -168,7 +167,7 @@ class InAppNotificationChannelTest {
             .message("New offer")
             .createdAt(LocalDateTime.now())
             .build();
-    when(offerNotificationRequestedRepository.getReferenceById("request")).thenReturn(request);
+    when(notificationRequestedRepository.getReferenceById("request")).thenReturn(request);
     when(userRepository.getReferenceById("researcher")).thenReturn(researcher);
     when(offerRepository.getReferenceById("offer")).thenReturn(offer);
 
@@ -176,12 +175,12 @@ class InAppNotificationChannelTest {
 
     var captor = ArgumentCaptor.forClass(JDemandPublishedNotification.class);
     verify(demandPublishedNotificationRepository).save(captor.capture());
-    assertEquals(request, captor.getValue().getOfferNotificationRequested());
-    assertNull(captor.getValue().getNotificationRequested());
+    assertEquals(request, captor.getValue().getNotificationRequested());
+    assertNull(captor.getValue().getOfferNotificationRequested());
     assertNull(captor.getValue().getDemand());
     assertEquals(researcher, captor.getValue().getRecipient());
     assertEquals(offer, captor.getValue().getOffer());
-    verify(notificationRequestedRepository, never()).getReferenceById(anyString());
+    verify(offerNotificationRequestedRepository, never()).getReferenceById(anyString());
     verify(webSocketService).sendNotificationToUser("researcher", notification);
   }
 

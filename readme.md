@@ -97,6 +97,22 @@ The corresponding consumer of this event is [DemandPublishedRequestedService](ht
 Note that the consumer is automatically detected by the ar-infra by **name convention**.
 One can identify this convention by consulting the following class: [InfraEventTypeRegistrar](https://github.com/devik-apps/vaikaparts-domain-backend/blob/preprod/src/main/java/com/devikapps/vaikaparts/event/config/InfraEventTypeRegistrar.java).
 
+### Notification compatibility experiment
+
+The notification pipeline intentionally retains the historical wire types and handler names:
+`DemandPublishedRequested` / `DemandPublishedRequestedService` and
+`DemandPublishedNotificationRequested` / `DemandPublishedNotificationRequestedService`.
+An absent `offerId` follows the original demand-to-active-sellers flow. An `offerId` uses the
+same parent/child events to notify the demand's researcher, with exactly one child.
+Offer publication waits for the offer transaction to commit; child publication waits for the
+parent log transaction to commit. The parent remains linked to the demand; the offer child
+stores the offer and researcher in `notification_requested`.
+
+V1_0_26 allows offer children to reference a parent. V1_0_24 and V1_0_25 are unchanged;
+historical records in `offer_notification_requested` remain readable. Do not delete queues
+or rewrite applied migrations for this experiment. Pending messages using the intermediate
+`NotificationBatchRequested` / `NotificationRequested` wire names are not supported by this rollback.
+
 ## 1.4 Exception Layer
 
 **Location**: [`exception/`](https://github.com/devik-apps/vaikaparts-domain-backend/tree/preprod/src/main/java/com/devikapps/vaikaparts/exception)
