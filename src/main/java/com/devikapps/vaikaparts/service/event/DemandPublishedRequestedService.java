@@ -10,6 +10,7 @@ import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.event.model.EventProducer;
 import com.devikapps.vaikaparts.exception.DemandPublishedRequestedException;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
+import com.devikapps.vaikaparts.model.classifier.PartCategory;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
@@ -63,7 +64,13 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
       updateEventLogStatus(eventLog);
 
       // Historical counter name retained; for an offer the recipient is one researcher.
-      var sellers = event.getOfferId() == null ? fetchActiveSellers() : List.<Seller>of();
+      var sellers =
+          event.getOfferId() == null
+              ? matchSellerToPartCategory(
+                  fetchActiveSellers(),
+                  demand.getPart() == null ? null : demand.getPart().getPartCategory())
+              : List.<Seller>of();
+
       int recipientCount = event.getOfferId() == null ? sellers.size() : 1;
       eventLog.setTotalSellersToNotify(recipientCount);
       demandPublishedRequestedRepository.save(eventLog);
@@ -87,6 +94,25 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
     } catch (Exception e) {
       handleEventProcessingError(eventLog, event, e);
     }
+  }
+
+  private List<Seller> matchSellerToPartCategory(List<Seller> activeSellers, PartCategory partCategory) {
+    var matchingSellers =
+        activeSellers.stream()
+            .filter(
+                seller ->
+                    Boolean.TRUE.equals(seller.getHandleAllCategory())
+                        || (partCategory != null
+                            && seller.getCategoryList() != null
+                            && seller.getCategoryList().contains(partCategory)))
+            .toList();
+    log.info(
+        "[NOTIF-PIPELINE][CATEGORY_FILTER] recipientType=SELLER, partCategory={},"
+            + " activeSellers={}, matchingSellers={}",
+        partCategory,
+        activeSellers.size(),
+        matchingSellers.size());
+    return matchingSellers;
   }
 
   private JDemandPublishedRequested fetchOrCreateEventLog(
@@ -133,7 +159,8 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
             .map(u -> sellerMapper.toSeller((JSeller) u))
             .toList();
 
-    log.info("[NOTIF-PIPELINE][BATCH] Found {} active sellers to notify", sellers.size());
+    log.info(
+        "[NOTIF-PIPELINE][BATCH] Found {} active sellers before category filtering", sellers.size());
     return sellers;
   }
 

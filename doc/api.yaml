@@ -1377,6 +1377,15 @@ components:
             garage_name:
               type: string
               description: Business or garage name
+            category_list:
+              type: array
+              items:
+                $ref: '#/components/schemas/PartCategory'
+              description: Part categories handled by the seller.
+            handle_all_category:
+              type: boolean
+              default: true
+              description: Receive demand notifications for all part categories.
             location:
               $ref: '#/components/schemas/Location'
             lat_lon:

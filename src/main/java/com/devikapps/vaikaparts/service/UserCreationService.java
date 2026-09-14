@@ -18,8 +18,11 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static com.devikapps.vaikaparts.model.classifier.UserType.RESEARCHER;
 import static com.devikapps.vaikaparts.model.classifier.UserType.SELLER;
@@ -42,7 +45,8 @@ public class UserCreationService {
     private static final String ADDRESS_KEY = "address";
     private static final String LAT_KEY = "lat";
     private static final String LON_KEY = "lon";
-
+    private static final String CATEGORY_LIST_KEY = "category_list";
+    private static final String HANDLE_ALL_CATEGORY_KEY = "handle_all_category";
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createUserIfAbsent(ProfileRecord profile, UserType userType) {
@@ -115,6 +119,8 @@ public class UserCreationService {
                 var garageName = extractMetadataValue(metadata, GARAGE_NAME_KEY).orElse(null);
                 var location = extractLocation(metadata).orElse(null);
                 var latLon = extractLatLon(metadata).orElse(null);
+                var categoryList = extractCategoryList(metadata).orElse(new ArrayList<>());
+                var handleAllCategory = extractHandleAllCategory(metadata).orElse(null);
                 yield buildSeller(
                         profileId,
                         name,
@@ -125,7 +131,9 @@ public class UserCreationService {
                         location,
                         latLon,
                         createdAt,
-                        updatedAt);
+                        updatedAt,
+                        categoryList,
+                        handleAllCategory);
             }
             case MANAGER -> {
                 var managerRole =
@@ -137,6 +145,11 @@ public class UserCreationService {
             }
         };
     }
+
+    private Optional<Boolean> extractHandleAllCategory(Map<String, Object> metadata) {
+        return Optional.ofNullable(metadata).map(m -> m.get(HANDLE_ALL_CATEGORY_KEY)).filter(Boolean.class::isInstance).map(Boolean.class::cast);
+    }
+
 
     private JResearcher buildResearcher(
             String profileId,
@@ -173,7 +186,9 @@ public class UserCreationService {
             Location location,
             LatLon latLon,
             OffsetDateTime createdAt,
-            OffsetDateTime updatedAt) {
+            OffsetDateTime updatedAt,
+            List<PartCategory> categoryList,
+            Boolean handleAllCategory) {
         var finalLocation = (location == null) ? Location.getDefault() : location;
         var finalLatLon = (latLon == null) ? LatLon.getDefault() : latLon;
         return JSeller.builder()
@@ -190,6 +205,8 @@ public class UserCreationService {
                 .latLon(vom.map(finalLatLon))
                 .createdAt(createdAt)
                 .updatedAt(updatedAt)
+                .categoryList(categoryList)
+                .handleAllCategory(handleAllCategory)
                 .build();
     }
 
@@ -272,6 +289,16 @@ public class UserCreationService {
                     .flatMap(this::parseManagerRole)
                     .ifPresent(manager::setManagerRole);
         }
+    }
+    private Optional<List<PartCategory>> extractCategoryList(Map<String, Object> metadata) {
+        return Optional.ofNullable(metadata)
+                .map(m -> m.get(CATEGORY_LIST_KEY))
+                .filter(List.class::isInstance)
+                .map(obj -> (List<?>) obj)
+                .map(list -> list.stream()
+                        .filter(PartCategory.class::isInstance)
+                        .map(PartCategory.class::cast)
+                        .collect(Collectors.toList()));
     }
 
     @SuppressWarnings("unchecked")
