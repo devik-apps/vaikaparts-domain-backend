@@ -100,8 +100,8 @@ public class UserCreationService {
             ProfileRecord profile,
             UserType userType,
             String userId,
-            String email,
             String name,
+            String email,
             String phoneNumber,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt) {
@@ -113,14 +113,14 @@ public class UserCreationService {
             case RESEARCHER -> {
                 var location = extractLocation(metadata).orElse(null);
                 yield buildResearcher(
-                        profileId, email, name, phoneNumber, userId, location, createdAt, updatedAt);
+                        profileId, name, email, phoneNumber, userId, location, createdAt, updatedAt);
             }
             case SELLER -> {
                 var garageName = extractMetadataValue(metadata, GARAGE_NAME_KEY).orElse(null);
                 var location = extractLocation(metadata).orElse(null);
                 var latLon = extractLatLon(metadata).orElse(null);
                 var categoryList = extractCategoryList(metadata).orElse(new ArrayList<>());
-                var handleAllCategory = extractHandleAllCategory(metadata).orElse(null);
+                var handleAllCategory = extractHandleAllCategory(metadata).orElse(true);
                 yield buildSeller(
                         profileId,
                         name,
@@ -141,7 +141,7 @@ public class UserCreationService {
                                 .flatMap(this::parseManagerRole)
                                 .orElse(ManagerRole.ADMIN);
                 yield buildManager(
-                        profileId, userId, email, name, phoneNumber, managerRole, createdAt, updatedAt);
+                        profileId, userId, name, email, phoneNumber, managerRole, createdAt, updatedAt);
             }
         };
     }
@@ -280,6 +280,8 @@ public class UserCreationService {
             extractMetadataValue(metadata, GARAGE_NAME_KEY)
                     .filter(name -> !name.isBlank())
                     .ifPresent(seller::setGarageName);
+            extractCategoryList(metadata).ifPresent(seller::setCategoryList);
+            extractHandleAllCategory(metadata).ifPresent(seller::setHandleAllCategory);
         }
     }
 
@@ -296,9 +298,24 @@ public class UserCreationService {
                 .filter(List.class::isInstance)
                 .map(obj -> (List<?>) obj)
                 .map(list -> list.stream()
-                        .filter(PartCategory.class::isInstance)
-                        .map(PartCategory.class::cast)
+                        .map(this::parsePartCategory)
+                        .flatMap(Optional::stream)
+                        .distinct()
                         .collect(Collectors.toList()));
+    }
+
+    private Optional<PartCategory> parsePartCategory(Object value) {
+        if (value instanceof PartCategory category) return Optional.of(category);
+        if (value instanceof String categoryName) {
+            try {
+                return Optional.of(PartCategory.valueOf(categoryName));
+            } catch (IllegalArgumentException e) {
+                log.warn("Ignoring invalid seller category '{}' in user metadata", forJava(categoryName));
+            }
+        } else {
+            log.warn("Ignoring seller category with invalid type in user metadata");
+        }
+        return Optional.empty();
     }
 
     @SuppressWarnings("unchecked")
