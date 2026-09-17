@@ -54,6 +54,10 @@ public class JSeller extends JUser {
   @Builder.Default
   private Boolean handleAllCategory = true;
 
+  @Column(name = "is_deliverying", nullable = false)
+  @Builder.Default
+  private Boolean isDeliverying = false;
+
   @OneToMany(mappedBy = "seller", fetch = FetchType.LAZY)
   @Builder.Default
   private List<JDemandPublishedNotificationRequested> notificationRequestedLogs = new ArrayList<>();
@@ -75,7 +79,8 @@ public class JSeller extends JUser {
          \tgarageName=%s,
          \tlocation=%s,
          \tlatLon=%s,
-         \thandleAllCategory=%s
+         \thandleAllCategory=%s,
+         \tisDeliverying=%s
         }\
         """,
         getId(),
@@ -90,6 +95,7 @@ public class JSeller extends JUser {
         garageName,
         location,
         latLon,
-        handleAllCategory);
+        handleAllCategory,
+        isDeliverying);
   }
 }

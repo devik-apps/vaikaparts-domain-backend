@@ -27,6 +27,7 @@ public final class Seller extends User {
   private LatLon latLon;
   @Builder.Default private List<PartCategory> categoryList = new ArrayList<>();
   @Builder.Default private Boolean handleAllCategory = true;
+  @Builder.Default private Boolean isDeliverying = false;
 
   @Override
   public String toString() {
@@ -47,7 +48,8 @@ public final class Seller extends User {
          \tlocation=%s,
          \tlatLon=%s,
          \tcategoryList=%s,
-         \thandleAllCategory=%s
+         \thandleAllCategory=%s,
+         \tisDeliverying=%s
         }\
         """,
         getId(),
@@ -64,6 +66,7 @@ public final class Seller extends User {
         location,
         latLon,
         categoryList,
-        handleAllCategory);
+        handleAllCategory,
+        isDeliverying);
   }
 }

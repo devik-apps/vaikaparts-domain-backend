@@ -45,7 +45,7 @@ class UserMetadataCategoriesTest {
           "raw_app_meta_data": {"user_type": "SELLER"},
           "raw_user_meta_data": {
             "name": "Alice", "category_list": ["ENGINE_PART", "BATTERY", "ENGINE_PART"],
-            "handle_all_category": false
+            "handle_all_category": false, "is_deliverying": true
           }
         }
         """, ProfileRecord.class);
@@ -55,6 +55,7 @@ class UserMetadataCategoriesTest {
     var seller = (JSeller) capture.getValue();
     assertEquals(List.of(ENGINE_PART, BATTERY), seller.getCategoryList());
     assertFalse(seller.getHandleAllCategory());
+    assertTrue(seller.getIsDeliverying());
     assertEquals("Alice", seller.getName());
     assertEquals("alice@example.com", seller.getEmail());
   }
@@ -70,6 +71,7 @@ class UserMetadataCategoriesTest {
     if (capture.getValue() instanceof JSeller seller) {
       assertTrue(seller.getHandleAllCategory());
       assertTrue(seller.getCategoryList().isEmpty());
+      assertFalse(seller.getIsDeliverying());
     }
   }
 
@@ -78,23 +80,32 @@ class UserMetadataCategoriesTest {
     var seller = JSeller.builder().id("seller").build();
     when(users.findBySupabaseUserId("profile")).thenReturn(Optional.of(seller));
     sync.handleUserUpdated(webhook(profile(Map.of(
-        "category_list", List.of("BATTERY"), "handle_all_category", false))));
+        "category_list", List.of("BATTERY"), "handle_all_category", false,
+        "is_deliverying", true))));
     assertEquals(List.of(BATTERY), seller.getCategoryList());
     assertFalse(seller.getHandleAllCategory());
+    assertTrue(seller.getIsDeliverying());
     verify(users).save(seller);
   }
 
   @Test
   void missing_metadata_preserves_existing_preferences_but_empty_list_clears_them() {
-    var seller = JSeller.builder().categoryList(List.of(BATTERY)).handleAllCategory(false).build();
+    var seller = JSeller.builder().categoryList(List.of(BATTERY)).handleAllCategory(false)
+        .isDeliverying(true).build();
     creation.updateUserFields(seller, profile(null));
     assertEquals(List.of(BATTERY), seller.getCategoryList());
     assertFalse(seller.getHandleAllCategory());
+    assertTrue(seller.getIsDeliverying());
     creation.updateUserFields(seller, profile(Map.of("category_list", List.of())));
     assertTrue(seller.getCategoryList().isEmpty());
     assertFalse(seller.getHandleAllCategory());
+    assertTrue(seller.getIsDeliverying());
     creation.updateUserFields(seller, profile(Map.of("handle_all_category", true)));
     assertTrue(seller.getHandleAllCategory());
+    creation.updateUserFields(seller, profile(Map.of("is_deliverying", "false")));
+    assertTrue(seller.getIsDeliverying());
+    creation.updateUserFields(seller, profile(Map.of("is_deliverying", false)));
+    assertFalse(seller.getIsDeliverying());
   }
 
   @Test

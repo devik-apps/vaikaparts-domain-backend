@@ -1,5 +1,6 @@
 package com.devikapps.vaikaparts.service.notification;
 
+import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.IN_APP;
 import static java.lang.String.format;
 import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
@@ -26,6 +27,7 @@ import com.devikapps.vaikaparts.service.DemandService;
 import com.devikapps.vaikaparts.service.OfferService;
 import com.devikapps.vaikaparts.service.UserService;
 import com.devikapps.vaikaparts.service.util.Paginator;
+import com.devikapps.vaikaparts.sms.SmsSendException;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
@@ -37,6 +39,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Service
@@ -55,6 +59,7 @@ public class NotificationService {
   private final UserService userService;
   private final NotificationMapper notificationMapper;
 
+  @Transactional
   public Notification createAndSendNotification(NotificationRequest request) {
     var notificationType =
         Objects.requireNonNull(request.getNotificationType(), "Notification type is required");
@@ -67,8 +72,8 @@ public class NotificationService {
     sendThroughChannels(notification);
 
     log.info(
-        "[NOTIF-PIPELINE][NOTIFICATION] Channel attempts finished: id={}, recipientType={} (inspect"
-            + " channel results)",
+        "[NOTIF-PIPELINE][NOTIFICATION] Notification prepared: id={}, recipientType={}"
+            + " (external sends may be waiting for commit)",
         forJava(notification.getId()),
         forJava(notification.getRecipient().getUserType().toString()));
     return notification;
@@ -175,29 +180,103 @@ public class NotificationService {
   }
 
   private void sendThroughChannels(Notification notification) {
-    channels.stream()
-        .filter(NotificationChannel::isEnabled)
-        .forEach(
-            channel -> {
-              try {
-                log.info(
-                    "[NOTIF-PIPELINE][NOTIFICATION] Sending notification type={} to"
-                        + " recipientType={} via channel={}",
-                    notification.getNotificationType(),
-                    notification.getRecipient().getUserType(),
-                    channel.getChannelType());
-                channel.send(notification);
-                log.info(
-                    "[NOTIF-PIPELINE][CHANNEL_RETURNED] notificationId={}, channel={}",
-                    forJava(notification.getId()),
-                    channel.getChannelType());
-              } catch (Exception e) {
-                log.error(
-                    "[NOTIF-PIPELINE][NOTIFICATION] Failed to send notification via channel: {}",
-                    channel.getChannelType(),
-                    e);
-              }
-            });
+    // Persist IN_APP first, regardless of the user's external-channel preferences.
+    boolean inAppSaved = false;
+    for (var channel : channels) {
+      if (channel.getChannelType() == IN_APP && channel.isEnabled()) {
+        inAppSaved = sendChannel(notification, channel) || inAppSaved;
+      }
+    }
+    if (!inAppSaved) {
+      throw new IllegalStateException(
+          "IN_APP notification could not be saved; external sends cancelled");
+    }
+
+    var externalChannels =
+        channels.stream()
+            .filter(channel -> channel.getChannelType() != IN_APP)
+            .filter(NotificationChannel::isEnabled)
+            .filter(channel -> isRequestedByRecipient(notification, channel))
+            .toList();
+    if (externalChannels.isEmpty()) return;
+
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+      log.info(
+          "[NOTIF-PIPELINE][EXTERNAL_WAIT_COMMIT] notificationId={}, channels={}",
+          forJava(notification.getId()),
+          externalChannels.size());
+      TransactionSynchronizationManager.registerSynchronization(
+          new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+              externalChannels.forEach(channel -> sendChannel(notification, channel));
+            }
+          });
+    } else {
+      // Supports direct callers without a Spring transaction; proxied application calls have one.
+      log.warn(
+          "[NOTIF-PIPELINE][EXTERNAL_NO_TRANSACTION] notificationId={} (sending immediately)",
+          forJava(notification.getId()));
+      externalChannels.forEach(channel -> sendChannel(notification, channel));
+    }
+  }
+
+  private boolean isRequestedByRecipient(Notification notification, NotificationChannel channel) {
+    var recipient = notification.getRecipient();
+    boolean requested =
+        switch (channel.getChannelType()) {
+          case IN_APP -> true;
+          case EMAIL -> recipient.isEmailNotificationsEnabled();
+          case SMS -> recipient.isSmsNotificationsEnabled();
+        };
+    String address =
+        switch (channel.getChannelType()) {
+          case EMAIL -> recipient.getEmail();
+          case SMS -> recipient.getPhoneNumber();
+          case IN_APP -> "in-app";
+        };
+    boolean hasAddress = address != null && !address.isBlank();
+    if (!requested || !hasAddress) {
+      log.info(
+          "[NOTIF-PIPELINE][CHANNEL_SKIPPED] notificationId={}, recipientType={}, channel={},"
+              + " reason={}",
+          forJava(notification.getId()),
+          recipient.getUserType(),
+          channel.getChannelType(),
+          !requested ? "USER_PREFERENCE" : "MISSING_CONTACT");
+    }
+    return requested && hasAddress;
+  }
+
+  private boolean sendChannel(Notification notification, NotificationChannel channel) {
+    try {
+      log.info(
+          "[NOTIF-PIPELINE][CHANNEL_SEND] notificationId={}, recipientType={}, channel={}",
+          forJava(notification.getId()),
+          notification.getRecipient().getUserType(),
+          channel.getChannelType());
+      channel.send(notification);
+      log.info(
+          "[NOTIF-PIPELINE][CHANNEL_RETURNED] notificationId={}, channel={} (not delivery"
+              + " confirmation)",
+          forJava(notification.getId()),
+          channel.getChannelType());
+      return true;
+    } catch (Exception e) {
+      log.error(
+          "[NOTIF-PIPELINE][CHANNEL_FAILED] notificationId={}, channel={}, errorType={}",
+          forJava(notification.getId()),
+          channel.getChannelType(),
+          e.getClass().getSimpleName());
+      if (e instanceof SmsSendException smsError) {
+        log.error(
+            "[NOTIF-PIPELINE][SMS_FAILED] notificationId={}, reason={}, httpStatus={}",
+            forJava(notification.getId()),
+            smsError.getReason(),
+            smsError.getHttpStatus());
+      }
+      return false;
+    }
   }
 
   private User mapRecipient(JUser jUser) {

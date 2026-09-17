@@ -81,6 +81,9 @@ class NotificationServiceTest {
 
   @BeforeEach
   void setUp() {
+    org.mockito.Mockito.lenient()
+        .when(inAppChannel.getChannelType())
+        .thenReturn(com.devikapps.vaikaparts.model.classifier.NotificationChannelType.IN_APP);
     notificationService =
         new NotificationService(
             List.of(inAppChannel),
@@ -154,7 +157,6 @@ class NotificationServiceTest {
 
   @Test
   void should_not_send_through_disabled_channels() {
-    when(inAppChannel.isEnabled()).thenReturn(true);
     when(inAppChannel.isEnabled()).thenReturn(false);
     when(userRepository.findJUserById(TEST_SELLER_ID))
         .thenReturn(
@@ -166,7 +168,9 @@ class NotificationServiceTest {
     when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
         .thenReturn(buildTestDemand());
 
-    notificationService.createAndSendNotification(buildTestRequest());
+    assertThrows(
+        IllegalStateException.class,
+        () -> notificationService.createAndSendNotification(buildTestRequest()));
 
     verify(inAppChannel, never()).send(any(Notification.class));
   }
@@ -248,6 +252,7 @@ class NotificationServiceTest {
 
   @Test
   void should_build_system_announcement_for_manager_without_resource() {
+    when(inAppChannel.isEnabled()).thenReturn(true);
     var managerId = "manager-123";
     var request =
         NotificationRequest.builder()
@@ -270,6 +275,7 @@ class NotificationServiceTest {
 
   @Test
   void should_resolve_offer_for_offer_notification() {
+    when(inAppChannel.isEnabled()).thenReturn(true);
     var offerId = "offer-123";
     var offer = Offer.builder().id(offerId).build();
     var request =
@@ -498,6 +504,8 @@ class NotificationServiceTest {
   private Seller buildTestSeller() {
     return Seller.builder()
         .id(TEST_SELLER_ID)
+        .email("seller@example.com")
+        .emailNotificationsEnabled(true)
         .userType(com.devikapps.vaikaparts.model.classifier.UserType.SELLER)
         .build();
   }

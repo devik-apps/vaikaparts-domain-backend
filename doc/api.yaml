@@ -286,12 +286,12 @@ paths:
         Receives database lifecycle events from Supabase Database Webhooks and synchronizes user profile data with the VaikaParts domain model.
 
         This endpoint handles all Supabase Database webhook events for the public.profiles table:
-        - **INSERT**: Creates a new Researcher, Seller, or Manager profile based on user_metadata.user_type
+        - **INSERT**: Creates a new Researcher, Seller, or Manager profile based on raw_app_meta_data.user_type
         - **UPDATE**: Synchronizes metadata changes to the existing user profile
         - **DELETE**: Soft-deletes the user profile by setting status to DISABLED
 
-        The user type (RESEARCHER, SELLER, MANAGER) is determined from the record.user_metadata.user_type field.
-        If not specified, defaults to RESEARCHER.
+        The user type (RESEARCHER, SELLER, MANAGER) is determined from record.raw_app_meta_data.user_type.
+        Seller delivery preference is read from record.raw_user_meta_data.is_deliverying.
 
         **Authentication**: Requests must include a valid Supabase webhook signature or secret token in the Authorization header.
       security:
@@ -1247,8 +1247,8 @@ components:
             - $ref: '#/components/schemas/SupabaseProfileRecord'
     SupabaseProfileRecord:
       type: object
-      required: [id, email, user_metadata, created_at, updated_at]
-      description: Profile record from public.profiles table
+      required: [id, email, created_at, updated_at]
+      description: Profile record consumed from a Supabase webhook
       properties:
         id:
           type: string
@@ -1271,15 +1271,10 @@ components:
           format: uri
           nullable: true
           description: URL to user's profile image
-        user_metadata:
+        raw_user_meta_data:
           type: object
           description: Custom user metadata containing user-type-specific fields
-          required: [user_type]
           properties:
-            user_type:
-              type: string
-              enum: [RESEARCHER, SELLER, MANAGER]
-              description: Determines which user entity type to create
             location:
               type: object
               nullable: true
@@ -1306,15 +1301,24 @@ components:
               type: string
               nullable: true
               description: Garage name (for SELLER only)
+            is_deliverying:
+              type: boolean
+              default: false
+              description: Whether the seller offers delivery; supplied in user metadata.
+        raw_app_meta_data:
+          type: object
+          description: Application metadata containing the user type
+          default: {}
+          properties:
+            user_type:
+              type: string
+              enum: [RESEARCHER, SELLER, MANAGER]
+              description: Determines which user entity type to create
             manager_role:
               type: string
-              enum: [ADMIN, SUPERVISOR, STAFF]
+              enum: [ADMIN, MANAGER]
               nullable: true
               description: Manager role (for MANAGER only)
-        app_metadata:
-          type: object
-          description: Application metadata
-          default: {}
         created_at:
           type: string
           format: date-time
@@ -1333,6 +1337,14 @@ components:
       required: [id, supabase_user_id, name, phone_number, user_type, status, created_at]
       description: Common user profile attributes
       properties:
+        email_notifications_enabled:
+          type: boolean
+          default: false
+          description: Opt-in to email notifications; synchronized from user metadata.
+        sms_notifications_enabled:
+          type: boolean
+          default: false
+          description: Opt-in to SMS notifications; synchronized from user metadata. IN_APP remains active.
         id:
           $ref: '#/components/schemas/UUID'
           description: VaikaParts internal user identifier
@@ -1386,6 +1398,10 @@ components:
               type: boolean
               default: true
               description: Receive demand notifications for all part categories.
+            is_deliverying:
+              type: boolean
+              default: false
+              description: Whether the seller offers delivery.
             location:
               $ref: '#/components/schemas/Location'
             lat_lon:

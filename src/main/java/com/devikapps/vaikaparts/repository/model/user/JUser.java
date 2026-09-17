@@ -65,6 +65,12 @@ public class JUser {
   @Column(name = "updated_at", nullable = false)
   private OffsetDateTime updatedAt;
 
+  @Column(name = "email_notifications_enabled", nullable = false)
+  private boolean emailNotificationsEnabled;
+
+  @Column(name = "sms_notifications_enabled", nullable = false)
+  private boolean smsNotificationsEnabled;
+
   @Override
   public String toString() {
     return format(

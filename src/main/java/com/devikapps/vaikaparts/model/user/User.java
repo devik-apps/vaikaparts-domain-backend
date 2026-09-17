@@ -42,6 +42,8 @@ public abstract sealed class User permits Researcher, Seller, Manager {
   private UserStatus status;
   private OffsetDateTime createdAt;
   private OffsetDateTime updatedAt;
+  private boolean emailNotificationsEnabled;
+  private boolean smsNotificationsEnabled;
 
   @Override
   public String toString() {

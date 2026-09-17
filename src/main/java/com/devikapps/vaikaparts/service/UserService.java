@@ -21,6 +21,7 @@ import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.repository.model.user.JUser;
 import com.devikapps.vaikaparts.service.util.Paginator;
+import com.devikapps.vaikaparts.service.util.NotificationPreferencesUpdater;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.net.URL;
@@ -214,6 +215,7 @@ public class UserService {
             .updatedAt(now)
             .build();
 
+    NotificationPreferencesUpdater.apply(researcher, supabaseUser.userMetadata());
     var savedResearcher = userRepository.saveAndFlush(researcher);
     log.info(
         "Created Researcher {} from authenticated Supabase user {}",

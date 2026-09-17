@@ -10,6 +10,7 @@ import com.devikapps.vaikaparts.repository.model.user.JManager;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.repository.model.user.JUser;
+import com.devikapps.vaikaparts.service.util.NotificationPreferencesUpdater;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -47,6 +48,7 @@ public class UserCreationService {
     private static final String LON_KEY = "lon";
     private static final String CATEGORY_LIST_KEY = "category_list";
     private static final String HANDLE_ALL_CATEGORY_KEY = "handle_all_category";
+    private static final String IS_DELIVERYING_KEY = "is_deliverying";
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createUserIfAbsent(ProfileRecord profile, UserType userType) {
@@ -121,6 +123,7 @@ public class UserCreationService {
                 var latLon = extractLatLon(metadata).orElse(null);
                 var categoryList = extractCategoryList(metadata).orElse(new ArrayList<>());
                 var handleAllCategory = extractHandleAllCategory(metadata).orElse(true);
+                var isDeliverying = extractIsDeliverying(metadata).orElse(false);
                 yield buildSeller(
                         profileId,
                         name,
@@ -133,7 +136,8 @@ public class UserCreationService {
                         createdAt,
                         updatedAt,
                         categoryList,
-                        handleAllCategory);
+                        handleAllCategory,
+                        isDeliverying);
             }
             case MANAGER -> {
                 var managerRole =
@@ -148,6 +152,13 @@ public class UserCreationService {
 
     private Optional<Boolean> extractHandleAllCategory(Map<String, Object> metadata) {
         return Optional.ofNullable(metadata).map(m -> m.get(HANDLE_ALL_CATEGORY_KEY)).filter(Boolean.class::isInstance).map(Boolean.class::cast);
+    }
+
+    private Optional<Boolean> extractIsDeliverying(Map<String, Object> metadata) {
+        return Optional.ofNullable(metadata)
+                .map(m -> m.get(IS_DELIVERYING_KEY))
+                .filter(Boolean.class::isInstance)
+                .map(Boolean.class::cast);
     }
 
 
@@ -188,7 +199,8 @@ public class UserCreationService {
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt,
             List<PartCategory> categoryList,
-            Boolean handleAllCategory) {
+            Boolean handleAllCategory,
+            Boolean isDeliverying) {
         var finalLocation = (location == null) ? Location.getDefault() : location;
         var finalLatLon = (latLon == null) ? LatLon.getDefault() : latLon;
         return JSeller.builder()
@@ -207,6 +219,7 @@ public class UserCreationService {
                 .updatedAt(updatedAt)
                 .categoryList(categoryList)
                 .handleAllCategory(handleAllCategory)
+                .isDeliverying(isDeliverying)
                 .build();
     }
 
@@ -241,8 +254,10 @@ public class UserCreationService {
         updateProfileImage(user, profile.profileImgUrl());
         updateLocationFields(user, metadata);
         updateSellerFields(user, metadata);
+        NotificationPreferencesUpdater.apply(user, metadata);
         updateManagerFields(user, appMetadata);
     }
+
 
     private void updateName(JUser user, String profileName) {
         Optional.ofNullable(profileName).filter(n -> !n.isBlank()).ifPresent(user::setName);
@@ -282,6 +297,7 @@ public class UserCreationService {
                     .ifPresent(seller::setGarageName);
             extractCategoryList(metadata).ifPresent(seller::setCategoryList);
             extractHandleAllCategory(metadata).ifPresent(seller::setHandleAllCategory);
+            extractIsDeliverying(metadata).ifPresent(seller::setIsDeliverying);
         }
     }
 
