@@ -12,7 +12,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Inheritance;
 import jakarta.persistence.InheritanceType;
 import jakarta.persistence.Table;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -59,10 +60,16 @@ public class JUser {
   private UserStatus status;
 
   @Column(name = "created_at", nullable = false)
-  private LocalDateTime createdAt;
+  private OffsetDateTime createdAt;
 
   @Column(name = "updated_at", nullable = false)
-  private LocalDateTime updatedAt;
+  private OffsetDateTime updatedAt;
+
+  @Column(name = "email_notifications_enabled", nullable = false)
+  private boolean emailNotificationsEnabled;
+
+  @Column(name = "sms_notifications_enabled", nullable = false)
+  private boolean smsNotificationsEnabled;
 
   @Override
   public String toString() {

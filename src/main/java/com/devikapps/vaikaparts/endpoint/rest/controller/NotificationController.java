@@ -1,6 +1,6 @@
 package com.devikapps.vaikaparts.endpoint.rest.controller;
 
-import com.devikapps.vaikaparts.model.notification.DemandPublishedNotification;
+import com.devikapps.vaikaparts.model.notification.Notification;
 import com.devikapps.vaikaparts.service.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -20,19 +20,19 @@ public class NotificationController {
   private final NotificationService notificationService;
 
   @GetMapping("/demand-published")
-  public Page<DemandPublishedNotification> fetchNotifications(
+  public Page<Notification> fetchNotifications(
       @RequestParam(name = "page", required = false) Integer page,
       @RequestParam(name = "size", required = false) Integer size) {
     return notificationService.fetchAllNotification(page, size);
   }
 
   @GetMapping("/demand-published/{notificationId}")
-  public DemandPublishedNotification getNotification(@PathVariable String notificationId) {
+  public Notification getNotification(@PathVariable String notificationId) {
     return notificationService.getNotification(notificationId);
   }
 
   @PatchMapping("/demand-published/mark-as-read/{notificationId}")
-  public ResponseEntity<DemandPublishedNotification> markAsRead(
+  public ResponseEntity<Notification> markAsRead(
       @PathVariable String notificationId) {
     return new ResponseEntity<>(
         notificationService.markAsRead(notificationId), HttpStatus.ACCEPTED);

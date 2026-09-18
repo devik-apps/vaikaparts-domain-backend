@@ -286,12 +286,12 @@ paths:
         Receives database lifecycle events from Supabase Database Webhooks and synchronizes user profile data with the VaikaParts domain model.
 
         This endpoint handles all Supabase Database webhook events for the public.profiles table:
-        - **INSERT**: Creates a new Researcher, Seller, or Manager profile based on user_metadata.user_type
+        - **INSERT**: Creates a new Researcher, Seller, or Manager profile based on raw_app_meta_data.user_type
         - **UPDATE**: Synchronizes metadata changes to the existing user profile
         - **DELETE**: Soft-deletes the user profile by setting status to DISABLED
 
-        The user type (RESEARCHER, SELLER, MANAGER) is determined from the record.user_metadata.user_type field.
-        If not specified, defaults to RESEARCHER.
+        The user type (RESEARCHER, SELLER, MANAGER) is determined from record.raw_app_meta_data.user_type.
+        Seller delivery preference is read from record.raw_user_meta_data.is_deliverying.
 
         **Authentication**: Requests must include a valid Supabase webhook signature or secret token in the Authorization header.
       security:
@@ -640,6 +640,13 @@ paths:
         bound under `part.images`; maximum 5 files per demand.
 
         **Authorization**: Researcher role required.
+      parameters:
+        - name: published
+          in: query
+          required: false
+          description: apply or not default published status on the to be created demand.
+          schema:
+            type: boolean
       requestBody:
         required: true
         content:
@@ -777,11 +784,49 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServer'
+  /v1/demands/all:
+    get:
+      operationId: get all demands
+      tags: [ Demands ]
+      summary: List demands with pagination
+      description: |
+        Returns a paginated list of demands belonging to the authenticated Seller.
+        Results may be narrowed by lifecycle status.
+
+        **Authorization**: Seller role required.
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        200:
+          description: Demand list retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DemandPageResponse'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/offers:
     post:
       operationId: createOffer
       tags: [Offers]
       summary: Submit a new offer in response to a demand
+      parameters:
+        - name: published
+          in: query
+          required: false
+          description: Publish the offer and notify the demand owner; false saves a draft.
+          schema:
+            type: boolean
+            default: true
       description: |
         Creates a new offer on behalf of the authenticated seller. The request is
         submitted as `multipart/form-data`. Part info fields are bound using Spring
@@ -965,8 +1010,8 @@ paths:
     get:
       operationId: fetchNotifications
       tags: [Notifications]
-      summary: Retrieve seller notifications
-      description: Returns a paginated list of notifications for the current active seller.
+      summary: Retrieve user notifications
+      description: Returns a paginated list of notifications for the current authenticated user.
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
@@ -976,7 +1021,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DemandPublishedNotificationPageResponse'
+                $ref: '#/components/schemas/NotificationPageResponse'
         400:
           $ref: '#/components/responses/BadRequest'
         401:
@@ -1004,9 +1049,9 @@ paths:
         202:
           description: Notification marked as read
           content:
-            appliction/json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/DemandPublishedNotification"
+                $ref: "#/components/schemas/Notification"
         400:
           $ref: '#/components/responses/BadRequest'
         401:
@@ -1022,7 +1067,7 @@ paths:
       operationId: getNotification
       tags: [Notifications]
       summary: Get notification with given id
-      description: This endpoints allows sellers to fetch the notifications object with the given id.
+      description: Allows the authenticated recipient to fetch the notification with the given id.
       parameters:
         - name: notificationId
           in: path
@@ -1034,9 +1079,9 @@ paths:
         202:
           description: Fetched notification with the corresponding given id
           content:
-            appliction/json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/DemandPublishedNotification"
+                $ref: "#/components/schemas/Notification"
         400:
           $ref: '#/components/responses/BadRequest'
         401:
@@ -1167,7 +1212,7 @@ components:
       description: Physical condition of automotive part
     NotificationType:
       type: string
-      enum: [DEMAND_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED, DEMAND_CANCELED, SYSTEM_ANNOUNCEMENT]
+      enum: [DEMAND_PUBLISHED, OFFER_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED, DEMAND_CANCELED, SYSTEM_ANNOUNCEMENT]
       description: Notification event type
     NotificationChannel:
       type: string
@@ -1202,8 +1247,8 @@ components:
             - $ref: '#/components/schemas/SupabaseProfileRecord'
     SupabaseProfileRecord:
       type: object
-      required: [id, email, user_metadata, created_at, updated_at]
-      description: Profile record from public.profiles table
+      required: [id, email, created_at, updated_at]
+      description: Profile record consumed from a Supabase webhook
       properties:
         id:
           type: string
@@ -1226,15 +1271,10 @@ components:
           format: uri
           nullable: true
           description: URL to user's profile image
-        user_metadata:
+        raw_user_meta_data:
           type: object
           description: Custom user metadata containing user-type-specific fields
-          required: [user_type]
           properties:
-            user_type:
-              type: string
-              enum: [RESEARCHER, SELLER, MANAGER]
-              description: Determines which user entity type to create
             location:
               type: object
               nullable: true
@@ -1261,15 +1301,24 @@ components:
               type: string
               nullable: true
               description: Garage name (for SELLER only)
+            is_deliverying:
+              type: boolean
+              default: false
+              description: Whether the seller offers delivery; supplied in user metadata.
+        raw_app_meta_data:
+          type: object
+          description: Application metadata containing the user type
+          default: {}
+          properties:
+            user_type:
+              type: string
+              enum: [RESEARCHER, SELLER, MANAGER]
+              description: Determines which user entity type to create
             manager_role:
               type: string
-              enum: [ADMIN, SUPERVISOR, STAFF]
+              enum: [ADMIN, MANAGER]
               nullable: true
               description: Manager role (for MANAGER only)
-        app_metadata:
-          type: object
-          description: Application metadata
-          default: {}
         created_at:
           type: string
           format: date-time
@@ -1288,6 +1337,14 @@ components:
       required: [id, supabase_user_id, name, phone_number, user_type, status, created_at]
       description: Common user profile attributes
       properties:
+        email_notifications_enabled:
+          type: boolean
+          default: false
+          description: Opt-in to email notifications; synchronized from user metadata.
+        sms_notifications_enabled:
+          type: boolean
+          default: false
+          description: Opt-in to SMS notifications; synchronized from user metadata. IN_APP remains active.
         id:
           $ref: '#/components/schemas/UUID'
           description: VaikaParts internal user identifier
@@ -1332,6 +1389,19 @@ components:
             garage_name:
               type: string
               description: Business or garage name
+            category_list:
+              type: array
+              items:
+                $ref: '#/components/schemas/PartCategory'
+              description: Part categories handled by the seller.
+            handle_all_category:
+              type: boolean
+              default: true
+              description: Receive demand notifications for all part categories.
+            is_deliverying:
+              type: boolean
+              default: false
+              description: Whether the seller offers delivery.
             location:
               $ref: '#/components/schemas/Location'
             lat_lon:
@@ -1472,8 +1542,12 @@ components:
     Demand:
       type: object
       description: A Researcher's request for a specific automotive part.
-      required: [id, researcher, part, status, created_at]
+      required: [id, resource_type, researcher, part, status, created_at]
       properties:
+        resource_type:
+          type: string
+          enum: [DEMAND]
+          readOnly: true
         id:
           $ref: '#/components/schemas/UUID'
         description:
@@ -1554,9 +1628,13 @@ components:
           maxItems: 5
     Offer:
       type: object
-      required: [id, seller_id, parts_info, demand, status, created_at]
+      required: [id, resource_type, seller_id, parts_info, demand, status, created_at]
       description: Seller response to a Researcher demand.
       properties:
+        resource_type:
+          type: string
+          enum: [OFFER]
+          readOnly: true
         id:
           $ref: '#/components/schemas/UUID'
         description:
@@ -1687,23 +1765,40 @@ components:
             type: string
             format: uri
           maxItems: 5
-    DemandPublishedNotification:
+    Notification:
       type: object
-      required: [id, userId, type, title, message, createdAt, isRead]
+      required: [id, recipient, message, notification_type, created_at, read]
       description: User notification record
       properties:
         id:
           $ref: '#/components/schemas/UUID'
-        seller:
-          $ref: '#/components/schemas/Seller'
+        recipient:
+          oneOf:
+            - $ref: '#/components/schemas/Researcher'
+            - $ref: '#/components/schemas/Seller'
+            - $ref: '#/components/schemas/Manager'
+          discriminator:
+            propertyName: user_type
+            mapping:
+              RESEARCHER: '#/components/schemas/Researcher'
+              SELLER: '#/components/schemas/Seller'
+              MANAGER: '#/components/schemas/Manager'
         notification_requested_id:
           type: string
           description: Notification event id
         message:
           type: string
           description: Notification body text
-        demand:
-          $ref: '#/components/schemas/Demand'
+        resource:
+          nullable: true
+          oneOf:
+            - $ref: '#/components/schemas/Demand'
+            - $ref: '#/components/schemas/Offer'
+          discriminator:
+            propertyName: resource_type
+            mapping:
+              DEMAND: '#/components/schemas/Demand'
+              OFFER: '#/components/schemas/Offer'
         notification_type:
           $ref: '#/components/schemas/NotificationType'
         read:
@@ -1842,7 +1937,7 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/Offer'
-    DemandPublishedNotificationPageResponse:
+    NotificationPageResponse:
       allOf:
         - $ref: '#/components/schemas/PageResponse'
         - type: object
@@ -1850,7 +1945,7 @@ components:
             content:
               type: array
               items:
-                $ref: '#/components/schemas/DemandPublishedNotification'
+                $ref: '#/components/schemas/Notification'
     ErrorResponse:
       type: object
       required: [timestamp, status, error, message, path]

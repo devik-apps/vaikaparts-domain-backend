@@ -1,5 +1,8 @@
 FROM gradle:8.10-jdk21-alpine AS build
 
+ARG GITHUB_ACTOR
+ARG GITHUB_TOKEN
+
 WORKDIR /app
 
 RUN apk add --no-cache bash maven
@@ -9,25 +12,19 @@ COPY gradle ./gradle
 COPY gradlew ./
 COPY .shell ./.shell
 
-RUN --mount=type=secret,id=github_actor \
-    --mount=type=secret,id=github_token \
-    GITHUB_ACTOR=$(cat /run/secrets/github_actor) \
-    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
+RUN GITHUB_ACTOR=${GITHUB_ACTOR} \
+    GITHUB_TOKEN=${GITHUB_TOKEN} \
     ./gradlew resolveClientVersion --no-daemon -PskipClientPublish
 
-RUN --mount=type=secret,id=github_actor \
-    --mount=type=secret,id=github_token \
-    GITHUB_ACTOR=$(cat /run/secrets/github_actor) \
-    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
+RUN GITHUB_ACTOR=${GITHUB_ACTOR} \
+    GITHUB_TOKEN=${GITHUB_TOKEN} \
     ./gradlew dependencies --no-daemon -PskipClientPublish
 
 COPY doc ./doc
 COPY src ./src
 
-RUN --mount=type=secret,id=github_actor \
-    --mount=type=secret,id=github_token \
-    GITHUB_ACTOR=$(cat /run/secrets/github_actor) \
-    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
+RUN GITHUB_ACTOR=${GITHUB_ACTOR} \
+    GITHUB_TOKEN=${GITHUB_TOKEN} \
     ./gradlew bootJar --no-daemon -PskipClientPublish
 
 FROM eclipse-temurin:21-jre-alpine

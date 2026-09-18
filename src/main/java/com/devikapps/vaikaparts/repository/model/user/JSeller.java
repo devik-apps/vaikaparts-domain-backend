@@ -2,14 +2,19 @@ package com.devikapps.vaikaparts.repository.model.user;
 
 import static java.lang.String.format;
 
-import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotification;
+import com.devikapps.vaikaparts.model.classifier.PartCategory;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.JLatLon;
 import com.devikapps.vaikaparts.repository.model.JLocation;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.util.ArrayList;
@@ -38,13 +43,24 @@ public class JSeller extends JUser {
 
   @Embedded private JLatLon latLon;
 
-  @OneToMany(mappedBy = "seller", fetch = FetchType.LAZY)
+  @ElementCollection
+  @CollectionTable(name = "seller_categories", joinColumns = @JoinColumn(name = "seller_id"))
+  @Enumerated(EnumType.STRING)
+  @Column(name = "part_category", nullable = false)
   @Builder.Default
-  private List<JDemandPublishedNotificationRequested> notificationRequestedLogs = new ArrayList<>();
+  private List<PartCategory> categoryList = new ArrayList<>();
+
+  @Column(name = "handle_all_category", nullable = false)
+  @Builder.Default
+  private Boolean handleAllCategory = true;
+
+  @Column(name = "is_deliverying", nullable = false)
+  @Builder.Default
+  private Boolean isDeliverying = false;
 
   @OneToMany(mappedBy = "seller", fetch = FetchType.LAZY)
   @Builder.Default
-  private List<JDemandPublishedNotification> notifications = new ArrayList<>();
+  private List<JDemandPublishedNotificationRequested> notificationRequestedLogs = new ArrayList<>();
 
   @Override
   public String toString() {
@@ -62,7 +78,9 @@ public class JSeller extends JUser {
          \tupdatedAt=%s,
          \tgarageName=%s,
          \tlocation=%s,
-         \tlatLon=%s
+         \tlatLon=%s,
+         \thandleAllCategory=%s,
+         \tisDeliverying=%s
         }\
         """,
         getId(),
@@ -76,6 +94,8 @@ public class JSeller extends JUser {
         getUpdatedAt(),
         garageName,
         location,
-        latLon);
+        latLon,
+        handleAllCategory,
+        isDeliverying);
   }
 }

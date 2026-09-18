@@ -145,10 +145,54 @@ process.stdout.write('[INFO]  Barrel rewritten with ' + modules.length + ' modul
 EOF
 }
 
+fix_tsconfig() {
+	local tsconfig_file="${GENERATED_DIR}/tsconfig.json"
+	local tsconfig_esm_file="${GENERATED_DIR}/tsconfig.esm.json"
+
+	if [[ -f "${tsconfig_file}" ]]; then
+		log_info "Fixing tsconfig.json..."
+		node <<EOF
+        const fs = require('fs');
+        const path = '${tsconfig_file}';
+        const config = JSON.parse(fs.readFileSync(path, 'utf8'));
+        
+        if (config.compilerOptions) {
+            if (config.compilerOptions.moduleResolution === 'node') {
+                config.compilerOptions.moduleResolution = 'node16';
+            }
+            if (config.compilerOptions.module === 'commonjs') {
+                config.compilerOptions.module = 'node16';
+            }
+            config.compilerOptions.rootDir = 'src';
+        }
+        
+        fs.writeFileSync(path, JSON.stringify(config, null, 2) + '\n', 'utf8');
+        process.stdout.write('[INFO]  tsconfig.json fixed successfully.\n');
+EOF
+	fi
+
+	if [[ -f "${tsconfig_esm_file}" ]]; then
+		log_info "Fixing tsconfig.esm.json..."
+		node <<EOF
+        const fs = require('fs');
+        const path = '${tsconfig_esm_file}';
+        const config = JSON.parse(fs.readFileSync(path, 'utf8'));
+        
+        if (config.compilerOptions) {
+            config.compilerOptions.moduleResolution = 'bundler';
+        }
+        
+        fs.writeFileSync(path, JSON.stringify(config, null, 2) + '\n', 'utf8');
+        process.stdout.write('[INFO]  tsconfig.esm.json fixed successfully.\n');
+EOF
+	fi
+}
+
 main() {
 	validate_environment
 	rewrite_barrel "${APIS_BARREL}"
 	rewrite_barrel "${MODELS_BARREL}"
+	fix_tsconfig
 	log_info "Barrel export rewrite complete."
 }
 
