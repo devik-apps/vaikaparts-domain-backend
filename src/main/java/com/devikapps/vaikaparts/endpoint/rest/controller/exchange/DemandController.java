@@ -37,7 +37,13 @@ public class DemandController {
     return ResponseEntity.status(HttpStatus.CREATED).body(demand);
   }
 
-
+  @GetMapping("/all")
+  public Page<Demand> getAllDemands(
+          @RequestParam(name = "page", required = false) Integer page,
+          @RequestParam(name = "size", required = false) Integer size
+  ){
+    return demandService.getAllDemands(page,size);
+  }
 
   @GetMapping
   public Page<Demand> getResearcherDemands(
