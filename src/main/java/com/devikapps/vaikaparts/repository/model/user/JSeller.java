@@ -2,15 +2,16 @@ package com.devikapps.vaikaparts.repository.model.user;
 
 import static java.lang.String.format;
 
+import com.devikapps.vaikaparts.model.classifier.Arrondissement;
 import com.devikapps.vaikaparts.model.classifier.PartCategory;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.repository.model.JLatLon;
 import com.devikapps.vaikaparts.repository.model.JLocation;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Embedded;
-import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
@@ -26,6 +27,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "sellers")
@@ -58,6 +61,11 @@ public class JSeller extends JUser {
   @Builder.Default
   private Boolean isDeliverying = false;
 
+  @Column(name = "arrondissement")
+  @Enumerated(EnumType.STRING)
+  @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+  private Arrondissement arrondissement;
+
   @OneToMany(mappedBy = "seller", fetch = FetchType.LAZY)
   @Builder.Default
   private List<JDemandPublishedNotificationRequested> notificationRequestedLogs = new ArrayList<>();
@@ -79,6 +87,7 @@ public class JSeller extends JUser {
          \tgarageName=%s,
          \tlocation=%s,
          \tlatLon=%s,
+         \tarrondissement=%s,
          \thandleAllCategory=%s,
          \tisDeliverying=%s
         }\
@@ -95,6 +104,7 @@ public class JSeller extends JUser {
         garageName,
         location,
         latLon,
+        arrondissement,
         handleAllCategory,
         isDeliverying);
   }

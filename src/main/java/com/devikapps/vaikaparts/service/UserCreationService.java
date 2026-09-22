@@ -49,6 +49,7 @@ public class UserCreationService {
     private static final String CATEGORY_LIST_KEY = "category_list";
     private static final String HANDLE_ALL_CATEGORY_KEY = "handle_all_category";
     private static final String IS_DELIVERYING_KEY = "is_deliverying";
+    private static final String ARRONDISSEMENT_KEY = "arrondissement";
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createUserIfAbsent(ProfileRecord profile, UserType userType) {
@@ -124,6 +125,7 @@ public class UserCreationService {
                 var categoryList = extractCategoryList(metadata).orElse(new ArrayList<>());
                 var handleAllCategory = extractHandleAllCategory(metadata).orElse(true);
                 var isDeliverying = extractIsDeliverying(metadata).orElse(false);
+                var arrondissement = extractArrondissement(metadata).orElse(null);
                 yield buildSeller(
                         profileId,
                         name,
@@ -133,6 +135,7 @@ public class UserCreationService {
                         userId,
                         location,
                         latLon,
+                        arrondissement,
                         createdAt,
                         updatedAt,
                         categoryList,
@@ -159,6 +162,36 @@ public class UserCreationService {
                 .map(m -> m.get(IS_DELIVERYING_KEY))
                 .filter(Boolean.class::isInstance)
                 .map(Boolean.class::cast);
+    }
+
+    private Optional<Arrondissement> extractArrondissement(Map<String, Object> metadata) {
+        return Optional.ofNullable(metadata)
+                .map(m -> m.get(ARRONDISSEMENT_KEY))
+                .flatMap(this::parseArrondissement);
+    }
+
+    private Optional<Arrondissement> parseArrondissement(Object value) {
+        if (value instanceof Arrondissement arrondissement) return Optional.of(arrondissement);
+        if (value instanceof Number number) return arrondissementFromNumber(number.intValue());
+        if (value instanceof String str) {
+            var digits = str.replaceAll("\\D", "");
+            if (!digits.isEmpty()) return arrondissementFromNumber(Integer.parseInt(digits));
+            try {
+                return Optional.of(Arrondissement.valueOf(str.trim().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid arrondissement '{}' in metadata", forJava(str));
+                return Optional.empty();
+            }
+        }
+        log.warn("Ignoring arrondissement with invalid type in user metadata");
+        return Optional.empty();
+    }
+
+    private Optional<Arrondissement> arrondissementFromNumber(int number) {
+        if (number >= 1 && number <= Arrondissement.values().length)
+            return Optional.of(Arrondissement.values()[number - 1]);
+        log.warn("Invalid arrondissement number '{}' in metadata", number);
+        return Optional.empty();
     }
 
 
@@ -196,6 +229,7 @@ public class UserCreationService {
             String userId,
             Location location,
             LatLon latLon,
+            Arrondissement arrondissement,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt,
             List<PartCategory> categoryList,
@@ -215,6 +249,7 @@ public class UserCreationService {
                 .status(UserStatus.ENABLED)
                 .location(vom.map(finalLocation))
                 .latLon(vom.map(finalLatLon))
+                .arrondissement(arrondissement)
                 .createdAt(createdAt)
                 .updatedAt(updatedAt)
                 .categoryList(categoryList)
@@ -298,6 +333,7 @@ public class UserCreationService {
             extractCategoryList(metadata).ifPresent(seller::setCategoryList);
             extractHandleAllCategory(metadata).ifPresent(seller::setHandleAllCategory);
             extractIsDeliverying(metadata).ifPresent(seller::setIsDeliverying);
+            extractArrondissement(metadata).ifPresent(seller::setArrondissement);
         }
     }
 

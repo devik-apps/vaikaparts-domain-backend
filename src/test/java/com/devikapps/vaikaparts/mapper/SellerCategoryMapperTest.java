@@ -1,5 +1,6 @@
 package com.devikapps.vaikaparts.mapper;
 
+import static com.devikapps.vaikaparts.model.classifier.Arrondissement.THIRD;
 import static com.devikapps.vaikaparts.model.classifier.PartCategory.BATTERY;
 import static com.devikapps.vaikaparts.model.classifier.PartCategory.ENGINE_PART;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,6 +29,7 @@ class SellerCategoryMapperTest {
             .categoryList(List.of(ENGINE_PART, BATTERY))
             .handleAllCategory(false)
             .isDeliverying(true)
+            .arrondissement(THIRD)
             .build();
 
     var persisted = mapper.toPersistence(seller);
@@ -35,6 +37,7 @@ class SellerCategoryMapperTest {
     assertEquals(false, persisted.getHandleAllCategory());
     assertTrue(persisted.getIsDeliverying());
     var restored = mapper.toSeller(persisted);
+    assertEquals(THIRD, restored.getArrondissement());
     assertEquals(seller.getCategoryList(), restored.getCategoryList());
     assertEquals(false, restored.getHandleAllCategory());
     assertTrue(restored.getIsDeliverying());

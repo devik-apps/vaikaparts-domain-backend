@@ -4,6 +4,7 @@ import static java.lang.String.format;
 
 import com.devikapps.vaikaparts.model.LatLon;
 import com.devikapps.vaikaparts.model.Location;
+import com.devikapps.vaikaparts.model.classifier.Arrondissement;
 import com.devikapps.vaikaparts.model.classifier.PartCategory;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +29,7 @@ public final class Seller extends User {
   @Builder.Default private List<PartCategory> categoryList = new ArrayList<>();
   @Builder.Default private Boolean handleAllCategory = true;
   @Builder.Default private Boolean isDeliverying = false;
+  private Arrondissement arrondissement;
 
   @Override
   public String toString() {
@@ -47,6 +49,7 @@ public final class Seller extends User {
          \tgarageName=%s,
          \tlocation=%s,
          \tlatLon=%s,
+         \tarrondissement=%s,
          \tcategoryList=%s,
          \thandleAllCategory=%s,
          \tisDeliverying=%s
@@ -65,6 +68,7 @@ public final class Seller extends User {
         garageName,
         location,
         latLon,
+        arrondissement,
         categoryList,
         handleAllCategory,
         isDeliverying);
