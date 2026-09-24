@@ -56,14 +56,14 @@ public final class BefianaSmsClient implements SmsProvider, AutoCloseable {
 
   @Override
   public SmsReceipt send(SmsMessage message) {
-    if (message == null || message.text() == null || message.text().isBlank()
-        || message.text().codePointCount(0, message.text().length()) > 320) {
+    if (message == null || message.message() == null || message.message().isBlank()
+        || message.message().codePointCount(0, message.message().length()) > 320) {
       throw new SmsSendException(INVALID_REQUEST, null);
     }
     var phoneNumber = normalizePhoneNumber(message.phoneNumber());
     final String body;
     try {
-      body = mapper.writeValueAsString(Map.of("phone_number", phoneNumber, "message", message.text()));
+      body = mapper.writeValueAsString(Map.of("phone_number", phoneNumber, "message", message.message()));
     } catch (JsonProcessingException e) {
       throw new SmsSendException(INVALID_REQUEST, null);
     }
