@@ -1706,7 +1706,7 @@ components:
           maxItems: 5
     Offer:
       type: object
-      required: [id, resource_type, seller_id, parts_info, demand, status, created_at]
+      required: [id, resource_type, seller_id, seller_masked_name, seller_verified, parts_info, demand, status, created_at]
       description: Seller response to a Researcher demand.
       properties:
         resource_type:
@@ -1729,6 +1729,15 @@ components:
           readOnly: true
         seller_id:
           $ref: '#/components/schemas/UUID'
+        seller_masked_name:
+          type: string
+          readOnly: true
+          description: Seller name anonymized by retaining only its first character.
+          example: A*******
+        seller_verified:
+          type: boolean
+          readOnly: true
+          description: Current verification status of the seller.
         parts_info:
           $ref: '#/components/schemas/PartInfo'
         demand:
