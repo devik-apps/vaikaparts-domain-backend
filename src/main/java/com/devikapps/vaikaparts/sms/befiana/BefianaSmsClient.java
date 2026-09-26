@@ -16,8 +16,9 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
-
+import lombok.extern.slf4j.Slf4j;
 /** Small HTTP adapter for BEFIANA's immediate, single-recipient endpoint. No automatic retries. */
+@Slf4j
 public final class BefianaSmsClient implements SmsProvider, AutoCloseable {
   private final HttpClient httpClient;
   private final ObjectMapper mapper;
@@ -60,6 +61,8 @@ public final class BefianaSmsClient implements SmsProvider, AutoCloseable {
         || message.message().codePointCount(0, message.message().length()) > 320) {
       throw new SmsSendException(INVALID_REQUEST, null);
     }
+    log.warn("[NOTIF-PIPELINE] SMS  message number  ${}  ",message.phoneNumber());
+
     var phoneNumber = normalizePhoneNumber(message.phoneNumber());
     final String body;
     try {
