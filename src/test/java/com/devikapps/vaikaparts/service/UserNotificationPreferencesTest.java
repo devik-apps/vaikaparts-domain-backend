@@ -8,6 +8,7 @@ import com.devikapps.vaikaparts.endpoint.rest.controller.model.user.SupabaseWebh
 import com.devikapps.vaikaparts.mapper.ImageUrlMapper;
 import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
 import com.devikapps.vaikaparts.mapper.user.*;
+import com.devikapps.vaikaparts.model.classifier.UserLanguage;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.user.*;
 import com.devikapps.vaikaparts.repository.UserRepository;
@@ -16,8 +17,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mapstruct.factory.Mappers;
 import org.mockito.ArgumentCaptor;
@@ -30,15 +31,25 @@ class UserNotificationPreferencesTest {
 
   @Test
   void researcher_created_before_webhook_keeps_metadata_preferences() {
-    var service = new UserService(repository, mock(ProfilePhotoService.class),
-        mock(SellerMapper.class), mock(ResearcherMapper.class), mock(ManagerMapper.class),
-        mock(com.devikapps.vaikaparts.service.util.Paginator.class), mock(ValueObjectMapper.class));
-    var principal = new com.devikapps.vaikaparts.config.sec.AuthenticatedSupabaseUser(
-        "profile", "alice@example.com", null,
-        Map.of("email_notifications_enabled", true, "sms_notifications_enabled", true),
-        Map.of("user_type", "RESEARCHER"));
+    var service =
+        new UserService(
+            repository,
+            mock(ProfilePhotoService.class),
+            mock(SellerMapper.class),
+            mock(ResearcherMapper.class),
+            mock(ManagerMapper.class),
+            mock(com.devikapps.vaikaparts.service.util.Paginator.class),
+            mock(ValueObjectMapper.class));
+    var principal =
+        new com.devikapps.vaikaparts.config.sec.AuthenticatedSupabaseUser(
+            "profile",
+            "alice@example.com",
+            null,
+            Map.of("email_notifications_enabled", true, "sms_notifications_enabled", true),
+            Map.of("user_type", "RESEARCHER"));
     var previous = org.springframework.security.core.context.SecurityContextHolder.getContext();
-    var context = org.springframework.security.core.context.SecurityContextHolder.createEmptyContext();
+    var context =
+        org.springframework.security.core.context.SecurityContextHolder.createEmptyContext();
     context.setAuthentication(
         new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
             principal, null, java.util.List.of()));
@@ -54,8 +65,17 @@ class UserNotificationPreferencesTest {
   }
 
   private ProfileRecord profile(UserType type, Map<String, Object> metadata) {
-    return new ProfileRecord("profile", "alice@example.com", null, "Alice", null,
-        metadata, Map.of("user_type", type.name()), null, null, null);
+    return new ProfileRecord(
+        "profile",
+        "alice@example.com",
+        null,
+        "Alice",
+        null,
+        metadata,
+        Map.of("user_type", type.name()),
+        null,
+        null,
+        null);
   }
 
   private JUser create(UserType type, Map<String, Object> metadata) {
@@ -71,20 +91,29 @@ class UserNotificationPreferencesTest {
     var user = create(type, null);
     assertFalse(user.isEmailNotificationsEnabled());
     assertFalse(user.isSmsNotificationsEnabled());
+    assertEquals(UserLanguage.FR, user.getPreferredLanguage());
   }
 
   @ParameterizedTest
   @EnumSource(UserType.class)
   void reads_real_json_booleans_and_updates_preferences(UserType type) throws Exception {
-    Map<String, Object> metadata = new ObjectMapper().readValue(
-        "{\"email_notifications_enabled\":true,\"sms_notifications_enabled\":true}", Map.class);
+    Map<String, Object> metadata =
+        new ObjectMapper()
+            .readValue(
+                "{\"email_notifications_enabled\":true,\"sms_notifications_enabled\":true}",
+                Map.class);
     var user = create(type, metadata);
     assertTrue(user.isEmailNotificationsEnabled());
     assertTrue(user.isSmsNotificationsEnabled());
     when(repository.findBySupabaseUserId("profile")).thenReturn(Optional.of(user));
     var sync = new UserSyncService(creation, repository);
-    sync.handleUserUpdated(new SupabaseWebhook("UPDATE", "users", "auth",
-        profile(type, Map.of("email_notifications_enabled", false)), null));
+    sync.handleUserUpdated(
+        new SupabaseWebhook(
+            "UPDATE",
+            "users",
+            "auth",
+            profile(type, Map.of("email_notifications_enabled", false)),
+            null));
     assertFalse(user.isEmailNotificationsEnabled());
     assertTrue(user.isSmsNotificationsEnabled());
     creation.updateUserFields(user, profile(type, Map.of("sms_notifications_enabled", false)));
@@ -94,8 +123,9 @@ class UserNotificationPreferencesTest {
   @ParameterizedTest
   @EnumSource(UserType.class)
   void missing_and_invalid_values_preserve_choices(UserType type) {
-    var user = create(type, Map.of("email_notifications_enabled", true,
-        "sms_notifications_enabled", true));
+    var user =
+        create(
+            type, Map.of("email_notifications_enabled", true, "sms_notifications_enabled", true));
     creation.updateUserFields(user, profile(type, null));
     creation.updateUserFields(user, profile(type, Map.of()));
     var invalid = new HashMap<String, Object>();
@@ -109,8 +139,10 @@ class UserNotificationPreferencesTest {
   @ParameterizedTest
   @EnumSource(UserType.class)
   void maps_preferences_in_both_directions_for_all_profiles(UserType type) {
-    var user = create(type, Map.of("email_notifications_enabled", true,
-        "sms_notifications_enabled", true));
+    var user =
+        create(
+            type, Map.of("email_notifications_enabled", true, "sms_notifications_enabled", true));
+    user.setPreferredLanguage(UserLanguage.MG);
     User domain;
     JUser restored;
     switch (type) {
@@ -135,6 +167,8 @@ class UserNotificationPreferencesTest {
     assertTrue(domain.isSmsNotificationsEnabled());
     assertTrue(restored.isEmailNotificationsEnabled());
     assertTrue(restored.isSmsNotificationsEnabled());
+    assertEquals(UserLanguage.MG, domain.getPreferredLanguage());
+    assertEquals(UserLanguage.MG, restored.getPreferredLanguage());
   }
 
   private <T> T mapper(Class<T> type, boolean hasValueObjects) {

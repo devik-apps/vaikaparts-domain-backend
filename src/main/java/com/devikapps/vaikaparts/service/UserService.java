@@ -13,6 +13,7 @@ import com.devikapps.vaikaparts.mapper.user.ManagerMapper;
 import com.devikapps.vaikaparts.mapper.user.ResearcherMapper;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.Location;
+import com.devikapps.vaikaparts.model.classifier.UserLanguage;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.user.User;
 import com.devikapps.vaikaparts.repository.UserRepository;
@@ -20,8 +21,8 @@ import com.devikapps.vaikaparts.repository.model.user.JManager;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.repository.model.user.JUser;
-import com.devikapps.vaikaparts.service.util.Paginator;
 import com.devikapps.vaikaparts.service.util.NotificationPreferencesUpdater;
+import com.devikapps.vaikaparts.service.util.Paginator;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.net.URL;
@@ -75,6 +76,20 @@ public class UserService {
     var user = getCurrentUser();
     log.info("Fetch user with id : {}", forJava(user.getId()));
 
+    return mapUser(user);
+  }
+
+  @Transactional
+  public User updatePreferredLanguage(@NotNull UserLanguage language) {
+    var user = getCurrentUser();
+    user.setPreferredLanguage(language);
+    user.setUpdatedAt(OffsetDateTime.now());
+    var savedUser = userRepository.saveAndFlush(user);
+    log.info("Updated preferred language for user with id={}", forJava(savedUser.getId()));
+    return mapUser(savedUser);
+  }
+
+  private User mapUser(JUser user) {
     return switch (user.getUserType()) {
       case RESEARCHER -> researcherMapper.toResearcher((JResearcher) user);
       case SELLER -> sellerMapper.toSeller((JSeller) user);

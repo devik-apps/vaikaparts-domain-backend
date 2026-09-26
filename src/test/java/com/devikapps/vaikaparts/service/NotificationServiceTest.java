@@ -38,6 +38,7 @@ import com.devikapps.vaikaparts.repository.model.user.JManager;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.service.notification.NotificationChannel;
+import com.devikapps.vaikaparts.service.notification.NotificationMessageResolver;
 import com.devikapps.vaikaparts.service.notification.NotificationService;
 import com.devikapps.vaikaparts.service.util.Paginator;
 import java.time.LocalDateTime;
@@ -76,6 +77,7 @@ class NotificationServiceTest {
   @Mock private UserService userService;
   @Mock private NotificationMapper notificationMapper;
   @Mock private DemandPublishedNotificationRepository demandPublishedNotificationRepository;
+  private final NotificationMessageResolver messageResolver = new NotificationMessageResolver();
 
   private NotificationService notificationService;
 
@@ -96,7 +98,8 @@ class NotificationServiceTest {
             demandPublishedNotificationRepository,
             paginator,
             userService,
-            notificationMapper);
+            notificationMapper,
+            messageResolver);
   }
 
   @Test
@@ -205,7 +208,8 @@ class NotificationServiceTest {
             demandPublishedNotificationRepository,
             paginator,
             userService,
-            notificationMapper);
+            notificationMapper,
+            messageResolver);
 
     assertDoesNotThrow(() -> notificationService.createAndSendNotification(buildTestRequest()));
 
@@ -242,7 +246,8 @@ class NotificationServiceTest {
             demandPublishedNotificationRepository,
             paginator,
             userService,
-            notificationMapper);
+            notificationMapper,
+            messageResolver);
 
     notificationService.createAndSendNotification(buildTestRequest());
 

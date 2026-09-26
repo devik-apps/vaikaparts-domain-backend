@@ -349,6 +349,34 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         500:
           $ref: '#/components/responses/InternalServer'
+  /users/me/language:
+    patch:
+      operationId: updatePreferredLanguage
+      tags: [Users]
+      summary: Update the current user's preferred language
+      description: The selected language is used for in-app, email and SMS notification messages.
+      parameters:
+        - name: language
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/UserLanguage'
+      responses:
+        200:
+          description: Preferred language updated successfully
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Researcher'
+                  - $ref: '#/components/schemas/Seller'
+                  - $ref: '#/components/schemas/Manager'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /users/me/profile-photo:
     post:
       operationId: uploadProfilePhoto
@@ -1241,6 +1269,11 @@ components:
       enum: [ENABLED, DISABLED, SUSPENDED]
       default: ENABLED
       description: User account status
+    UserLanguage:
+      type: string
+      enum: [FR, MG, EN]
+      default: FR
+      description: Preferred language for notifications
     ManagerRole:
       type: string
       enum: [ADMIN, MANAGER]
@@ -1373,7 +1406,7 @@ components:
           description: Soft delete timestamp (null if not deleted)
     BaseUser:
       type: object
-      required: [id, supabase_user_id, name, phone_number, user_type, status, created_at]
+      required: [id, supabase_user_id, name, phone_number, user_type, status, preferred_language, created_at]
       description: Common user profile attributes
       properties:
         email_notifications_enabled:
@@ -1384,6 +1417,8 @@ components:
           type: boolean
           default: false
           description: Opt-in to SMS notifications; synchronized from user metadata. IN_APP remains active.
+        preferred_language:
+          $ref: '#/components/schemas/UserLanguage'
         id:
           $ref: '#/components/schemas/UUID'
           description: VaikaParts internal user identifier

@@ -2,6 +2,7 @@ package com.devikapps.vaikaparts.model.user;
 
 import static java.lang.String.format;
 
+import com.devikapps.vaikaparts.model.classifier.UserLanguage;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
@@ -9,6 +10,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import java.net.URL;
 import java.time.OffsetDateTime;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -44,6 +46,7 @@ public abstract sealed class User permits Researcher, Seller, Manager {
   private OffsetDateTime updatedAt;
   private boolean emailNotificationsEnabled;
   private boolean smsNotificationsEnabled;
+  @Builder.Default private UserLanguage preferredLanguage = UserLanguage.FR;
 
   @Override
   public String toString() {

@@ -58,6 +58,7 @@ public class NotificationService {
   private final Paginator paginator;
   private final UserService userService;
   private final NotificationMapper notificationMapper;
+  private final NotificationMessageResolver messageResolver;
 
   @Transactional
   public Notification createAndSendNotification(NotificationRequest request) {
@@ -171,7 +172,12 @@ public class NotificationService {
         .recipient(recipient)
         .notificationRequestedId(request.getNotificationRequestedId())
         .resource(resource)
-        .message(request.getMessage())
+        .message(
+            messageResolver.resolve(
+                request.getNotificationType(),
+                recipient.getPreferredLanguage(),
+                resource,
+                request.getMessage()))
         .notificationType(request.getNotificationType())
         .read(false)
         .clickAction(request.getClickAction())

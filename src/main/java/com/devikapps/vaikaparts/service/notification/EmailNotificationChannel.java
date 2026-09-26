@@ -8,6 +8,7 @@ import com.devikapps.vaikaparts.mail.Email;
 import com.devikapps.vaikaparts.mail.Mailer;
 import com.devikapps.vaikaparts.model.classifier.NotificationChannelType;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
+import com.devikapps.vaikaparts.model.classifier.UserLanguage;
 import com.devikapps.vaikaparts.model.notification.Notification;
 import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.InternetAddress;
@@ -48,7 +49,9 @@ public class EmailNotificationChannel implements NotificationChannel {
     } catch (AddressException e) {
       throw new NotificationDeliveryException("A valid recipient email is required");
     }
-    var subject = subject(notification.getNotificationType());
+    var subject =
+        subject(
+            notification.getNotificationType(), notification.getRecipient().getPreferredLanguage());
     var html =
         "<h1>"
             + forHtml(subject)
@@ -63,15 +66,39 @@ public class EmailNotificationChannel implements NotificationChannel {
         notification.getRecipient().getUserType());
   }
 
-  private String subject(NotificationType type) {
-    return switch (type) {
-      case DEMAND_PUBLISHED -> "VaikaParts — Nouvelle demande de pièce";
-      case DEMAND_CANCELED -> "VaikaParts — Demande annulée";
-      case OFFER_PUBLISHED -> "VaikaParts — Nouvelle offre reçue";
-      case OFFER_ACCEPTED -> "VaikaParts — Offre acceptée";
-      case OFFER_REJECTED -> "VaikaParts — Offre refusée";
-      case SYSTEM_ANNOUNCEMENT -> "VaikaParts — Information";
-    };
+  private String subject(NotificationType type, UserLanguage language) {
+    var resolvedLanguage = language == null ? UserLanguage.FR : language;
+    var localizedSubject =
+        switch (resolvedLanguage) {
+          case FR ->
+              switch (type) {
+                case DEMAND_PUBLISHED -> "Nouvelle demande de pièce";
+                case DEMAND_CANCELED -> "Demande annulée";
+                case OFFER_PUBLISHED -> "Nouvelle offre reçue";
+                case OFFER_ACCEPTED -> "Offre acceptée";
+                case OFFER_REJECTED -> "Offre refusée";
+                case SYSTEM_ANNOUNCEMENT -> "Information";
+              };
+          case MG ->
+              switch (type) {
+                case DEMAND_PUBLISHED -> "Fangatahana kojakoja vaovao";
+                case DEMAND_CANCELED -> "Nofoanana ny fangatahana";
+                case OFFER_PUBLISHED -> "Tolotra vaovao voaray";
+                case OFFER_ACCEPTED -> "Nekena ny tolotra";
+                case OFFER_REJECTED -> "Nolavina ny tolotra";
+                case SYSTEM_ANNOUNCEMENT -> "Fampahafantarana";
+              };
+          case EN ->
+              switch (type) {
+                case DEMAND_PUBLISHED -> "New part request";
+                case DEMAND_CANCELED -> "Request canceled";
+                case OFFER_PUBLISHED -> "New offer received";
+                case OFFER_ACCEPTED -> "Offer accepted";
+                case OFFER_REJECTED -> "Offer rejected";
+                case SYSTEM_ANNOUNCEMENT -> "Information";
+              };
+        };
+    return "VAIKAPARTS — " + localizedSubject;
   }
 
   @Override

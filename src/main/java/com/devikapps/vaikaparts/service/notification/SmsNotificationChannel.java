@@ -13,6 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 public class SmsNotificationChannel implements NotificationChannel {
+  private static final String BRAND_TITLE = "VAIKAPARTS";
+
   private final SmsProvider provider;
   private final boolean enabled;
 
@@ -23,7 +25,9 @@ public class SmsNotificationChannel implements NotificationChannel {
       throw new IllegalArgumentException("A notification recipient is required");
     }
     provider.send(
-        new SmsMessage(notification.getRecipient().getPhoneNumber(), notification.getMessage()));
+        new SmsMessage(
+            notification.getRecipient().getPhoneNumber(),
+            BRAND_TITLE + "\n" + notification.getMessage()));
     log.info(
         "[NOTIF-PIPELINE][SMS_ACCEPTED] notificationId={}, recipientType={} (not delivery"
             + " confirmation)",

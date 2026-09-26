@@ -20,6 +20,7 @@ import com.devikapps.vaikaparts.model.Location;
 import com.devikapps.vaikaparts.model.classifier.City;
 import com.devikapps.vaikaparts.model.classifier.ManagerRole;
 import com.devikapps.vaikaparts.model.classifier.Region;
+import com.devikapps.vaikaparts.model.classifier.UserLanguage;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.repository.UserRepository;
@@ -102,13 +103,33 @@ class UserControllerIT extends FacadeIT {
   }
 
   @Test
+  void should_update_current_user_preferred_language() throws Exception {
+    authenticateUser(testResearcher.getSupabaseUserId());
+
+    mvc.perform(patch(BASE_URL + "/language").param("language", "MG"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.preferred_language").value("MG"));
+
+    var updatedUser = ur.findById(testResearcher.getId()).orElseThrow();
+    org.junit.jupiter.api.Assertions.assertEquals(
+        UserLanguage.MG, updatedUser.getPreferredLanguage());
+  }
+
+  @Test
+  void should_reject_unsupported_preferred_language() throws Exception {
+    authenticateUser(testResearcher.getSupabaseUserId());
+
+    mvc.perform(patch(BASE_URL + "/language").param("language", "DE"))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
   void manager_should_verify_seller() throws Exception {
     var previousUpdatedAt = testSeller.getUpdatedAt();
     authenticateUser(testManager.getSupabaseUserId());
 
     mvc.perform(
-            patch("/sellers/{sellerId}/verified", testSeller.getId())
-                .param("is_verified", "true"))
+            patch("/sellers/{sellerId}/verified", testSeller.getId()).param("is_verified", "true"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(testSeller.getId()))
         .andExpect(jsonPath("$.is_verified").value(true));
@@ -118,8 +139,7 @@ class UserControllerIT extends FacadeIT {
     assertTrue(updatedSeller.getUpdatedAt().isAfter(previousUpdatedAt));
 
     mvc.perform(
-            patch("/sellers/{sellerId}/verified", testSeller.getId())
-                .param("is_verified", "false"))
+            patch("/sellers/{sellerId}/verified", testSeller.getId()).param("is_verified", "false"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.is_verified").value(false));
 
@@ -134,8 +154,7 @@ class UserControllerIT extends FacadeIT {
     authenticateUser(testManager.getSupabaseUserId());
 
     mvc.perform(
-            patch("/sellers/{sellerId}/verified", testSeller.getId())
-                .param("is_verified", "true"))
+            patch("/sellers/{sellerId}/verified", testSeller.getId()).param("is_verified", "true"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.is_verified").value(true));
   }
@@ -145,8 +164,7 @@ class UserControllerIT extends FacadeIT {
     authenticateUser(testSeller.getSupabaseUserId());
 
     mvc.perform(
-        patch("/sellers/{sellerId}/verified", testSeller.getId())
-                .param("is_verified", "true"))
+            patch("/sellers/{sellerId}/verified", testSeller.getId()).param("is_verified", "true"))
         .andExpect(status().isForbidden());
 
     var unchangedSeller = (JSeller) ur.findById(testSeller.getId()).orElseThrow();
