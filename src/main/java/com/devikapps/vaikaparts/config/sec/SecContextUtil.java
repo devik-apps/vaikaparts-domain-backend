@@ -24,8 +24,30 @@ public final class SecContextUtil {
     var principal = authentication.getPrincipal();
 
     if (principal instanceof String userId) return userId;
+    if (principal instanceof AuthenticatedSupabaseUser user) return user.id();
 
     log.error("Authentication principal is not a String userId: {}", principal.getClass());
+    throw new IllegalStateException(
+        "Invalid authentication principal type: " + principal.getClass().getName());
+  }
+
+  public static AuthenticatedSupabaseUser getCurrentSupabaseUser() {
+    var authentication = getAuthentication();
+
+    if (authentication == null || !authentication.isAuthenticated()) {
+      log.warn("Attempted to get current Supabase user but no authentication found");
+      throw new AuthenticationCredentialsNotFoundException("No authenticated user found");
+    }
+
+    var principal = authentication.getPrincipal();
+
+    if (principal instanceof AuthenticatedSupabaseUser user) return user;
+
+    if (principal instanceof String userId) {
+      return new AuthenticatedSupabaseUser(userId, null, null, null, null);
+    }
+
+    log.error("Authentication principal is not a Supabase user: {}", principal.getClass());
     throw new IllegalStateException(
         "Invalid authentication principal type: " + principal.getClass().getName());
   }
@@ -43,7 +65,8 @@ public final class SecContextUtil {
     var authentication = getAuthentication();
     return authentication != null
         && authentication.isAuthenticated()
-        && authentication.getPrincipal() instanceof String;
+        && (authentication.getPrincipal() instanceof String
+            || authentication.getPrincipal() instanceof AuthenticatedSupabaseUser);
   }
 
   private static Authentication getAuthentication() {

@@ -1,0 +1,2 @@
+ALTER TABLE sellers
+    ADD COLUMN is_deliverying BOOLEAN NOT NULL DEFAULT FALSE;

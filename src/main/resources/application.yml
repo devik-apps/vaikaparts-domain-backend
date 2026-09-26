@@ -1,5 +1,15 @@
 server:
   port: ${PORT:8080}
+notifications:
+  email:
+    enabled: ${NOTIFICATIONS_EMAIL_ENABLED:false}
+  sms:
+    enabled: ${NOTIFICATIONS_SMS_ENABLED:false}
+    connect-timeout: ${SMS_CONNECT_TIMEOUT:5s}
+    request-timeout: ${SMS_REQUEST_TIMEOUT:10s}
+    befiana:
+      base-url: ${BEFIANA_SMS_BASE_URL:}
+      api-key: ${BEFIANA_SMS_API_KEY:}
 spring:
   jackson:
     serialization:

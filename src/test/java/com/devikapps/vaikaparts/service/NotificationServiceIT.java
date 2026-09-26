@@ -21,7 +21,8 @@ import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
-import com.devikapps.vaikaparts.model.notification.DemandPublishedNotification;
+import com.devikapps.vaikaparts.model.exchange.Demand;
+import com.devikapps.vaikaparts.model.notification.Notification;
 import com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
@@ -126,7 +127,7 @@ class NotificationServiceIT extends FacadeIT {
       page.getContent()
           .forEach(
               n -> {
-                assertEquals(testSeller.getId(), n.getSeller().getId());
+                assertEquals(testSeller.getId(), n.getRecipient().getId());
                 assertFalse(n.isRead());
                 assertNotNull(n.getId());
                 assertNotNull(n.getCreatedAt());
@@ -157,7 +158,7 @@ class NotificationServiceIT extends FacadeIT {
       val page = notificationService.fetchAllNotification(0, 10);
 
       assertEquals(1, page.getTotalElements());
-      assertEquals(testSeller.getId(), page.getContent().getFirst().getSeller().getId());
+      assertEquals(testSeller.getId(), page.getContent().getFirst().getRecipient().getId());
     } finally {
       SecurityContextHolder.clearContext();
     }
@@ -183,8 +184,8 @@ class NotificationServiceIT extends FacadeIT {
       assertEquals(2, page1.getContent().size());
       assertEquals(1, page2.getContent().size());
 
-      val page0Ids = page0.getContent().stream().map(DemandPublishedNotification::getId).toList();
-      val page1Ids = page1.getContent().stream().map(DemandPublishedNotification::getId).toList();
+      val page0Ids = page0.getContent().stream().map(Notification::getId).toList();
+      val page1Ids = page1.getContent().stream().map(Notification::getId).toList();
       assertTrue(page0Ids.stream().noneMatch(page1Ids::contains));
     } finally {
       SecurityContextHolder.clearContext();
@@ -218,9 +219,9 @@ class NotificationServiceIT extends FacadeIT {
 
       assertEquals(created.getId(), fetched.getId());
       assertEquals(testNotificationRequested.getId(), fetched.getNotificationRequestedId());
-      assertEquals(testSeller.getId(), fetched.getSeller().getId());
-      assertEquals(TEST_SELLER_NAME, fetched.getSeller().getName());
-      assertEquals(testDemand.getId(), fetched.getDemand().getId());
+      assertEquals(testSeller.getId(), fetched.getRecipient().getId());
+      assertEquals(TEST_SELLER_NAME, fetched.getRecipient().getName());
+      assertEquals(testDemand.getId(), fetched.getResource().getId());
       assertEquals(TEST_MESSAGE, fetched.getMessage());
       assertEquals(NotificationType.DEMAND_PUBLISHED, fetched.getNotificationType());
       assertFalse(fetched.isRead());
@@ -285,13 +286,13 @@ class NotificationServiceIT extends FacadeIT {
       assertTrue(marked.isRead());
       assertNotNull(marked.getReadAt());
       assertEquals(created.getId(), marked.getId());
-      assertEquals(testSeller.getId(), marked.getSeller().getId());
-      assertEquals(testDemand.getId(), marked.getDemand().getId());
+      assertEquals(testSeller.getId(), marked.getRecipient().getId());
+      assertEquals(testDemand.getId(), marked.getResource().getId());
       assertEquals(TEST_MESSAGE, marked.getMessage());
 
       val persisted =
-          demandPublishedNotificationRepository.findByIdAndSellerId(
-              created.getId(), created.getSeller().getId());
+          demandPublishedNotificationRepository.findByIdAndRecipientId(
+              created.getId(), created.getRecipient().getId());
       assertTrue(persisted.isPresent());
       assertTrue(persisted.get().isRead());
       assertNotNull(persisted.get().getReadAt());
@@ -352,13 +353,13 @@ class NotificationServiceIT extends FacadeIT {
     assertNotNull(notification);
     assertNotNull(notification.getId());
     assertEquals(testNotificationRequested.getId(), notification.getNotificationRequestedId());
-    assertNotNull(notification.getSeller());
-    assertEquals(testSeller.getId(), notification.getSeller().getId());
-    assertEquals(TEST_SELLER_NAME, notification.getSeller().getName());
-    assertEquals(TEST_SELLER_EMAIL, notification.getSeller().getEmail());
-    assertNotNull(notification.getDemand());
-    assertEquals(testDemand.getId(), notification.getDemand().getId());
-    assertEquals(TEST_DESCRIPTION, notification.getDemand().getDescription());
+    assertNotNull(notification.getRecipient());
+    assertEquals(testSeller.getId(), notification.getRecipient().getId());
+    assertEquals(TEST_SELLER_NAME, notification.getRecipient().getName());
+    assertEquals(TEST_SELLER_EMAIL, notification.getRecipient().getEmail());
+    assertNotNull(notification.getResource());
+    assertEquals(testDemand.getId(), notification.getResource().getId());
+    assertEquals(TEST_DESCRIPTION, notification.getResource().getDescription());
     assertEquals(TEST_MESSAGE, notification.getMessage());
     assertEquals(NotificationType.DEMAND_PUBLISHED, notification.getNotificationType());
     assertFalse(notification.isRead());
@@ -380,7 +381,7 @@ class NotificationServiceIT extends FacadeIT {
     assertEquals(
         testNotificationRequested.getId(),
         savedNotification.get().getNotificationRequested().getId());
-    assertEquals(testSeller.getId(), savedNotification.get().getSeller().getId());
+    assertEquals(testSeller.getId(), savedNotification.get().getRecipient().getId());
     assertEquals(testDemand.getId(), savedNotification.get().getDemand().getId());
     assertEquals(TEST_MESSAGE, savedNotification.get().getMessage());
     assertEquals(NotificationType.DEMAND_PUBLISHED, savedNotification.get().getNotificationType());
@@ -405,8 +406,8 @@ class NotificationServiceIT extends FacadeIT {
     assertNotNull(notification1);
     assertNotNull(notification2);
     assertNotEquals(notification1.getId(), notification2.getId());
-    assertEquals(testSeller.getId(), notification1.getSeller().getId());
-    assertEquals(seller2.getId(), notification2.getSeller().getId());
+    assertEquals(testSeller.getId(), notification1.getRecipient().getId());
+    assertEquals(seller2.getId(), notification2.getRecipient().getId());
     assertEquals(testNotificationRequested.getId(), notification1.getNotificationRequestedId());
     assertEquals(notificationRequested2.getId(), notification2.getNotificationRequestedId());
 
@@ -424,7 +425,7 @@ class NotificationServiceIT extends FacadeIT {
             UserNotFoundException.class,
             () -> notificationService.createAndSendNotification(request));
 
-    assertTrue(exception.getMessage().contains("No seller with id=non-existent-seller not found"));
+    assertTrue(exception.getMessage().contains("No user with id=non-existent-seller was found"));
   }
 
   @Test
@@ -438,14 +439,17 @@ class NotificationServiceIT extends FacadeIT {
   }
 
   @Test
-  void should_create_notification_with_all_notification_types() {
-    for (NotificationType type : NotificationType.values()) {
+  void should_create_notification_with_demand_notification_types() {
+    for (NotificationType type :
+        new NotificationType[] {
+          NotificationType.DEMAND_PUBLISHED, NotificationType.DEMAND_CANCELED
+        }) {
       val notifRequested = createTestNotificationRequested(testSeller, testDemand);
       val request =
           NotificationRequest.builder()
               .notificationRequestedId(notifRequested.getId())
-              .sellerId(testSeller.getId())
-              .demandId(testDemand.getId())
+              .recipientUserId(testSeller.getId())
+              .resourceId(testDemand.getId())
               .message("Test message for " + type)
               .notificationType(type)
               .clickAction(TEST_CLICK_ACTION)
@@ -458,7 +462,7 @@ class NotificationServiceIT extends FacadeIT {
     }
 
     val allNotifications = demandPublishedNotificationRepository.findAll();
-    assertEquals(NotificationType.values().length, allNotifications.size());
+    assertEquals(2, allNotifications.size());
   }
 
   @Test
@@ -466,8 +470,8 @@ class NotificationServiceIT extends FacadeIT {
     val request =
         NotificationRequest.builder()
             .notificationRequestedId(testNotificationRequested.getId())
-            .sellerId(testSeller.getId())
-            .demandId(testDemand.getId())
+            .recipientUserId(testSeller.getId())
+            .resourceId(testDemand.getId())
             .message(TEST_MESSAGE)
             .notificationType(NotificationType.DEMAND_PUBLISHED)
             .clickAction(null)
@@ -506,23 +510,24 @@ class NotificationServiceIT extends FacadeIT {
 
     val notification = notificationService.createAndSendNotification(request);
 
-    assertNotNull(notification.getDemand());
-    assertEquals(testDemand.getId(), notification.getDemand().getId());
-    assertEquals(TEST_DESCRIPTION, notification.getDemand().getDescription());
-    assertEquals(PostStatus.PUBLISHED, notification.getDemand().getStatus());
-    assertNotNull(notification.getDemand().getPart());
-    assertEquals(TEST_PART_NAME, notification.getDemand().getPart().getName());
-    assertEquals(TEST_CAR_BRAND, notification.getDemand().getPart().getCarBrand());
-    assertEquals(TEST_CAR_MODEL, notification.getDemand().getPart().getCarModel());
-    assertEquals(Year.of(TEST_CAR_YEAR), notification.getDemand().getPart().getCarYear());
+    var demand = (Demand) notification.getResource();
+    assertNotNull(demand);
+    assertEquals(testDemand.getId(), demand.getId());
+    assertEquals(TEST_DESCRIPTION, demand.getDescription());
+    assertEquals(PostStatus.PUBLISHED, demand.getStatus());
+    assertNotNull(demand.getPart());
+    assertEquals(TEST_PART_NAME, demand.getPart().getName());
+    assertEquals(TEST_CAR_BRAND, demand.getPart().getCarBrand());
+    assertEquals(TEST_CAR_MODEL, demand.getPart().getCarModel());
+    assertEquals(Year.of(TEST_CAR_YEAR), demand.getPart().getCarYear());
   }
 
   private NotificationRequest buildRequest(
       String sellerId, String demandId, String notificationRequestedId) {
     return NotificationRequest.builder()
         .notificationRequestedId(notificationRequestedId)
-        .sellerId(sellerId)
-        .demandId(demandId)
+        .recipientUserId(sellerId)
+        .resourceId(demandId)
         .message(TEST_MESSAGE)
         .notificationType(NotificationType.DEMAND_PUBLISHED)
         .clickAction(TEST_CLICK_ACTION)

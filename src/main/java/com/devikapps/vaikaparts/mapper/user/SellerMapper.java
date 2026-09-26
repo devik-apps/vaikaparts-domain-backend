@@ -14,9 +14,10 @@ public interface SellerMapper {
 
   @Mapping(target = "profileImgKey", ignore = true)
   @Mapping(target = "notificationRequestedLogs", ignore = true)
-  @Mapping(target = "notifications", ignore = true)
+  @Mapping(target = "isVerified", source = "isVerified")
   JSeller toPersistence(Seller seller);
 
   @Mapping(target = "profileImgUrl", source = "profileImgKey", qualifiedByName = "getPresignedUrl")
+  @Mapping(target = "isVerified", source = "isVerified")
   Seller toSeller(JSeller jSeller);
 }
