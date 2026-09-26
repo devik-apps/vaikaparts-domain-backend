@@ -29,6 +29,7 @@ class SellerCategoryMapperTest {
             .categoryList(List.of(ENGINE_PART, BATTERY))
             .handleAllCategory(false)
             .isDeliverying(true)
+            .isVerified(true)
             .arrondissement(THIRD)
             .build();
 
@@ -36,15 +37,18 @@ class SellerCategoryMapperTest {
     assertEquals(seller.getCategoryList(), persisted.getCategoryList());
     assertEquals(false, persisted.getHandleAllCategory());
     assertTrue(persisted.getIsDeliverying());
+    assertTrue(persisted.getIsVerified());
     var restored = mapper.toSeller(persisted);
     assertEquals(THIRD, restored.getArrondissement());
     assertEquals(seller.getCategoryList(), restored.getCategoryList());
     assertEquals(false, restored.getHandleAllCategory());
     assertTrue(restored.getIsDeliverying());
+    assertTrue(restored.getIsVerified());
     var json = new ObjectMapper()
         .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
         .valueToTree(restored);
     assertTrue(json.get("is_deliverying").asBoolean());
+    assertTrue(json.get("is_verified").asBoolean());
   }
 
   @Test
@@ -57,6 +61,10 @@ class SellerCategoryMapperTest {
     assertEquals(false, new Seller().getIsDeliverying());
     assertEquals(false, JSeller.builder().build().getIsDeliverying());
     assertEquals(false, new JSeller().getIsDeliverying());
+    assertEquals(false, Seller.builder().build().getIsVerified());
+    assertEquals(false, new Seller().getIsVerified());
+    assertEquals(false, JSeller.builder().build().getIsVerified());
+    assertEquals(false, new JSeller().getIsVerified());
     assertTrue(Seller.builder().build().getCategoryList().isEmpty());
     assertTrue(JSeller.builder().build().getCategoryList().isEmpty());
   }

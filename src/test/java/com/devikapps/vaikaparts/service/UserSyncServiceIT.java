@@ -91,6 +91,17 @@ class UserSyncServiceIT extends FacadeIT {
   }
 
   @Test
+  void should_ignore_seller_verification_from_creation_metadata() {
+    var metadata = buildSellerMetadata();
+    metadata.put("is_verified", true);
+
+    userSyncService.handleUserCreated(buildWebhook(TEST_SUPABASE_USER_ID, metadata));
+
+    var savedSeller = (JSeller) findUserBySupabaseId();
+    assertFalse(savedSeller.getIsVerified());
+  }
+
+  @Test
   void should_create_seller_with_location_and_latlon_from_metadata() {
     var metadata = buildSellerMetadata();
     metadata.put("location", buildLocationMap());
@@ -199,6 +210,22 @@ class UserSyncServiceIT extends FacadeIT {
 
     var updatedUser = (JSeller) findUserBySupabaseId();
     assertEquals(updatedGarageName, updatedUser.getGarageName());
+  }
+
+  @Test
+  void should_preserve_seller_verification_during_metadata_update() {
+    userSyncService.handleUserCreated(
+        buildWebhook(TEST_SUPABASE_USER_ID, buildSellerMetadata()));
+    var seller = (JSeller) findUserBySupabaseId();
+    seller.setIsVerified(true);
+    userRepository.saveAndFlush(seller);
+
+    var updatedMetadata = buildSellerMetadata();
+    updatedMetadata.put("is_verified", false);
+    userSyncService.handleUserUpdated(buildWebhook(TEST_SUPABASE_USER_ID, updatedMetadata));
+
+    var updatedSeller = (JSeller) findUserBySupabaseId();
+    assertTrue(updatedSeller.getIsVerified());
   }
 
   @Test

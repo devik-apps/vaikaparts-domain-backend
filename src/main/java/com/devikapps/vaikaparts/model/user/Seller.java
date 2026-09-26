@@ -29,6 +29,7 @@ public final class Seller extends User {
   @Builder.Default private List<PartCategory> categoryList = new ArrayList<>();
   @Builder.Default private Boolean handleAllCategory = true;
   @Builder.Default private Boolean isDeliverying = false;
+  @Builder.Default private Boolean isVerified = false;
   private Arrondissement arrondissement;
 
   @Override
@@ -52,7 +53,8 @@ public final class Seller extends User {
          \tarrondissement=%s,
          \tcategoryList=%s,
          \thandleAllCategory=%s,
-         \tisDeliverying=%s
+         \tisDeliverying=%s,
+         \tisVerified=%s
         }\
         """,
         getId(),
@@ -71,6 +73,7 @@ public final class Seller extends User {
         arrondissement,
         categoryList,
         handleAllCategory,
-        isDeliverying);
+        isDeliverying,
+        isVerified);
   }
 }

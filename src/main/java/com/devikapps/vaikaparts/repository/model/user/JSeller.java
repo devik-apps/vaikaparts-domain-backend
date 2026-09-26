@@ -61,6 +61,10 @@ public class JSeller extends JUser {
   @Builder.Default
   private Boolean isDeliverying = false;
 
+  @Column(name = "is_verified", nullable = false)
+  @Builder.Default
+  private Boolean isVerified = false;
+
   @Column(name = "arrondissement")
   @Enumerated(EnumType.STRING)
   @JdbcTypeCode(SqlTypes.NAMED_ENUM)
@@ -89,7 +93,8 @@ public class JSeller extends JUser {
          \tlatLon=%s,
          \tarrondissement=%s,
          \thandleAllCategory=%s,
-         \tisDeliverying=%s
+         \tisDeliverying=%s,
+         \tisVerified=%s
         }\
         """,
         getId(),
@@ -106,6 +111,7 @@ public class JSeller extends JUser {
         latLon,
         arrondissement,
         handleAllCategory,
-        isDeliverying);
+        isDeliverying,
+        isVerified);
   }
 }

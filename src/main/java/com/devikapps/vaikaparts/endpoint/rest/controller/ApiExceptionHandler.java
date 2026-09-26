@@ -313,11 +313,11 @@ public class ApiExceptionHandler {
 
     var errorResponse =
         ErrorResponse.of(
-            HttpStatus.UNAUTHORIZED,
+            HttpStatus.FORBIDDEN,
             ex.getMessage(),
             getRequestPath(request),
             "AUTHORIZATION_DENIED");
-    return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
+    return new ResponseEntity<>(errorResponse, HttpStatus.FORBIDDEN);
   }
 
   @ExceptionHandler(DataIntegrityViolationException.class)

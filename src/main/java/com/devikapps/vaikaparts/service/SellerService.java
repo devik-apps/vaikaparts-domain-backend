@@ -1,7 +1,9 @@
 package com.devikapps.vaikaparts.service;
 
+import static com.devikapps.vaikaparts.model.classifier.UserType.MANAGER;
 import static com.devikapps.vaikaparts.model.classifier.UserType.SELLER;
 import static java.lang.String.format;
+import static java.time.OffsetDateTime.now;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
@@ -13,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.domain.Page;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,5 +51,25 @@ public class SellerService {
           format("No seller corresponds to the provided sellerId=%s", forJava(sellerId)));
 
     return sellerMapper.toSeller((JSeller) fetchedUser);
+  }
+
+  @Transactional
+  public Seller updateVerification(
+      @NotNull @NotBlank(message = "Seller id must not be null") String sellerId,
+      boolean verified) {
+    if (userService.getCurrentUser().getUserType() != MANAGER) {
+      throw new AuthorizationDeniedException("Only a MANAGER can update Seller verification");
+    }
+    var fetchedUser = userService.findUserById(sellerId);
+
+    if (fetchedUser.getUserType() != SELLER) {
+      throw new IllegalArgumentException(
+          format("No seller corresponds to the provided sellerId=%s", forJava(sellerId)));
+    }
+
+    var seller = (JSeller) fetchedUser;
+    seller.setIsVerified(verified);
+    seller.setUpdatedAt(now());
+    return sellerMapper.toSeller(seller);
   }
 }

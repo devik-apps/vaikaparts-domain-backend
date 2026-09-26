@@ -538,6 +538,45 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServer'
+  /sellers/{sellerId}/verified:
+    patch:
+      operationId: updateSellerVerification
+      tags: [Sellers]
+      summary: Update a Seller verification status
+      description: |
+        Marks or unmarks a Seller as verified.
+
+        **Authorization**: Manager user type required.
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          description: Unique identifier of the Seller
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: is_verified
+          in: query
+          required: true
+          description: New verification status
+          schema:
+            type: boolean
+      responses:
+        200:
+          description: Seller verification status updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Seller'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /managers/me:
     get:
       operationId: getCurrentManager
@@ -1402,6 +1441,10 @@ components:
               type: boolean
               default: false
               description: Whether the seller offers delivery.
+            is_verified:
+              type: boolean
+              default: false
+              description: Whether the seller has been verified by a Manager.
             location:
               $ref: '#/components/schemas/Location'
             lat_lon:

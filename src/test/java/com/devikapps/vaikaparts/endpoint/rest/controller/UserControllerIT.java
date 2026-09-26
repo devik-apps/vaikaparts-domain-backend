@@ -2,6 +2,7 @@ package com.devikapps.vaikaparts.endpoint.rest.controller;
 
 import static java.time.LocalDateTime.now;
 import static java.util.UUID.randomUUID;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -9,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -97,6 +99,58 @@ class UserControllerIT extends FacadeIT {
         .andExpect(jsonPath("$.name").value(testManager.getName()))
         .andExpect(jsonPath("$.role").value("ADMIN"))
         .andExpect(jsonPath("$.user_type").value("MANAGER"));
+  }
+
+  @Test
+  void manager_should_verify_seller() throws Exception {
+    var previousUpdatedAt = testSeller.getUpdatedAt();
+    authenticateUser(testManager.getSupabaseUserId());
+
+    mvc.perform(
+            patch("/sellers/{sellerId}/verified", testSeller.getId())
+                .param("is_verified", "true"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(testSeller.getId()))
+        .andExpect(jsonPath("$.is_verified").value(true));
+
+    var updatedSeller = (JSeller) ur.findById(testSeller.getId()).orElseThrow();
+    assertTrue(updatedSeller.getIsVerified());
+    assertTrue(updatedSeller.getUpdatedAt().isAfter(previousUpdatedAt));
+
+    mvc.perform(
+            patch("/sellers/{sellerId}/verified", testSeller.getId())
+                .param("is_verified", "false"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.is_verified").value(false));
+
+    var unverifiedSeller = (JSeller) ur.findById(testSeller.getId()).orElseThrow();
+    assertFalse(unverifiedSeller.getIsVerified());
+  }
+
+  @Test
+  void manager_role_should_also_verify_seller() throws Exception {
+    testManager.setManagerRole(ManagerRole.MANAGER);
+    ur.saveAndFlush(testManager);
+    authenticateUser(testManager.getSupabaseUserId());
+
+    mvc.perform(
+            patch("/sellers/{sellerId}/verified", testSeller.getId())
+                .param("is_verified", "true"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.is_verified").value(true));
+  }
+
+  @Test
+  void seller_should_not_verify_seller() throws Exception {
+    authenticateUser(testSeller.getSupabaseUserId());
+
+    mvc.perform(
+        patch("/sellers/{sellerId}/verified", testSeller.getId())
+                .param("is_verified", "true"))
+        .andExpect(status().isForbidden());
+
+    var unchangedSeller = (JSeller) ur.findById(testSeller.getId()).orElseThrow();
+    assertFalse(unchangedSeller.getIsVerified());
   }
 
   @Test
