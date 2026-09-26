@@ -16,6 +16,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -38,27 +39,13 @@ public class SecurityConf {
   private static final String V_3_API_DOCS_YAML = "/v3/api-docs.yaml";
   private static final String SPB_WEBHOOK = "/v1/webhooks/**";
   private static final String WEBSOCKET = "/ws/**";
-  private static final String V1_ENDPOINT = "/v1/**";
-
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
   @Bean
   public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-    return http.csrf(
-            csrf ->
-                csrf.ignoringRequestMatchers(
-                    PING_ENDPOINT,
-                    HEALTH_ENDPOINT,
-                    ACTUATOR_ENDPOINT,
-                    ROOT_ENDPOINT,
-                    DOC_ENDPOINT,
-                    DOC_ENDPOINT + ANY_SUBPATH,
-                    SWAGGER_UI_ENDPOINT,
-                    V_3_API_DOCS,
-                    V_3_API_DOCS_YAML,
-                    WEBSOCKET,
-                    V1_ENDPOINT,
-                    SPB_WEBHOOK))
+    return http.csrf(csrf -> csrf.disable())
+        .sessionManagement(
+            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .cors(cors -> cors.configurationSource(corsConfigurationSource()))
         .exceptionHandling(
             exceptions ->
