@@ -61,9 +61,8 @@ public final class BefianaSmsClient implements SmsProvider, AutoCloseable {
         || message.message().codePointCount(0, message.message().length()) > 320) {
       throw new SmsSendException(INVALID_REQUEST, null);
     }
-    log.warn("[NOTIF-PIPELINE] SMS  message number  ${}  ",message.phoneNumber());
-
     var phoneNumber = normalizePhoneNumber(message.phoneNumber());
+    log.warn("[NOTIF-PIPELINE] SMS message number {}", phoneNumber);
     final String body;
     try {
       body = mapper.writeValueAsString(Map.of("phone_number", phoneNumber, "message", message.message()));
@@ -89,6 +88,10 @@ public final class BefianaSmsClient implements SmsProvider, AutoCloseable {
     }
     int status = response.statusCode();
     if (status < 200 || status >= 300) {
+      log.error(
+          "[BEFIANA-SMS-ERROR] status={}, body={}",
+          status,
+          formatResponseBody(response.body()));
       var reason = switch (status) {
         case 400 -> INVALID_REQUEST;
         case 401 -> AUTHENTICATION;
@@ -111,13 +114,23 @@ public final class BefianaSmsClient implements SmsProvider, AutoCloseable {
     }
   }
 
+  private String formatResponseBody(String body) {
+    if (body == null || body.isBlank()) return body;
+    try {
+      return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(mapper.readTree(body));
+    } catch (JsonProcessingException e) {
+      return body;
+    }
+  }
+
   private String normalizePhoneNumber(String value) {
     if (value == null) throw new SmsSendException(INVALID_REQUEST, null);
     var phone = value.replaceAll("[\\s()\\-]", "");
     if (phone.startsWith("+261")) phone = phone.substring(4);
     else if (phone.startsWith("00261")) phone = phone.substring(5);
+    else if (phone.startsWith("261")) phone = phone.substring(3);
     if (phone.startsWith("0")) phone = phone.substring(1);
-    if (!phone.matches("[1-9][0-9]{8}")) throw new SmsSendException(INVALID_REQUEST, null);
+    if (!phone.matches("3[0-9]{8}")) throw new SmsSendException(INVALID_REQUEST, null);
     return phone;
   }
 

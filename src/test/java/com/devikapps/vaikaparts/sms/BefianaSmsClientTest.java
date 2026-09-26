@@ -41,7 +41,8 @@ class BefianaSmsClientTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"321234567", "0321234567", "+261321234567", "00261321234567", "032 12 345 67"})
+  @ValueSource(strings = {"321234567", "0321234567", "+261321234567", "00261321234567",
+      "261321234567", "032 12 345 67"})
   void sends_expected_request_and_normalizes_phone(String number) throws Exception {
     server.enqueue(new MockResponse().setBody(SUCCESS));
     var receipt = client.send(new SmsMessage(number, "Pièce disponible"));
