@@ -10,6 +10,13 @@ notifications:
     befiana:
       base-url: ${BEFIANA_SMS_BASE_URL:}
       api-key: ${BEFIANA_SMS_API_KEY:}
+contact-release:
+  rabbit:
+    retry:
+      max-attempts: ${CONTACT_RELEASE_RETRY_MAX_ATTEMPTS:3}
+      initial-interval: ${CONTACT_RELEASE_RETRY_INITIAL_INTERVAL_MS:1000}
+      multiplier: ${CONTACT_RELEASE_RETRY_MULTIPLIER:2.0}
+      max-interval: ${CONTACT_RELEASE_RETRY_MAX_INTERVAL_MS:10000}
 spring:
   jackson:
     serialization:
