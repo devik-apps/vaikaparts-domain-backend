@@ -6,8 +6,8 @@ import static com.devikapps.vaikaparts.model.classifier.PostStatus.PUBLISHED;
 import static java.util.UUID.randomUUID;
 
 import com.devikapps.vaikaparts.client.PecuniaClient;
-import com.devikapps.vaikaparts.client.PecuniaClientException;
 import com.devikapps.vaikaparts.client.PecuniaClient.PaymentResponse;
+import com.devikapps.vaikaparts.client.PecuniaClientException;
 import com.devikapps.vaikaparts.client.PecuniaUnknownOutcomeException;
 import com.devikapps.vaikaparts.config.sec.SecContextUtil;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockResponse;
@@ -93,15 +93,15 @@ public class ContactUnlockService {
       reserved =
           persistence.reserve(
               JContactUnlock.builder()
-                .unlockRequestId(randomUUID().toString())
-                .offer(offer)
-                .buyer(buyer)
-                .seller(offer.getSeller())
-                .provider(provider)
-                .status(PENDING)
-                .createdAt(now)
-                .updatedAt(now)
-                .build());
+                  .unlockRequestId(randomUUID().toString())
+                  .offer(offer)
+                  .buyer(buyer)
+                  .seller(offer.getSeller())
+                  .provider(provider)
+                  .status(PENDING)
+                  .createdAt(now)
+                  .updatedAt(now)
+                  .build());
     } catch (DataIntegrityViolationException concurrentAttempt) {
       return persistence
           .findActive(buyer.getId(), offerId)

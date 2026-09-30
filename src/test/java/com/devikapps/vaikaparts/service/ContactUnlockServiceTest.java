@@ -50,24 +50,19 @@ class ContactUnlockServiceTest {
     buyer = JResearcher.builder().id("buyer-id").supabaseUserId("supabase-id").build();
     var seller = JSeller.builder().id("seller-id").build();
     var demand = JDemand.builder().id("demand-id").researcher(buyer).build();
-    offer =
-        JOffer.builder()
-            .id("offer-id")
-            .status(PUBLISHED)
-            .seller(seller)
-            .demand(demand)
-            .build();
+    offer = JOffer.builder().id("offer-id").status(PUBLISHED).seller(seller).demand(demand).build();
     SecurityContextHolder.getContext()
-        .setAuthentication(new UsernamePasswordAuthenticationToken("supabase-id", null, java.util.List.of()));
+        .setAuthentication(
+            new UsernamePasswordAuthenticationToken("supabase-id", null, java.util.List.of()));
     service =
         new ContactUnlockService(
-            userRepository,
-            offerRepository,
-            persistence,
-            pecuniaClient,
-            new BigDecimal("5000"));
-    lenient().when(userRepository.findBySupabaseUserId("supabase-id")).thenReturn(Optional.of(buyer));
-    lenient().when(offerRepository.findByIdWithRelations("offer-id")).thenReturn(Optional.of(offer));
+            userRepository, offerRepository, persistence, pecuniaClient, new BigDecimal("5000"));
+    lenient()
+        .when(userRepository.findBySupabaseUserId("supabase-id"))
+        .thenReturn(Optional.of(buyer));
+    lenient()
+        .when(offerRepository.findByIdWithRelations("offer-id"))
+        .thenReturn(Optional.of(offer));
   }
 
   @AfterEach
@@ -160,8 +155,10 @@ class ContactUnlockServiceTest {
   @Test
   void shouldNotRegressReleasedUnlockWhenLateHttpResponseArrives() {
     var released = JContactUnlock.builder().unlockRequestId("unlock-id").status(RELEASED).build();
-    var response = payment("unlock-id", "buyer-id", "seller-id", "payment-id", "https://pay.example/1");
-    var repository = org.mockito.Mockito.mock(com.devikapps.vaikaparts.repository.ContactUnlockRepository.class);
+    var response =
+        payment("unlock-id", "buyer-id", "seller-id", "payment-id", "https://pay.example/1");
+    var repository =
+        org.mockito.Mockito.mock(com.devikapps.vaikaparts.repository.ContactUnlockRepository.class);
     when(repository.findByUnlockRequestIdForUpdate("unlock-id")).thenReturn(Optional.of(released));
     when(repository.save(released)).thenReturn(released);
 

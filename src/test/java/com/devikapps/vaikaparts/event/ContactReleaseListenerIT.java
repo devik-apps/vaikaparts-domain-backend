@@ -1,8 +1,8 @@
 package com.devikapps.vaikaparts.event;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 
 import com.devikapps.vaikaparts.event.consumer.ContactReleaseListener;
 import com.devikapps.vaikaparts.event.model.ContactReleaseRequested;
@@ -48,7 +48,9 @@ class ContactReleaseListenerIT {
 
     assertThrows(
         AmqpRejectAndDontRequeueException.class,
-        () -> listener.onMessage(new ObjectMapper().findAndRegisterModules().writeValueAsString(event)));
+        () ->
+            listener.onMessage(
+                new ObjectMapper().findAndRegisterModules().writeValueAsString(event)));
   }
 
   @Test
@@ -58,6 +60,8 @@ class ContactReleaseListenerIT {
 
     assertThrows(
         TransientDataAccessResourceException.class,
-        () -> listener.onMessage(new ObjectMapper().findAndRegisterModules().writeValueAsString(event)));
+        () ->
+            listener.onMessage(
+                new ObjectMapper().findAndRegisterModules().writeValueAsString(event)));
   }
 }

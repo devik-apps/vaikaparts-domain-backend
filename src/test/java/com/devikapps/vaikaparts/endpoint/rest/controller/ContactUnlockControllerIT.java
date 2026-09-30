@@ -42,8 +42,7 @@ class ContactUnlockControllerIT {
   void shouldInitiateVanillaPayContactUnlock() throws Exception {
     org.mockito.Mockito.when(service.initiate("offer-id", "VANILLA_PAY"))
         .thenReturn(
-            new ContactUnlockResponse(
-                "unlock-id", PENDING, "https://pay.example/checkout"));
+            new ContactUnlockResponse("unlock-id", PENDING, "https://pay.example/checkout"));
 
     mvc.perform(
             post("/v1/offers/offer-id/contact-unlocks")
@@ -67,7 +66,8 @@ class ContactUnlockControllerIT {
   @Test
   void shouldReturnCurrentSellerContactAfterRelease() throws Exception {
     org.mockito.Mockito.when(service.getSellerContact("offer-id"))
-        .thenReturn(new SellerContactResponse("Seller Updated", "+261340000099", "new@example.com"));
+        .thenReturn(
+            new SellerContactResponse("Seller Updated", "+261340000099", "new@example.com"));
 
     mvc.perform(get("/v1/offers/offer-id/contact-unlocks/me"))
         .andExpect(status().isOk())

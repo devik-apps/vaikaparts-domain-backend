@@ -76,8 +76,7 @@ class ContactReleaseServiceIT {
     assertEquals(CONTACT_UNLOCKED, request.getValue().getNotificationType());
     assertEquals("seller-id", request.getValue().getRecipientUserId());
     assertEquals("offer-id", request.getValue().getResourceId());
-    assertEquals(
-        "Alice — +261340000001 — alice@example.com", request.getValue().getMessage());
+    assertEquals("Alice — +261340000001 — alice@example.com", request.getValue().getMessage());
   }
 
   @Test
@@ -99,7 +98,8 @@ class ContactReleaseServiceIT {
 
     assertThrows(
         IllegalArgumentException.class,
-        () -> service.release(event("event-id", "payment-id", "other", "seller-id", "VANILLA_PAY")));
+        () ->
+            service.release(event("event-id", "payment-id", "other", "seller-id", "VANILLA_PAY")));
     assertThrows(
         IllegalArgumentException.class,
         () -> service.release(event("event-id", "payment-id", "buyer-id", "other", "VANILLA_PAY")));
@@ -116,7 +116,9 @@ class ContactReleaseServiceIT {
 
     assertThrows(
         IllegalStateException.class,
-        () -> service.release(event("event-id", "payment-id", "buyer-id", "seller-id", "VANILLA_PAY")));
+        () ->
+            service.release(
+                event("event-id", "payment-id", "buyer-id", "seller-id", "VANILLA_PAY")));
 
     verify(repository, never()).save(any());
   }

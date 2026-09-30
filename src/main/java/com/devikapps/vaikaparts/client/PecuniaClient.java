@@ -2,7 +2,6 @@ package com.devikapps.vaikaparts.client;
 
 import com.devikapps.vaikaparts.config.PecuniaConf;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -49,13 +48,7 @@ public class PecuniaClient implements AutoCloseable {
       String description) {
     var payload =
         new PaymentRequest(
-            amount,
-            "MGA",
-            description,
-            "PROFILE_UNLOCK",
-            unlockRequestId,
-            buyerId,
-            sellerId);
+            amount, "MGA", description, "PROFILE_UNLOCK", unlockRequestId, buyerId, sellerId);
     return exchange("/v1/payments/vanilla-pay", "POST", payload);
   }
 

@@ -18,9 +18,7 @@ public class ContactReleaseListener {
   private final ContactReleaseService service;
   private final ObjectMapper objectMapper;
 
-  @RabbitListener(
-      queues = QUEUE,
-      containerFactory = "contactReleaseListenerContainerFactory")
+  @RabbitListener(queues = QUEUE, containerFactory = "contactReleaseListenerContainerFactory")
   public void onMessage(String rawMessage) {
     final ContactReleaseRequested event;
     try {

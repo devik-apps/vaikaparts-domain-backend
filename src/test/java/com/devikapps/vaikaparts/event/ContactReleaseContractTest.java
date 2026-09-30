@@ -63,7 +63,8 @@ class ContactReleaseContractTest {
         Path.of(
             "/home/kyle/projects/devikapps/vaikaparts-pecunia/src/test/resources/contracts/contact-release-requested-v1.json");
     if (Files.exists(pecuniaFixture)) {
-      assertEquals(objectMapper.readTree(FIXTURE.toFile()), objectMapper.readTree(pecuniaFixture.toFile()));
+      assertEquals(
+          objectMapper.readTree(FIXTURE.toFile()), objectMapper.readTree(pecuniaFixture.toFile()));
     }
   }
 
@@ -85,7 +86,6 @@ class ContactReleaseContractTest {
         queue.getArguments().get("x-dead-letter-routing-key"));
     assertEquals("domain.contact-release.requested.dlq", deadLetterQueue.getName());
     assertTrue(deadLetterQueue.isDurable());
-    assertNotNull(
-        conf.contactReleaseListenerContainerFactory(mock(ConnectionFactory.class)));
+    assertNotNull(conf.contactReleaseListenerContainerFactory(mock(ConnectionFactory.class)));
   }
 }

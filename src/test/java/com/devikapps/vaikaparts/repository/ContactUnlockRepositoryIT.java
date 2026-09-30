@@ -106,7 +106,9 @@ class ContactUnlockRepositoryIT extends FacadeIT {
             unlock("unlock-id", "payment-id", "event-id", RELEASED, now));
 
     var reloaded =
-        contactUnlockRepository.findByUnlockRequestIdForUpdate(saved.getUnlockRequestId()).orElseThrow();
+        contactUnlockRepository
+            .findByUnlockRequestIdForUpdate(saved.getUnlockRequestId())
+            .orElseThrow();
 
     assertEquals("offer-id", reloaded.getOffer().getId());
     assertEquals("buyer-id", reloaded.getBuyer().getId());
@@ -145,7 +147,8 @@ class ContactUnlockRepositoryIT extends FacadeIT {
 
   @Test
   void shouldRejectDuplicatePaymentAndReleaseEventIdentifiers() {
-    contactUnlockRepository.saveAndFlush(unlock("unlock-1", "payment-id", "event-id", FAILED, null));
+    contactUnlockRepository.saveAndFlush(
+        unlock("unlock-1", "payment-id", "event-id", FAILED, null));
 
     assertThrows(
         DataIntegrityViolationException.class,

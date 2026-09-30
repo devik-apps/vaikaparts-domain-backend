@@ -21,8 +21,7 @@ public class ContactReleaseRabbitConf {
   public static final String ROUTING_KEY = "payment.contact-release.requested";
   public static final String QUEUE = "domain.contact-release.requested";
   public static final String DEAD_LETTER_EXCHANGE = "vaikaparts.events.dlx";
-  public static final String DEAD_LETTER_ROUTING_KEY =
-      "payment.contact-release.requested.dead";
+  public static final String DEAD_LETTER_ROUTING_KEY = "payment.contact-release.requested.dead";
   public static final String DEAD_LETTER_QUEUE = "domain.contact-release.requested.dlq";
 
   @Value("${contact-release.rabbit.retry.max-attempts:3}")
@@ -63,15 +62,12 @@ public class ContactReleaseRabbitConf {
   @Bean
   public Binding contactReleaseBinding(
       Queue contactReleaseQueue, DirectExchange contactReleaseExchange) {
-    return BindingBuilder.bind(contactReleaseQueue)
-        .to(contactReleaseExchange)
-        .with(ROUTING_KEY);
+    return BindingBuilder.bind(contactReleaseQueue).to(contactReleaseExchange).with(ROUTING_KEY);
   }
 
   @Bean
   public Binding contactReleaseDeadLetterBinding(
-      Queue contactReleaseDeadLetterQueue,
-      DirectExchange contactReleaseDeadLetterExchange) {
+      Queue contactReleaseDeadLetterQueue, DirectExchange contactReleaseDeadLetterExchange) {
     return BindingBuilder.bind(contactReleaseDeadLetterQueue)
         .to(contactReleaseDeadLetterExchange)
         .with(DEAD_LETTER_ROUTING_KEY);
