@@ -12,14 +12,14 @@ import com.devikapps.vaikaparts.client.invoker.ApiClient;
 import com.devikapps.vaikaparts.client.model.SupabaseDatabaseWebhook;
 import com.devikapps.vaikaparts.client.model.SupabaseDatabaseWebhook.TypeEnum;
 import com.devikapps.vaikaparts.client.model.SupabaseProfileRecord;
-import com.devikapps.vaikaparts.client.model.SupabaseProfileRecordUserMetadata;
-import com.devikapps.vaikaparts.client.model.SupabaseProfileRecordUserMetadata.UserTypeEnum;
+import com.devikapps.vaikaparts.client.model.SupabaseProfileRecordRawAppMetaData;
+import com.devikapps.vaikaparts.client.model.SupabaseProfileRecordRawAppMetaData.UserTypeEnum;
+import com.devikapps.vaikaparts.client.model.SupabaseProfileRecordRawUserMetaData;
 import com.devikapps.vaikaparts.client.model.SupabaseProfileWebhook200Response;
 import com.devikapps.vaikaparts.client.model.SupabaseProfileWebhook200Response.EventTypeEnum;
 import com.devikapps.vaikaparts.conf.FacadeIT;
 import com.devikapps.vaikaparts.config.SupabaseConf;
 import com.devikapps.vaikaparts.repository.UserRepository;
-import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -120,8 +120,8 @@ class WebhookClientIT extends FacadeIT {
     var profileId = randomUUID();
     var now = now();
 
-    SupabaseProfileRecordUserMetadata metadata =
-        new SupabaseProfileRecordUserMetadata().userType(userType);
+    SupabaseProfileRecordRawAppMetaData appMetadata =
+        new SupabaseProfileRecordRawAppMetaData().userType(userType);
 
     SupabaseProfileRecord record =
         new SupabaseProfileRecord()
@@ -130,8 +130,8 @@ class WebhookClientIT extends FacadeIT {
                 format(
                     "test-%s-%d@example.com",
                     userType.getValue().toLowerCase(), currentTimeMillis()))
-            .userMetadata(metadata)
-            .appMetadata(Map.of())
+            .rawUserMetaData(new SupabaseProfileRecordRawUserMetaData())
+            .rawAppMetaData(appMetadata)
             .createdAt(now)
             .updatedAt(now);
 
@@ -139,8 +139,9 @@ class WebhookClientIT extends FacadeIT {
         new SupabaseProfileRecord()
             .id(randomUUID())
             .email("placeholder@example.com")
-            .userMetadata(new SupabaseProfileRecordUserMetadata().userType(UserTypeEnum.RESEARCHER))
-            .appMetadata(Map.of())
+            .rawUserMetaData(new SupabaseProfileRecordRawUserMetaData())
+            .rawAppMetaData(
+                new SupabaseProfileRecordRawAppMetaData().userType(UserTypeEnum.RESEARCHER))
             .createdAt(now)
             .updatedAt(now);
 

@@ -1,6 +1,6 @@
 package com.devikapps.vaikaparts.service;
 
-import static java.time.LocalDateTime.now;
+import static java.time.OffsetDateTime.now;
 import static java.util.UUID.randomUUID;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;

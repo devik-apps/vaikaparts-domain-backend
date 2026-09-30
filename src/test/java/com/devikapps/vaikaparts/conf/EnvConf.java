@@ -154,5 +154,6 @@ public class EnvConf {
     registry.add("supabase.url", () -> SUPABASE_URL);
     registry.add("supabase.jwt-secret", () -> SUPABASE_JWT_SECRET);
     registry.add("supabase.webhook-secret", () -> SUPABASE_WEBHOOK_SECRET);
+    registry.add("supabase.discovery-url", () -> SUPABASE_URL + "/auth/v1/.well-known/jwks.json");
   }
 }
