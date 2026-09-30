@@ -19,6 +19,8 @@ contact-release:
       max-interval: ${CONTACT_RELEASE_RETRY_MAX_INTERVAL_MS:10000}
 contact-unlock:
   price-mga: ${CONTACT_UNLOCK_PRICE_MGA:5000}
+  manual:
+    orange-money-number: ${CONTACT_UNLOCK_ORANGE_MONEY_NUMBER:}
 pecunia:
   base-url: ${PECUNIA_BASE_URL:}
   api-key: ${PECUNIA_API_KEY:}

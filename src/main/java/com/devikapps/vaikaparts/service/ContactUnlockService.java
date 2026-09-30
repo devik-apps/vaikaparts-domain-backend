@@ -1,6 +1,7 @@
 package com.devikapps.vaikaparts.service;
 
 import static com.devikapps.vaikaparts.model.classifier.ContactUnlockStatus.PENDING;
+import static com.devikapps.vaikaparts.model.classifier.ContactUnlockStatus.PENDING_MANUAL_REVIEW;
 import static com.devikapps.vaikaparts.model.classifier.ContactUnlockStatus.RELEASED;
 import static com.devikapps.vaikaparts.model.classifier.PostStatus.PUBLISHED;
 import static java.util.UUID.randomUUID;
@@ -33,13 +34,15 @@ public class ContactUnlockService {
   private final ContactUnlockPersistenceService persistence;
   private final PecuniaClient pecuniaClient;
   private final BigDecimal price;
+  private final String manualPaymentPhoneNumber;
 
   public ContactUnlockService(
       UserRepository userRepository,
       OfferRepository offerRepository,
       ContactUnlockPersistenceService persistence,
       PecuniaClient pecuniaClient,
-      @Value("${contact-unlock.price-mga}") BigDecimal price) {
+      @Value("${contact-unlock.price-mga}") BigDecimal price,
+      @Value("${contact-unlock.manual.orange-money-number:}") String manualPaymentPhoneNumber) {
     if (price == null || price.signum() <= 0) {
       throw new IllegalArgumentException("contact-unlock.price-mga must be positive");
     }
@@ -48,11 +51,16 @@ public class ContactUnlockService {
     this.persistence = persistence;
     this.pecuniaClient = pecuniaClient;
     this.price = price;
+    this.manualPaymentPhoneNumber = manualPaymentPhoneNumber;
   }
 
   public ContactUnlockResponse initiate(String offerId, String provider) {
-    if (!"VANILLA_PAY".equals(provider)) {
-      throw new IllegalArgumentException("Only VANILLA_PAY is supported");
+    if (!"VANILLA_PAY".equals(provider) && !"MANUAL_ORANGE_MONEY".equals(provider)) {
+      throw new IllegalArgumentException("Unsupported contact unlock provider");
+    }
+    if ("MANUAL_ORANGE_MONEY".equals(provider)
+        && (manualPaymentPhoneNumber == null || manualPaymentPhoneNumber.isBlank())) {
+      throw new IllegalStateException("Manual Orange Money number is not configured");
     }
     var user =
         userRepository
@@ -98,7 +106,7 @@ public class ContactUnlockService {
                   .buyer(buyer)
                   .seller(offer.getSeller())
                   .provider(provider)
-                  .status(PENDING)
+                  .status("MANUAL_ORANGE_MONEY".equals(provider) ? PENDING_MANUAL_REVIEW : PENDING)
                   .createdAt(now)
                   .updatedAt(now)
                   .build());
@@ -107,6 +115,9 @@ public class ContactUnlockService {
           .findActive(buyer.getId(), offerId)
           .map(this::map)
           .orElseThrow(() -> concurrentAttempt);
+    }
+    if ("MANUAL_ORANGE_MONEY".equals(provider)) {
+      return map(reserved);
     }
     var description = "Unlock seller contact for offer " + offerId;
     PaymentResponse payment;
@@ -165,7 +176,13 @@ public class ContactUnlockService {
   }
 
   private ContactUnlockResponse map(JContactUnlock unlock) {
+    var manual = "MANUAL_ORANGE_MONEY".equals(unlock.getProvider());
     return new ContactUnlockResponse(
-        unlock.getUnlockRequestId(), unlock.getStatus(), unlock.getPaymentUrl());
+        unlock.getUnlockRequestId(),
+        unlock.getStatus(),
+        unlock.getPaymentUrl(),
+        manual ? manualPaymentPhoneNumber : null,
+        manual ? price : null,
+        manual ? "MGA" : null);
   }
 }

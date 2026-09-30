@@ -22,7 +22,7 @@ public class SellerController {
     return sellerService.getCurrentSeller();
   }
 
-  @GetMapping
+  @GetMapping("/all")
   public Page<Seller> getSellers(
       @RequestParam(name = "page", required = false) Integer page,
       @RequestParam(name = "size", required = false) Integer size) {

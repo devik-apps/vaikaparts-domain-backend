@@ -56,7 +56,12 @@ class ContactUnlockServiceTest {
             new UsernamePasswordAuthenticationToken("supabase-id", null, java.util.List.of()));
     service =
         new ContactUnlockService(
-            userRepository, offerRepository, persistence, pecuniaClient, new BigDecimal("5000"));
+            userRepository,
+            offerRepository,
+            persistence,
+            pecuniaClient,
+            new BigDecimal("5000"),
+            "0320000000");
     lenient()
         .when(userRepository.findBySupabaseUserId("supabase-id"))
         .thenReturn(Optional.of(buyer));
@@ -92,6 +97,22 @@ class ContactUnlockServiceTest {
     order.verify(pecuniaClient).initiate(any(), any(), any(), any(), any());
     assertEquals(PENDING, result.status());
     assertEquals("https://pay.example/1", result.paymentUrl());
+  }
+
+  @Test
+  void shouldReserveManualUnlockWithoutCallingPecunia() {
+    when(persistence.findActive("buyer-id", "offer-id")).thenReturn(Optional.empty());
+    when(persistence.reserve(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+    var result = service.initiate("offer-id", "MANUAL_ORANGE_MONEY");
+
+    assertEquals(
+        com.devikapps.vaikaparts.model.classifier.ContactUnlockStatus.PENDING_MANUAL_REVIEW,
+        result.status());
+    assertEquals("0320000000", result.paymentPhoneNumber());
+    assertEquals(new BigDecimal("5000"), result.amount());
+    assertEquals("MGA", result.currency());
+    verify(pecuniaClient, never()).initiate(any(), any(), any(), any(), any());
   }
 
   @Test

@@ -1,6 +1,7 @@
 package com.devikapps.vaikaparts.service;
 
 import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.EMAIL;
+import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.SMS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -253,6 +254,79 @@ class NotificationServiceTest {
 
     verify(inAppChannel, times(1)).send(any(Notification.class));
     verify(emailChannel, times(1)).send(any(Notification.class));
+  }
+
+  @Test
+  void shouldSendContactUnlockSmsRegardlessOfNotificationPreference() {
+    NotificationChannel smsChannel = mock(NotificationChannel.class);
+    var offer = Offer.builder().id("offer-123").build();
+    var recipient =
+        Seller.builder()
+            .id(TEST_SELLER_ID)
+            .phoneNumber("0322222222")
+            .smsNotificationsEnabled(false)
+            .userType(UserType.SELLER)
+            .build();
+    var request =
+        NotificationRequest.builder()
+            .recipientUserId(TEST_SELLER_ID)
+            .resourceId("offer-123")
+            .notificationType(NotificationType.CONTACT_UNLOCKED)
+            .message("Buyer — 0321111111 — buyer@example.com")
+            .build();
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    when(smsChannel.isEnabled()).thenReturn(true);
+    when(smsChannel.getChannelType()).thenReturn(SMS);
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(Optional.of(JSeller.builder().userType(UserType.SELLER).build()));
+    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(recipient);
+    when(offerService.getOfferByIdWithoutAuthFilter("offer-123")).thenReturn(offer);
+    notificationService =
+        new NotificationService(
+            List.of(inAppChannel, smsChannel),
+            userRepository,
+            sellerMapper,
+            researcherMapper,
+            managerMapper,
+            demandService,
+            offerService,
+            demandPublishedNotificationRepository,
+            paginator,
+            userService,
+            notificationMapper,
+            messageResolver);
+
+    notificationService.createAndSendNotification(request);
+
+    verify(smsChannel).send(any(Notification.class));
+  }
+
+  @Test
+  void shouldAllowContactUnlockNotificationForResearcher() {
+    var request =
+        NotificationRequest.builder()
+            .recipientUserId("researcher")
+            .resourceId("offer-123")
+            .notificationType(NotificationType.CONTACT_UNLOCKED)
+            .message("Seller — 0322222222 — seller@example.com")
+            .build();
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    when(userRepository.findJUserById("researcher"))
+        .thenReturn(Optional.of(JResearcher.builder().userType(UserType.RESEARCHER).build()));
+    when(researcherMapper.toResearcher(any(JResearcher.class)))
+        .thenReturn(
+            Researcher.builder()
+                .id("researcher")
+                .phoneNumber("0321111111")
+                .userType(UserType.RESEARCHER)
+                .build());
+    when(offerService.getOfferByIdWithoutAuthFilter("offer-123"))
+        .thenReturn(Offer.builder().id("offer-123").build());
+
+    var notification = notificationService.createAndSendNotification(request);
+
+    assertEquals("researcher", notification.getRecipient().getId());
+    assertEquals(NotificationType.CONTACT_UNLOCKED, notification.getNotificationType());
   }
 
   @Test

@@ -537,7 +537,7 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServer'
-  /sellers:
+  /sellers/all:
     get:
       operationId: getSellers
       tags: [Sellers]
@@ -1093,6 +1093,80 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServer'
+  /v1/admin/contact-unlocks:
+    get:
+      operationId: listPendingManualContactUnlocks
+      tags: [Admin]
+      summary: List manual Orange Money payments awaiting review
+      responses:
+        200:
+          description: Pending manual contact unlocks.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ManualContactUnlockAdminResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/contact-unlocks/{unlockRequestId}/confirm:
+    post:
+      operationId: confirmManualContactUnlock
+      tags: [Admin]
+      summary: Confirm a manually verified Orange Money transfer
+      parameters:
+        - name: unlockRequestId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualContactUnlockReviewRequest'
+      responses:
+        200:
+          description: Contacts released.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactUnlockResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/contact-unlocks/{unlockRequestId}/reject:
+    post:
+      operationId: rejectManualContactUnlock
+      tags: [Admin]
+      summary: Reject an unverified manual Orange Money transfer
+      parameters:
+        - name: unlockRequestId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualContactUnlockReviewRequest'
+      responses:
+        200:
+          description: Manual request rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactUnlockResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
   /v1/offers/demand/{demandId}:
     get:
       operationId: getOffersByDemandId
@@ -1340,7 +1414,7 @@ components:
       description: Physical condition of automotive part
     NotificationType:
       type: string
-      enum: [DEMAND_PUBLISHED, OFFER_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED, DEMAND_CANCELED, SYSTEM_ANNOUNCEMENT]
+      enum: [DEMAND_PUBLISHED, OFFER_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED, DEMAND_CANCELED, CONTACT_UNLOCKED, SYSTEM_ANNOUNCEMENT]
       description: Notification event type
     NotificationChannel:
       type: string
@@ -1814,7 +1888,7 @@ components:
       properties:
         provider:
           type: string
-          enum: [VANILLA_PAY]
+          enum: [VANILLA_PAY, MANUAL_ORANGE_MONEY]
     ContactUnlockResponse:
       type: object
       required: [unlock_request_id, status]
@@ -1823,11 +1897,50 @@ components:
           type: string
         status:
           type: string
-          enum: [PENDING, RELEASED, FAILED, EXPIRED]
+          enum: [PENDING, PENDING_MANUAL_REVIEW, RELEASED, FAILED, EXPIRED]
         payment_url:
           type: string
           format: uri
           nullable: true
+        payment_phone_number:
+          type: string
+          nullable: true
+        amount:
+          type: number
+          nullable: true
+        currency:
+          type: string
+          nullable: true
+    ManualContactUnlockReviewRequest:
+      type: object
+      properties:
+        payment_reference:
+          type: string
+          maxLength: 255
+        review_note:
+          type: string
+          maxLength: 1000
+    ManualContactUnlockAdminResponse:
+      type: object
+      required: [unlock_request_id, offer_id, buyer_id, buyer_name, buyer_phone_number, seller_id, status, created_at]
+      properties:
+        unlock_request_id:
+          type: string
+        offer_id:
+          type: string
+        buyer_id:
+          type: string
+        buyer_name:
+          type: string
+        buyer_phone_number:
+          type: string
+        seller_id:
+          type: string
+        status:
+          type: string
+          enum: [PENDING_MANUAL_REVIEW]
+        created_at:
+          $ref: '#/components/schemas/DateTime'
     SellerContactResponse:
       type: object
       required: [name, phone_number, email]

@@ -69,6 +69,18 @@ public class JContactUnlock {
   @Column(name = "released_at")
   private OffsetDateTime releasedAt;
 
+  @Column(name = "reviewed_by")
+  private String reviewedBy;
+
+  @Column(name = "reviewed_at")
+  private OffsetDateTime reviewedAt;
+
+  @Column(name = "review_note", columnDefinition = "TEXT")
+  private String reviewNote;
+
+  @Column(name = "manual_payment_reference")
+  private String manualPaymentReference;
+
   @Column(name = "created_at", nullable = false)
   private OffsetDateTime createdAt;
 

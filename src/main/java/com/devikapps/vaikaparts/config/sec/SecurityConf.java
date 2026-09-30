@@ -38,8 +38,11 @@ public class SecurityConf {
   private static final String V_3_API_DOCS = "/v3/api-docs/**";
   private static final String V_3_API_DOCS_YAML = "/v3/api-docs.yaml";
   private static final String SPB_WEBHOOK = "/v1/webhooks/**";
+  private static final String SELLER_USER_ENDPOINT = "/v1/sellers/all";
+  private static final String CONTACT_UNLOCK_ADMIN_ENDPOINT = "/v1/admin/contact-unlocks/**";
   private static final String WEBSOCKET = "/ws/**";
   private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
 
   @Bean
   public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -74,6 +77,8 @@ public class SecurityConf {
                     .permitAll()
                     .requestMatchers(WEBSOCKET)
                     .permitAll()
+                    .requestMatchers(SELLER_USER_ENDPOINT, CONTACT_UNLOCK_ADMIN_ENDPOINT)
+                    .hasRole("MANAGER")
                     .anyRequest()
                     .authenticated())
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

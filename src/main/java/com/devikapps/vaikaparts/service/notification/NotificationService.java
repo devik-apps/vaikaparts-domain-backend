@@ -233,7 +233,9 @@ public class NotificationService {
         switch (channel.getChannelType()) {
           case IN_APP -> true;
           case EMAIL -> recipient.isEmailNotificationsEnabled();
-          case SMS -> recipient.isSmsNotificationsEnabled();
+          case SMS ->
+              notification.getNotificationType() == NotificationType.CONTACT_UNLOCKED
+                  || recipient.isSmsNotificationsEnabled();
         };
     String address =
         switch (channel.getChannelType()) {
@@ -313,8 +315,10 @@ public class NotificationService {
         switch (notificationType) {
           case SYSTEM_ANNOUNCEMENT, DEMAND_CANCELED -> true;
           case OFFER_PUBLISHED -> recipientUserType == UserType.RESEARCHER;
-          case DEMAND_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED, CONTACT_UNLOCKED ->
+          case DEMAND_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED ->
               recipientUserType == UserType.SELLER || recipientUserType == UserType.MANAGER;
+          case CONTACT_UNLOCKED ->
+              recipientUserType == UserType.SELLER || recipientUserType == UserType.RESEARCHER;
         };
 
     if (!supported) {

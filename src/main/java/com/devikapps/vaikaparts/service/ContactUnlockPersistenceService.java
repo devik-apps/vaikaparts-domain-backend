@@ -1,6 +1,7 @@
 package com.devikapps.vaikaparts.service;
 
 import static com.devikapps.vaikaparts.model.classifier.ContactUnlockStatus.PENDING;
+import static com.devikapps.vaikaparts.model.classifier.ContactUnlockStatus.PENDING_MANUAL_REVIEW;
 import static com.devikapps.vaikaparts.model.classifier.ContactUnlockStatus.RELEASED;
 
 import com.devikapps.vaikaparts.client.PecuniaClient.PaymentResponse;
@@ -22,7 +23,7 @@ public class ContactUnlockPersistenceService {
   @Transactional(readOnly = true)
   public Optional<JContactUnlock> findActive(String buyerId, String offerId) {
     return repository.findByBuyerIdAndOfferIdAndStatusIn(
-        buyerId, offerId, List.of(PENDING, RELEASED));
+        buyerId, offerId, List.of(PENDING, PENDING_MANUAL_REVIEW, RELEASED));
   }
 
   @Transactional
