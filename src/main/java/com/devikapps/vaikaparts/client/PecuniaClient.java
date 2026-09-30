@@ -12,6 +12,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -23,6 +24,7 @@ public class PecuniaClient implements AutoCloseable {
   private final ObjectMapper objectMapper;
   private final HttpClient httpClient;
 
+  @Autowired
   public PecuniaClient(PecuniaConf conf, ObjectMapper objectMapper) {
     this(
         conf,

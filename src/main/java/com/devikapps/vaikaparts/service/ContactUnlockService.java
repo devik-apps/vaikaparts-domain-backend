@@ -1,6 +1,7 @@
 package com.devikapps.vaikaparts.service;
 
 import static com.devikapps.vaikaparts.model.classifier.ContactUnlockStatus.PENDING;
+import static com.devikapps.vaikaparts.model.classifier.ContactUnlockStatus.RELEASED;
 import static com.devikapps.vaikaparts.model.classifier.PostStatus.PUBLISHED;
 import static java.util.UUID.randomUUID;
 
@@ -10,16 +11,19 @@ import com.devikapps.vaikaparts.client.PecuniaClient.PaymentResponse;
 import com.devikapps.vaikaparts.client.PecuniaUnknownOutcomeException;
 import com.devikapps.vaikaparts.config.sec.SecContextUtil;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockResponse;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.SellerContactResponse;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.model.exchange.JContactUnlock;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
+import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ContactUnlockService {
@@ -118,6 +122,30 @@ public class ContactUnlockService {
       payment = pecuniaClient.findByUnlockRequestId(reserved.getUnlockRequestId());
     }
     return attachAndMap(reserved, payment, buyer.getId(), offer.getSeller().getId());
+  }
+
+  @Transactional(readOnly = true)
+  public SellerContactResponse getSellerContact(String offerId) {
+    var user =
+        userRepository
+            .findBySupabaseUserId(SecContextUtil.getCurrentUserId())
+            .orElseThrow(() -> new ResourceNotFoundException("Authenticated user was not found"));
+    if (!(user instanceof JResearcher buyer)) {
+      throw new ResourceNotFoundException("Released contact unlock not found");
+    }
+    var unlock =
+        persistence
+            .findActive(buyer.getId(), offerId)
+            .filter(candidate -> candidate.getStatus() == RELEASED)
+            .orElseThrow(() -> new ResourceNotFoundException("Released contact unlock not found"));
+    var sellerUser =
+        userRepository
+            .findJUserById(unlock.getSeller().getId())
+            .orElseThrow(() -> new ResourceNotFoundException("Seller not found"));
+    if (!(sellerUser instanceof JSeller seller)) {
+      throw new ResourceNotFoundException("Seller not found");
+    }
+    return new SellerContactResponse(seller.getName(), seller.getPhoneNumber(), seller.getEmail());
   }
 
   private ContactUnlockResponse attachAndMap(

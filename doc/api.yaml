@@ -1069,6 +1069,30 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServer'
+  /v1/offers/{offerId}/contact-unlocks/me:
+    get:
+      operationId: getUnlockedSellerContact
+      tags: [Offers]
+      summary: Retrieve the seller contact unlocked by the current buyer
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Current seller contact details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerContactResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/offers/demand/{demandId}:
     get:
       operationId: getOffersByDemandId
@@ -1804,6 +1828,17 @@ components:
           type: string
           format: uri
           nullable: true
+    SellerContactResponse:
+      type: object
+      required: [name, phone_number, email]
+      properties:
+        name:
+          type: string
+        phone_number:
+          type: string
+        email:
+          type: string
+          format: email
     PartInfo:
       type: object
       description: Information about the part offered by the seller, including pricing and condition.
