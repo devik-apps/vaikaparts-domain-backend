@@ -25,6 +25,10 @@ public class DemandPublishedNotificationRequested extends InfraEvent {
   private final String sellerId;
   private final String demandId;
 
+  // Offer notifications use these fields instead of sellerId.
+  private final String offerId;
+  private final String researcherId;
+
   @Override
   public Duration maxConsumerDuration() {
     return MAX_CONSUMER_DURATION;

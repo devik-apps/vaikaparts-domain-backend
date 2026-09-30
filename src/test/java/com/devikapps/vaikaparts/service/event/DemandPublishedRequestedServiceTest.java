@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -70,6 +71,8 @@ class DemandPublishedRequestedServiceTest {
     testJSeller2 = mock(JSeller.class);
     testSeller1 = mock(Seller.class);
     testSeller2 = mock(Seller.class);
+    lenient().when(testSeller1.getHandleAllCategory()).thenReturn(true);
+    lenient().when(testSeller2.getHandleAllCategory()).thenReturn(true);
 
     testEventLog =
         JDemandPublishedRequested.builder()

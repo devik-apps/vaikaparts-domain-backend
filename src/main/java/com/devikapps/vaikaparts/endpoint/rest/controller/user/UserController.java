@@ -1,6 +1,7 @@
 package com.devikapps.vaikaparts.endpoint.rest.controller.user;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.user.ProfilePhotoResponse;
+import com.devikapps.vaikaparts.model.classifier.UserLanguage;
 import com.devikapps.vaikaparts.model.user.User;
 import com.devikapps.vaikaparts.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -8,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -24,6 +26,11 @@ public class UserController {
   @GetMapping("/me")
   public User getCurrentUser() {
     return userService.getCurrentUserResponse();
+  }
+
+  @PatchMapping("/me/language")
+  public User updatePreferredLanguage(@RequestParam("language") UserLanguage language) {
+    return userService.updatePreferredLanguage(language);
   }
 
   @PostMapping("/me/profile-photo")

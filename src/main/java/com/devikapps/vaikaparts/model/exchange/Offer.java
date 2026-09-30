@@ -2,6 +2,7 @@ package com.devikapps.vaikaparts.model.exchange;
 
 import static java.lang.String.format;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -17,6 +18,13 @@ import lombok.experimental.SuperBuilder;
 @EqualsAndHashCode(callSuper = true)
 public class Offer extends Exchange {
   private String sellerId;
+
+  @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+  private String sellerMaskedName;
+
+  @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+  private boolean sellerVerified;
+
   private PartInfo partsInfo;
   private Demand demand;
 

@@ -1,0 +1,1 @@
+{"@type":"ContactReleaseRequested","id":"event-id","payment_id":"payment-id","unlock_request_id":"unlock-id","buyer_id":"buyer-id","seller_id":"seller-id","provider":"VANILLA_PAY","paid_at":"2026-09-30T10:15:30Z","attempt_nb":0}

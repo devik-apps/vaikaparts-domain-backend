@@ -4,6 +4,7 @@ import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.InfraGenerated;
 import com.devikapps.vaikaparts.config.EmailConf;
+import com.devikapps.vaikaparts.exception.EmailSendException;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
@@ -21,7 +22,7 @@ import org.springframework.stereotype.Component;
  * Email delivery component responsible for sending emails through JavaMailSender.
  *
  * <p>This component implements {@link Consumer} to accept {@link Email} objects and send them
- * asynchronously. It handles various email features including:
+ * synchronously. It handles various email features including:
  *
  * <ul>
  *   <li>HTML and plain text content
@@ -30,8 +31,8 @@ import org.springframework.stereotype.Component;
  *   <li>Comprehensive error logging with injection protection
  * </ul>
  *
- * <p>Failed email deliveries are logged but do not throw exceptions, making this suitable for
- * fire-and-forget email operations.
+ * <p>The legacy {@link #accept(Email)} method logs failures without throwing. Callers that need
+ * failure reporting use {@link #sendOrThrow(Email)} instead. Neither method starts an async task.
  *
  * @see Email
  * @see JavaMailSender
@@ -62,8 +63,20 @@ public class Mailer implements Consumer<Email> {
 
     try {
       send(email);
+      logSuccess(email.to());
     } catch (Exception e) {
       logError(email.to(), e);
+    }
+  }
+
+  /** Synchronous send for callers that must distinguish failure from SMTP acceptance. */
+  public void sendOrThrow(Email email) {
+    if (!isValidEmail(email)) throw new EmailSendException("A recipient email is required");
+    try {
+      email.to().validate();
+      send(email);
+    } catch (Exception e) {
+      throw new EmailSendException("Email submission failed", e);
     }
   }
 
@@ -93,7 +106,6 @@ public class Mailer implements Consumer<Email> {
     configureAttachments(helper, email);
 
     mailSender.send(message);
-    logSuccess(email.to());
   }
 
   /**

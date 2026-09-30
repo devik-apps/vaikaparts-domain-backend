@@ -3,6 +3,8 @@ package com.devikapps.vaikaparts.model.exchange;
 import static java.lang.String.format;
 
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,6 +22,11 @@ import org.jetbrains.annotations.NotNull;
 @EqualsAndHashCode
 @Getter
 @Setter
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "resourceType")
+@JsonSubTypes({
+  @JsonSubTypes.Type(value = Demand.class, name = "DEMAND"),
+  @JsonSubTypes.Type(value = Offer.class, name = "OFFER")
+})
 public abstract class Exchange {
   @NotNull private String id;
   private String description;

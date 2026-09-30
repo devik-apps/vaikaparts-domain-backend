@@ -12,6 +12,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,7 +57,7 @@ public class ProfilePhotoService {
       bucketComponent.upload(tempFile, photoKey);
 
       user.setProfileImgKey(photoKey);
-      user.setUpdatedAt(LocalDateTime.now());
+      user.setUpdatedAt(OffsetDateTime.now());
       userRepository.save(user);
 
       if (oldPhotoKey != null && !oldPhotoKey.isBlank()) deletePhotoFromBucket(oldPhotoKey);
@@ -85,7 +86,7 @@ public class ProfilePhotoService {
     deletePhotoFromBucket(photoKey);
 
     user.setProfileImgKey(null);
-    user.setUpdatedAt(LocalDateTime.now());
+    user.setUpdatedAt(OffsetDateTime.now());
     userRepository.save(user);
 
     log.info("Profile photo deleted for user: {}", forJava(user.getId()));

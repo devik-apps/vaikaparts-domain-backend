@@ -223,8 +223,8 @@ class SupabaseAuthWebhookServiceIT extends FacadeIT {
     record.put("phone_number", TEST_PHONE);
     record.put("name", name);
     record.put("profile_img_url", "");
-    record.put("user_metadata", metadata);
-    record.put("app_metadata", Map.of());
+    record.put("raw_user_meta_data", metadata);
+    record.put("raw_app_meta_data", metadata);
     record.put("created_at", "2024-01-01T00:00:00Z");
     record.put("updated_at", "2024-01-02T00:00:00Z");
     record.put("deleted_at", null);

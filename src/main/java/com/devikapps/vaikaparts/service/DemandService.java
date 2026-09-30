@@ -49,6 +49,7 @@ public class DemandService {
   private final DemandRepository demandRepository;
   private final DemandMapper demandMapper;
   private final ResearcherService researcherService;
+  private final UserService userService;
   private final OfferMapper offerMapper;
   private final OfferRepository offerRepository;
   private final Paginator paginator;
@@ -60,7 +61,7 @@ public class DemandService {
   public Demand createDemand(String description, RestPart restPart) {
     log.info("Creating new demand for authenticated researcher");
 
-    var currentResearcher = researcherService.getCurrentResearcher();
+    var currentResearcher = researcherService.getOrCreateCurrentResearcher();
     log.debug("Authenticated researcher: {}", forJava(currentResearcher.getId()));
 
     validateDemandCreation(description, restPart);
@@ -75,6 +76,24 @@ public class DemandService {
 
     log.info("Successfully created demand with id: {}", forJava(savedJDemand.getId()));
     return demandMapper.toDomain(savedJDemand);
+  }
+
+  @Transactional(readOnly = true)
+  public Page<Demand> getAllDemands(Integer page, Integer size) {
+
+    var currentSeller = userService.getCurrentSeller();
+    var sellerId = currentSeller.getId();
+    var pagination = paginator.apply(page, size);
+    var pageable =
+        PageRequest.of(
+            pagination.get(PAGE_FIELD),
+            pagination.get(SIZE_FIELD),
+            Sort.by(CREATED_AT_FIELD).descending());
+
+    log.info("Fetching demands for authenticated seller : {}", sellerId);
+
+    Page<JDemand> jDemands = demandRepository.findByStatus(PostStatus.PUBLISHED, pageable);
+    return jDemands.map(demandMapper::toDomain);
   }
 
   @Transactional(readOnly = true)
@@ -269,9 +288,17 @@ public class DemandService {
             .demandId(jDemand.getId())
             .build();
 
+    log.info(
+        "[NOTIF-PIPELINE][DEMAND] Publication requested: eventId={}, demandId={}",
+        forJava(event.getId()),
+        forJava(jDemand.getId()));
     demandPublishedRequestedProducer.accept(List.of(event));
 
-    log.info("Published DemandPublishedRequested event for demand: {}", forJava(jDemand.getId()));
+    log.info(
+        "[NOTIF-PIPELINE][DEMAND] Producer returned: eventId={}, demandId={} (not delivery"
+            + " confirmation)",
+        forJava(event.getId()),
+        forJava(jDemand.getId()));
   }
 
   @SneakyThrows

@@ -27,6 +27,7 @@ import com.devikapps.vaikaparts.repository.model.exchange.JPart;
 import com.devikapps.vaikaparts.repository.model.exchange.JPartInfo;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.Year;
@@ -65,6 +66,7 @@ class OfferServiceIT extends FacadeIT {
   @Autowired private DemandRepository demandRepository;
   @Autowired private UserRepository userRepository;
   @Autowired private ValueObjectMapper vom;
+  @Autowired private ObjectMapper objectMapper;
 
   private JSeller testSeller;
   private JDemand testDemand;
@@ -110,6 +112,20 @@ class OfferServiceIT extends FacadeIT {
     val saved = offerRepository.findByIdWithRelations(offer.getId());
     assertTrue(saved.isPresent());
     assertEquals(testDemand.getId(), saved.get().getDemand().getId());
+  }
+
+  @Test
+  void should_expose_only_masked_seller_identity_on_offer() {
+    testSeller.setIsVerified(true);
+    userRepository.saveAndFlush(testSeller);
+
+    var offer =
+        offerService.createOffer(testDemand.getId(), TEST_DESCRIPTION, buildTestRestPartInfo());
+    var payload = objectMapper.valueToTree(offer);
+
+    assertEquals("J**********", payload.get("seller_masked_name").asText());
+    assertTrue(payload.get("seller_verified").asBoolean());
+    assertFalse(payload.toString().contains(TEST_SELLER_NAME));
   }
 
   @Test

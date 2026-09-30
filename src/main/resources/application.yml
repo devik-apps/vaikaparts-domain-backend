@@ -1,5 +1,33 @@
 server:
   port: ${PORT:8080}
+vaikaparts:
+  frontend-base-url: ${VAIKAPARTS_FRONTEND_BASE_URL:https://vaikaparts.com}
+notifications:
+  email:
+    enabled: ${NOTIFICATIONS_EMAIL_ENABLED:false}
+  sms:
+    enabled: ${NOTIFICATIONS_SMS_ENABLED:false}
+    connect-timeout: ${SMS_CONNECT_TIMEOUT:5s}
+    request-timeout: ${SMS_REQUEST_TIMEOUT:10s}
+    befiana:
+      base-url: ${BEFIANA_SMS_BASE_URL:}
+      api-key: ${BEFIANA_SMS_API_KEY:}
+contact-release:
+  rabbit:
+    retry:
+      max-attempts: ${CONTACT_RELEASE_RETRY_MAX_ATTEMPTS:3}
+      initial-interval: ${CONTACT_RELEASE_RETRY_INITIAL_INTERVAL_MS:1000}
+      multiplier: ${CONTACT_RELEASE_RETRY_MULTIPLIER:2.0}
+      max-interval: ${CONTACT_RELEASE_RETRY_MAX_INTERVAL_MS:10000}
+contact-unlock:
+  price-mga: ${CONTACT_UNLOCK_PRICE_MGA:5000}
+  manual:
+    orange-money-number: ${CONTACT_UNLOCK_ORANGE_MONEY_NUMBER:}
+pecunia:
+  base-url: ${PECUNIA_BASE_URL:}
+  api-key: ${PECUNIA_API_KEY:}
+  connect-timeout: ${PECUNIA_CONNECT_TIMEOUT:5s}
+  request-timeout: ${PECUNIA_REQUEST_TIMEOUT:10s}
 spring:
   jackson:
     serialization:

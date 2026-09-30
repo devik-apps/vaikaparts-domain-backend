@@ -102,7 +102,7 @@ class OfferControllerIT extends FacadeIT {
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.id").isNotEmpty())
         .andExpect(jsonPath("$.description").value(TEST_DESCRIPTION))
-        .andExpect(jsonPath("$.status").value(PostStatus.DRAFT.name()))
+        .andExpect(jsonPath("$.status").value(PostStatus.PUBLISHED.name()))
         .andExpect(jsonPath("$.seller_id").value(TEST_SELLER_ID))
         .andExpect(jsonPath("$.demand.id").value(testDemand.getId()))
         .andExpect(jsonPath("$.parts_info.part.name").value(TEST_PART_NAME))

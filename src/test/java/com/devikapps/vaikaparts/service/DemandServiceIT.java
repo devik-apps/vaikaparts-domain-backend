@@ -631,7 +631,7 @@ class DemandServiceIT extends FacadeIT {
     assertEquals(3, notifications.size());
 
     val notifiedSellerIds =
-        notifications.stream().map(n -> n.getSeller().getId()).collect(Collectors.toSet());
+        notifications.stream().map(n -> n.getRecipient().getId()).collect(Collectors.toSet());
     assertTrue(notifiedSellerIds.contains(seller1.getId()));
     assertTrue(notifiedSellerIds.contains(seller2.getId()));
     assertTrue(notifiedSellerIds.contains(seller3.getId()));
