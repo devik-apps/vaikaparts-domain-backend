@@ -1037,6 +1037,38 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServer'
+  /v1/offers/{offerId}/contact-unlocks:
+    post:
+      operationId: initiateContactUnlock
+      tags: [Offers]
+      summary: Initiate a paid seller-contact unlock
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactUnlockRequest'
+      responses:
+        201:
+          description: Payment initiation reserved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactUnlockResponse'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/offers/demand/{demandId}:
     get:
       operationId: getOffersByDemandId
@@ -1752,6 +1784,26 @@ components:
           $ref: '#/components/schemas/DateTime'
         suspended_at:
           $ref: '#/components/schemas/DateTime'
+    ContactUnlockRequest:
+      type: object
+      required: [provider]
+      properties:
+        provider:
+          type: string
+          enum: [VANILLA_PAY]
+    ContactUnlockResponse:
+      type: object
+      required: [unlock_request_id, status]
+      properties:
+        unlock_request_id:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, RELEASED, FAILED, EXPIRED]
+        payment_url:
+          type: string
+          format: uri
+          nullable: true
     PartInfo:
       type: object
       description: Information about the part offered by the seller, including pricing and condition.

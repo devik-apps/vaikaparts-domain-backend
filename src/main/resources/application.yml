@@ -17,6 +17,13 @@ contact-release:
       initial-interval: ${CONTACT_RELEASE_RETRY_INITIAL_INTERVAL_MS:1000}
       multiplier: ${CONTACT_RELEASE_RETRY_MULTIPLIER:2.0}
       max-interval: ${CONTACT_RELEASE_RETRY_MAX_INTERVAL_MS:10000}
+contact-unlock:
+  price-mga: ${CONTACT_UNLOCK_PRICE_MGA:5000}
+pecunia:
+  base-url: ${PECUNIA_BASE_URL:}
+  api-key: ${PECUNIA_API_KEY:}
+  connect-timeout: ${PECUNIA_CONNECT_TIMEOUT:5s}
+  request-timeout: ${PECUNIA_REQUEST_TIMEOUT:10s}
 spring:
   jackson:
     serialization:
