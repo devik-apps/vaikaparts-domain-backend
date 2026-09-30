@@ -6,10 +6,30 @@ import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.classifier.UserLanguage;
 import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.exchange.Exchange;
+import com.devikapps.vaikaparts.model.exchange.Offer;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
 public class NotificationMessageResolver {
+
+  private static final String DEFAULT_FRONTEND_BASE_URL = "https://vaikaparts.com";
+  private final String frontendBaseUrl;
+
+  public NotificationMessageResolver() {
+    this(DEFAULT_FRONTEND_BASE_URL);
+  }
+
+  @Autowired
+  public NotificationMessageResolver(
+      @Value("${vaikaparts.frontend-base-url:https://vaikaparts.com}") String frontendBaseUrl) {
+    var configuredUrl =
+        frontendBaseUrl == null || frontendBaseUrl.isBlank()
+            ? DEFAULT_FRONTEND_BASE_URL
+            : frontendBaseUrl.trim();
+    this.frontendBaseUrl = configuredUrl.replaceFirst("/+$", "");
+  }
 
   public String resolve(
       NotificationType type, UserLanguage language, Exchange resource, String fallbackMessage) {
@@ -24,12 +44,7 @@ public class NotificationMessageResolver {
               "Votre demande a été annulée",
               "Nofoanana ny fangatahanao",
               "Your request has been canceled");
-      case OFFER_PUBLISHED ->
-          translate(
-              resolvedLanguage,
-              "Nouvelle offre reçue pour votre demande",
-              "Tolotra vaovao voaray ho an'ny fangatahanao",
-              "New offer received for your request");
+      case OFFER_PUBLISHED -> offerPublished(resolvedLanguage, resource);
       case OFFER_ACCEPTED ->
           translate(
               resolvedLanguage,
@@ -45,6 +60,19 @@ public class NotificationMessageResolver {
       case CONTACT_UNLOCKED -> fallbackMessage;
       case SYSTEM_ANNOUNCEMENT -> fallbackMessage;
     };
+  }
+
+  private String offerPublished(UserLanguage language, Exchange resource) {
+    var message =
+        translate(
+            language,
+            "Nouvelle offre reçue pour votre demande",
+            "Tolotra vaovao voaray ho an'ny fangatahanao",
+            "New offer received for your request");
+    if (!(resource instanceof Offer offer) || offer.getId() == null || offer.getId().isBlank()) {
+      return message;
+    }
+    return format("%s.%n%s/o/%s", message, frontendBaseUrl, offer.getId());
   }
 
   private String demandPublished(UserLanguage language, Exchange resource, String fallbackMessage) {
