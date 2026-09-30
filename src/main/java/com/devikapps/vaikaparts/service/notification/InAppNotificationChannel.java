@@ -17,6 +17,8 @@ import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Component
@@ -40,7 +42,7 @@ public class InAppNotificationChannel implements NotificationChannel {
 
     try {
       saveNotificationToDatabase(notification);
-      sendViaWebSocket(notification);
+      sendViaWebSocketAfterCommit(notification);
 
       log.info(
           "[NOTIF-PIPELINE][IN_APP] Successfully sent in-app notification: {}",
@@ -122,6 +124,20 @@ public class InAppNotificationChannel implements NotificationChannel {
           forJava(notification.getRecipient().getId()),
           notification.getRecipient().getUserType(),
           e);
+    }
+  }
+
+  private void sendViaWebSocketAfterCommit(Notification notification) {
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+      TransactionSynchronizationManager.registerSynchronization(
+          new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+              sendViaWebSocket(notification);
+            }
+          });
+    } else {
+      sendViaWebSocket(notification);
     }
   }
 }

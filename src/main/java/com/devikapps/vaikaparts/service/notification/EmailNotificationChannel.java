@@ -77,6 +77,7 @@ public class EmailNotificationChannel implements NotificationChannel {
                 case OFFER_PUBLISHED -> "Nouvelle offre reçue";
                 case OFFER_ACCEPTED -> "Offre acceptée";
                 case OFFER_REJECTED -> "Offre refusée";
+                case CONTACT_UNLOCKED -> "Coordonnées acheteur disponibles";
                 case SYSTEM_ANNOUNCEMENT -> "Information";
               };
           case MG ->
@@ -86,6 +87,7 @@ public class EmailNotificationChannel implements NotificationChannel {
                 case OFFER_PUBLISHED -> "Tolotra vaovao voaray";
                 case OFFER_ACCEPTED -> "Nekena ny tolotra";
                 case OFFER_REJECTED -> "Nolavina ny tolotra";
+                case CONTACT_UNLOCKED -> "Azo jerena ny mombamomba ny mpividy";
                 case SYSTEM_ANNOUNCEMENT -> "Fampahafantarana";
               };
           case EN ->
@@ -95,6 +97,7 @@ public class EmailNotificationChannel implements NotificationChannel {
                 case OFFER_PUBLISHED -> "New offer received";
                 case OFFER_ACCEPTED -> "Offer accepted";
                 case OFFER_REJECTED -> "Offer rejected";
+                case CONTACT_UNLOCKED -> "Buyer contact details available";
                 case SYSTEM_ANNOUNCEMENT -> "Information";
               };
         };

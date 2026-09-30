@@ -301,7 +301,7 @@ public class NotificationService {
     return switch (notificationType) {
       case DEMAND_PUBLISHED, DEMAND_CANCELED ->
           demandService.getDemandByIdWithoutAuthFilter(requireResourceId(request));
-      case OFFER_ACCEPTED, OFFER_REJECTED, OFFER_PUBLISHED ->
+      case OFFER_ACCEPTED, OFFER_REJECTED, OFFER_PUBLISHED, CONTACT_UNLOCKED ->
           offerService.getOfferByIdWithoutAuthFilter(requireResourceId(request));
       case SYSTEM_ANNOUNCEMENT -> null;
     };
@@ -313,7 +313,7 @@ public class NotificationService {
         switch (notificationType) {
           case SYSTEM_ANNOUNCEMENT, DEMAND_CANCELED -> true;
           case OFFER_PUBLISHED -> recipientUserType == UserType.RESEARCHER;
-          case DEMAND_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED ->
+          case DEMAND_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED, CONTACT_UNLOCKED ->
               recipientUserType == UserType.SELLER || recipientUserType == UserType.MANAGER;
         };
 

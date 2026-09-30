@@ -42,6 +42,7 @@ public class NotificationMessageResolver {
               "Votre offre a été refusée",
               "Nolavina ny tolotrao",
               "Your offer has been rejected");
+      case CONTACT_UNLOCKED -> fallbackMessage;
       case SYSTEM_ANNOUNCEMENT -> fallbackMessage;
     };
   }
