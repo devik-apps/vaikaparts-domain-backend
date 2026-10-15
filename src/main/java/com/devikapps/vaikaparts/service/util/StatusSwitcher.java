@@ -24,7 +24,10 @@ public final class StatusSwitcher {
         entity.setCanceledAt(null);
         entity.setSuspendedAt(null);
       }
-      default ->
+      case CLOSED, SATISFIED -> {
+        // These statuses have no dedicated timestamp on status-aware entities.
+      }
+      case DRAFT, PENDING ->
           throw new IllegalArgumentException(format("Unsupported PostStatus: %s", newStatus));
     }
   }

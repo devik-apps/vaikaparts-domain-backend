@@ -17,4 +17,7 @@ public class SupabaseConf {
 
   @Value("${supabase.webhook-secret}")
   private String webhookSecret;
+
+  @Value("${supabase.discovery-url}")
+  private String discoveryUrl;
 }

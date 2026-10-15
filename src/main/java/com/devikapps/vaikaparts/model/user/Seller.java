@@ -4,7 +4,12 @@ import static java.lang.String.format;
 
 import com.devikapps.vaikaparts.model.LatLon;
 import com.devikapps.vaikaparts.model.Location;
+import com.devikapps.vaikaparts.model.classifier.Arrondissement;
+import com.devikapps.vaikaparts.model.classifier.PartCategory;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,6 +26,11 @@ public final class Seller extends User {
   private String garageName;
   private Location location;
   private LatLon latLon;
+  @Builder.Default private List<PartCategory> categoryList = new ArrayList<>();
+  @Builder.Default private Boolean handleAllCategory = true;
+  @Builder.Default private Boolean isDeliverying = false;
+  @Builder.Default private Boolean isVerified = false;
+  private Arrondissement arrondissement;
 
   @Override
   public String toString() {
@@ -39,7 +49,12 @@ public final class Seller extends User {
          \tupdatedAt=%s,
          \tgarageName=%s,
          \tlocation=%s,
-         \tlatLon=%s
+         \tlatLon=%s,
+         \tarrondissement=%s,
+         \tcategoryList=%s,
+         \thandleAllCategory=%s,
+         \tisDeliverying=%s,
+         \tisVerified=%s
         }\
         """,
         getId(),
@@ -54,6 +69,11 @@ public final class Seller extends User {
         getUpdatedAt(),
         garageName,
         location,
-        latLon);
+        latLon,
+        arrondissement,
+        categoryList,
+        handleAllCategory,
+        isDeliverying,
+        isVerified);
   }
 }

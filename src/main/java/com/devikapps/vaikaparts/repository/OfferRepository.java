@@ -2,6 +2,7 @@ package com.devikapps.vaikaparts.repository;
 
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -56,6 +57,15 @@ public interface OfferRepository extends JpaRepository<JOffer, String> {
       WHERE o.demand.id = :demandId
       """)
   Page<JOffer> findByDemandId(@Param("demandId") String demandId, Pageable pageable);
+
+  @Query(
+      """
+      SELECT o FROM JOffer o
+      JOIN FETCH o.seller
+      WHERE o.demand.id = :demandId AND o.status = :status
+      """)
+  List<JOffer> findByDemandIdAndStatus(
+      @Param("demandId") String demandId, @Param("status") PostStatus status);
 
   boolean existsByDemandIdAndSellerId(String demandId, String sellerId);
 }

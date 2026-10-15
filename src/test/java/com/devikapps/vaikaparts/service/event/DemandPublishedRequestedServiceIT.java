@@ -1,6 +1,7 @@
 package com.devikapps.vaikaparts.service.event;
 
 import static java.util.UUID.randomUUID;
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -28,8 +29,10 @@ import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.jupiter.api.AfterEach;
@@ -74,6 +77,33 @@ class DemandPublishedRequestedServiceIT extends FacadeIT {
     demandPublishedRequestedRepository.deleteAll();
     demandRepository.deleteAll();
     userRepository.deleteAll();
+  }
+
+  @Test
+  void should_filter_using_persisted_seller_categories() {
+    testSeller1.setHandleAllCategory(false);
+    testSeller1.setCategoryList(List.of(PartCategory.FOG_LIGHTS));
+    userRepository.save(testSeller1);
+    testSeller2.setHandleAllCategory(false);
+    testSeller2.setCategoryList(List.of(PartCategory.ENGINE_PART));
+    userRepository.save(testSeller2);
+
+    var event = buildTestEvent();
+    service.accept(event);
+
+    var savedLog = demandPublishedRequestedRepository.findById(event.getId()).orElseThrow();
+    assertEquals(ProcessStatus.SUCCESS, savedLog.getStatus());
+    assertEquals(1, savedLog.getTotalSellersToNotify());
+    assertEquals(1, savedLog.getNotificationsSentCount());
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .untilAsserted(
+            () -> {
+              var children = notificationRequestedRepository.findAll();
+              assertEquals(1, children.size());
+              assertEquals(testSeller1.getId(), children.getFirst().getSeller().getId());
+              assertEquals(ProcessStatus.SUCCESS, children.getFirst().getStatus());
+            });
   }
 
   @Test
