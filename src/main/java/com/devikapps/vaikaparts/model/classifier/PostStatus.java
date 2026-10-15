@@ -6,5 +6,6 @@ public enum PostStatus {
   SUSPENDED,
   PENDING,
   CANCELED,
-  CLOSED
+  CLOSED,
+  SATISFIED
 }

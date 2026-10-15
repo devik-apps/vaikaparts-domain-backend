@@ -1,6 +1,7 @@
 package com.devikapps.vaikaparts.service.notification;
 
 import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.IN_APP;
+import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.SMS;
 import static java.lang.String.format;
 import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
@@ -201,6 +202,7 @@ public class NotificationService {
     var externalChannels =
         channels.stream()
             .filter(channel -> channel.getChannelType() != IN_APP)
+            .filter(channel -> isEligibleForNotification(notification, channel))
             .filter(NotificationChannel::isEnabled)
             .filter(channel -> isRequestedByRecipient(notification, channel))
             .toList();
@@ -225,6 +227,12 @@ public class NotificationService {
           forJava(notification.getId()));
       externalChannels.forEach(channel -> sendChannel(notification, channel));
     }
+  }
+
+  private boolean isEligibleForNotification(
+      Notification notification, NotificationChannel channel) {
+    return notification.getNotificationType() != NotificationType.OFFER_REJECTED
+        || channel.getChannelType() != SMS;
   }
 
   private boolean isRequestedByRecipient(Notification notification, NotificationChannel channel) {

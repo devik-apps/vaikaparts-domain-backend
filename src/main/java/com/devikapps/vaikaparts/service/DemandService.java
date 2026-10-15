@@ -23,6 +23,7 @@ import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
+import com.devikapps.vaikaparts.service.notification.OfferOutcomeNotificationPublisher;
 import com.devikapps.vaikaparts.service.util.ImageUploader;
 import com.devikapps.vaikaparts.service.util.Paginator;
 import java.time.Duration;
@@ -56,6 +57,7 @@ public class DemandService {
   private final BucketComponent bucketComponent;
   private final ImageUploader imageUploader;
   private final EventProducer<DemandPublishedRequested> demandPublishedRequestedProducer;
+  private final OfferOutcomeNotificationPublisher offerOutcomeNotificationPublisher;
 
   @Transactional
   public Demand createDemand(String description, RestPart restPart) {
@@ -144,6 +146,42 @@ public class DemandService {
         forJava(newStatus.toString()));
 
     return demandMapper.toDomain(updatedJDemand);
+  }
+
+  @Transactional
+  public Offer updateOfferOutcome(String demandId, String offerId, PostStatus outcome) {
+    if (outcome != PostStatus.CLOSED && outcome != PostStatus.SATISFIED) {
+      throw new IllegalArgumentException("Offer outcome must be CLOSED or SATISFIED");
+    }
+
+    var currentResearcher = researcherService.getCurrentResearcher();
+    var jDemand = findDemandByIdAndResearcherForUpdate(demandId, currentResearcher.getId());
+    var jOffer = findOfferByIdAndDemand(offerId, jDemand.getId());
+
+    validateOutcomeTransition(jDemand, jOffer);
+
+    if (outcome == PostStatus.CLOSED) {
+      updateStatus(jOffer, PostStatus.CLOSED);
+      var closedOffer = offerRepository.save(jOffer);
+      offerOutcomeNotificationPublisher.publishRejectedOffers(List.of(closedOffer));
+      return offerMapper.toDomain(closedOffer);
+    }
+
+    var otherPublishedOffers =
+        offerRepository.findByDemandIdAndStatus(jDemand.getId(), PostStatus.PUBLISHED).stream()
+            .filter(offer -> !offer.getId().equals(jOffer.getId()))
+            .toList();
+    otherPublishedOffers.forEach(offer -> updateStatus(offer, PostStatus.CLOSED));
+    updateStatus(jOffer, PostStatus.SATISFIED);
+    updateStatus(jDemand, PostStatus.SATISFIED);
+
+    demandRepository.save(jDemand);
+    var selectedOffer = offerRepository.save(jOffer);
+    var newlyClosedOffers = offerRepository.saveAll(otherPublishedOffers);
+    if (!newlyClosedOffers.isEmpty()) {
+      offerOutcomeNotificationPublisher.publishRejectedOffers(newlyClosedOffers);
+    }
+    return offerMapper.toDomain(selectedOffer);
   }
 
   @Transactional(readOnly = true)
@@ -241,6 +279,44 @@ public class DemandService {
             });
   }
 
+  private JDemand findDemandByIdAndResearcherForUpdate(String demandId, String researcherId) {
+    return demandRepository
+        .findByIdForUpdate(demandId)
+        .filter(demand -> demand.getResearcher().getId().equals(researcherId))
+        .orElseThrow(
+            () -> {
+              log.error(
+                  "Demand {} not found for researcher {}",
+                  forJava(demandId),
+                  forJava(researcherId));
+              return new ResourceNotFoundException(
+                  format("Demand %s not found or access denied", demandId));
+            });
+  }
+
+  private JOffer findOfferByIdAndDemand(String offerId, String demandId) {
+    return offerRepository
+        .findByIdWithRelations(offerId)
+        .filter(offer -> offer.getDemand().getId().equals(demandId))
+        .orElseThrow(
+            () ->
+                new ResourceNotFoundException(
+                    format(
+                        "Offer %s not found for demand %s or access denied", offerId, demandId)));
+  }
+
+  private void validateOutcomeTransition(JDemand demand, JOffer offer) {
+    if (demand.getStatus() != PostStatus.PUBLISHED) {
+      throw new IllegalStateException(
+          format("Cannot resolve an offer for demand in %s status", demand.getStatus()));
+    }
+    if (offer.getStatus() != PostStatus.PUBLISHED) {
+      throw new IllegalStateException(
+          format(
+              "Offer outcome requires PUBLISHED status, current status is %s", offer.getStatus()));
+    }
+  }
+
   private void validateDemandCreation(String description, RestPart restPart) {
     if (description == null || description.isBlank()) {
       log.error("Demand description is required");
@@ -256,6 +332,12 @@ public class DemandService {
   }
 
   private void validateStatusTransition(PostStatus currentStatus, PostStatus newStatus) {
+    if (newStatus == PostStatus.SATISFIED) {
+      throw new IllegalStateException("A demand can only be satisfied through a selected offer");
+    }
+    if (newStatus == PostStatus.CLOSED) {
+      throw new IllegalStateException("CLOSED is only a valid outcome for offers");
+    }
     if (currentStatus == newStatus) {
       log.warn("Attempt to update demand to same status: {}", forJava(currentStatus.toString()));
       throw new IllegalStateException(format("Demand is already in %s status", currentStatus));
@@ -264,6 +346,10 @@ public class DemandService {
     if (currentStatus == PostStatus.CANCELED) {
       log.error("Cannot update status of canceled demand");
       throw new IllegalStateException("Cannot update status of a canceled demand");
+    }
+    if (isResolved(currentStatus)) {
+      log.error("Cannot update status of terminal demand");
+      throw new IllegalStateException("Cannot update status of a terminal demand");
     }
 
     if (currentStatus == PostStatus.SUSPENDED && newStatus != PostStatus.PUBLISHED) {
@@ -275,6 +361,10 @@ public class DemandService {
         "Status transition validated: {} -> {}",
         forJava(currentStatus.toString()),
         forJava(newStatus.toString()));
+  }
+
+  private boolean isResolved(PostStatus status) {
+    return status == PostStatus.CLOSED || status == PostStatus.SATISFIED;
   }
 
   private boolean shouldPublishNotifications(PostStatus newStatus) {

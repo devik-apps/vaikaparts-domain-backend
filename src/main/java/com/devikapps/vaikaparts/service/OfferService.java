@@ -308,6 +308,10 @@ public class OfferService {
   }
 
   private void validateStatusTransition(PostStatus current, PostStatus next) {
+    if (next == PostStatus.CLOSED || next == PostStatus.SATISFIED) {
+      throw new IllegalStateException(
+          "Only the researcher who owns the demand can resolve an offer");
+    }
     if (current == next) {
       log.warn("Attempt to update offer to same status: {}", forJava(current.toString()));
       throw new IllegalStateException(format("Offer is already in %s status", current));
@@ -316,10 +320,18 @@ public class OfferService {
       log.error("Cannot update status of canceled offer");
       throw new IllegalStateException("Cannot update status of a canceled offer");
     }
+    if (isResolved(current)) {
+      log.error("Cannot update status of terminal offer");
+      throw new IllegalStateException("Cannot update status of a terminal offer");
+    }
     if (current == PostStatus.SUSPENDED && next != PostStatus.PUBLISHED) {
       log.error("Suspended offer can only be published");
       throw new IllegalStateException("Suspended offer can only transition to PUBLISHED status");
     }
+  }
+
+  private boolean isResolved(PostStatus status) {
+    return status == PostStatus.CLOSED || status == PostStatus.SATISFIED;
   }
 
   private void applyStatusUpdate(JOffer jOffer, PostStatus newStatus) {
