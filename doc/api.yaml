@@ -783,6 +783,8 @@ paths:
       description: |
         Transitions the demand to a new lifecycle status. Only permitted
         status transitions are accepted; invalid transitions return 400.
+        A demand cannot be moved directly to `SATISFIED`: the Researcher must
+        select one of its published offers through the offer outcome endpoint.
 
         **Authorization**: Researcher role required.
       parameters:
@@ -849,6 +851,67 @@ paths:
           $ref: '#/components/responses/Forbidden'
         404:
           $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
+  /v1/demands/{demandId}/offers/{offerId}/status:
+    patch:
+      operationId: updateOfferOutcome
+      tags: [Demands, Offers]
+      summary: Record the Researcher's outcome for an offer
+      description: |
+        Applies an outcome to a published offer belonging to the authenticated
+        Researcher's demand.
+
+        Set `status=CLOSED` to decline this offer. Set `status=SATISFIED` to
+        select it and complete the demand. Selecting an offer atomically marks
+        both the demand and selected offer `SATISFIED`, and closes every other
+        still-published offer. Exactly one offer can be selected for a demand.
+        Sellers whose offers are newly closed receive an in-app notification
+        and, when enabled and opted in, an email. SMS is never used for this event.
+
+        **Authorization**: Researcher role required; the Researcher must own the demand.
+      parameters:
+        - name: demandId
+          in: path
+          required: true
+          description: Unique identifier of the Researcher's demand.
+          schema:
+            type: string
+        - name: offerId
+          in: path
+          required: true
+          description: Unique identifier of an offer submitted for this demand.
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: true
+          description: Outcome to apply. Only `CLOSED` or `SATISFIED` is accepted.
+          schema:
+            $ref: '#/components/schemas/PostStatus'
+      responses:
+        200:
+          description: Offer outcome recorded successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+        400:
+          description: Invalid outcome, source status, or completed demand.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          description: Demand or offer not found, unrelated, or not owned by the Researcher.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         500:
           $ref: '#/components/responses/InternalServer'
   /v1/demands/all:
@@ -1003,8 +1066,9 @@ paths:
       tags: [Offers]
       summary: Update the lifecycle status of an offer
       description: |
-        Transitions the offer to a new lifecycle status. Only permitted
-        status transitions are accepted; invalid transitions return 400.
+        Transitions the authenticated Seller's offer to a seller-controlled
+        lifecycle status. `CLOSED` and `SATISFIED` are Researcher outcomes and
+        are rejected on this endpoint.
 
         **Authorization**: Seller role required.
       parameters:
@@ -1711,6 +1775,8 @@ components:
         - SUSPENDED
         - PENDING
         - CANCELED
+        - CLOSED
+        - SATISFIED
       example: PUBLISHED
     Part:
       type: object

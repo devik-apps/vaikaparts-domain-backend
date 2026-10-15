@@ -313,6 +313,151 @@ class DemandServiceIT extends FacadeIT {
   }
 
   @Test
+  void should_close_published_offer_owned_through_demand() {
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+    val offer = createPersistedOffer(createTestSeller("seller-close"), demand);
+
+    val updatedOffer =
+        demandService.updateOfferOutcome(demand.getId(), offer.getId(), PostStatus.CLOSED);
+
+    assertEquals(PostStatus.CLOSED, updatedOffer.getStatus());
+    assertEquals(
+        PostStatus.CLOSED, offerRepository.findById(offer.getId()).orElseThrow().getStatus());
+    assertEquals(
+        PostStatus.PUBLISHED, demandRepository.findById(demand.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
+  void should_satisfy_published_demand_through_selected_published_offer() {
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+    val offer = createPersistedOffer(createTestSeller("seller-selected"), demand);
+
+    val updatedOffer =
+        demandService.updateOfferOutcome(demand.getId(), offer.getId(), PostStatus.SATISFIED);
+
+    assertEquals(PostStatus.SATISFIED, updatedOffer.getStatus());
+    assertEquals(
+        PostStatus.SATISFIED, offerRepository.findById(offer.getId()).orElseThrow().getStatus());
+    assertEquals(
+        PostStatus.SATISFIED, demandRepository.findById(demand.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
+  void should_reject_offer_outcome_when_researcher_does_not_own_demand() {
+    val otherDemand = createDemandForResearcher(createOtherResearcher(), PostStatus.PUBLISHED);
+    val offer = createPersistedOffer(createTestSeller("seller-other-owner"), otherDemand);
+
+    assertThrows(
+        ResourceNotFoundException.class,
+        () ->
+            demandService.updateOfferOutcome(
+                otherDemand.getId(), offer.getId(), PostStatus.CLOSED));
+
+    assertEquals(
+        PostStatus.PUBLISHED, offerRepository.findById(offer.getId()).orElseThrow().getStatus());
+    assertEquals(
+        PostStatus.PUBLISHED,
+        demandRepository.findById(otherDemand.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
+  void should_reject_offer_that_does_not_belong_to_demand() {
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+    val otherDemand = createTestDemand(PostStatus.PUBLISHED);
+    val offer = createPersistedOffer(createTestSeller("seller-other-demand"), otherDemand);
+
+    assertThrows(
+        ResourceNotFoundException.class,
+        () -> demandService.updateOfferOutcome(demand.getId(), offer.getId(), PostStatus.CLOSED));
+
+    assertEquals(
+        PostStatus.PUBLISHED, offerRepository.findById(offer.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
+  void should_reject_outcome_from_non_published_offer_without_mutation() {
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+    val offer = createPersistedOffer(createTestSeller("seller-draft"), demand, PostStatus.DRAFT);
+
+    assertThrows(
+        IllegalStateException.class,
+        () -> demandService.updateOfferOutcome(demand.getId(), offer.getId(), PostStatus.CLOSED));
+
+    assertEquals(
+        PostStatus.DRAFT, offerRepository.findById(offer.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
+  void should_reject_offer_outcome_for_non_published_demand_without_mutation() {
+    val demand = createTestDemand(PostStatus.SUSPENDED);
+    val offer = createPersistedOffer(createTestSeller("seller-suspended-demand"), demand);
+
+    assertThrows(
+        IllegalStateException.class,
+        () -> demandService.updateOfferOutcome(demand.getId(), offer.getId(), PostStatus.CLOSED));
+
+    assertEquals(
+        PostStatus.PUBLISHED, offerRepository.findById(offer.getId()).orElseThrow().getStatus());
+    assertEquals(
+        PostStatus.SUSPENDED, demandRepository.findById(demand.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
+  void should_not_leave_terminal_offer_status() {
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+    val offer =
+        createPersistedOffer(createTestSeller("seller-terminal"), demand, PostStatus.CLOSED);
+
+    assertThrows(
+        IllegalStateException.class,
+        () ->
+            demandService.updateOfferOutcome(demand.getId(), offer.getId(), PostStatus.SATISFIED));
+
+    assertEquals(
+        PostStatus.CLOSED, offerRepository.findById(offer.getId()).orElseThrow().getStatus());
+    assertEquals(
+        PostStatus.PUBLISHED, demandRepository.findById(demand.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
+  void should_require_selected_offer_to_satisfy_demand() {
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+
+    assertThrows(
+        IllegalStateException.class,
+        () -> demandService.updateDemandStatus(demand.getId(), PostStatus.SATISFIED));
+
+    assertEquals(
+        PostStatus.PUBLISHED, demandRepository.findById(demand.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
+  void should_not_leave_satisfied_demand_status() {
+    val demand = createTestDemand(PostStatus.SATISFIED);
+
+    assertThrows(
+        IllegalStateException.class,
+        () -> demandService.updateDemandStatus(demand.getId(), PostStatus.PUBLISHED));
+
+    assertEquals(
+        PostStatus.SATISFIED, demandRepository.findById(demand.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
+  void should_reject_non_outcome_status_for_researcher_offer_operation() {
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+    val offer = createPersistedOffer(createTestSeller("seller-invalid-outcome"), demand);
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            demandService.updateOfferOutcome(demand.getId(), offer.getId(), PostStatus.PUBLISHED));
+
+    assertEquals(
+        PostStatus.PUBLISHED, offerRepository.findById(offer.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
   void should_throw_exception_when_updating_to_same_status() {
     val demand = createTestDemand(PostStatus.PUBLISHED);
 
@@ -774,7 +919,11 @@ class DemandServiceIT extends FacadeIT {
     return demandRepository.save(demand);
   }
 
-  private void createPersistedOffer(JSeller seller, JDemand demand) {
+  private JOffer createPersistedOffer(JSeller seller, JDemand demand) {
+    return createPersistedOffer(seller, demand, PostStatus.PUBLISHED);
+  }
+
+  private JOffer createPersistedOffer(JSeller seller, JDemand demand, PostStatus status) {
     val partInfo =
         JPartInfo.builder()
             .id("part-info-" + currentTimeMillis())
@@ -796,12 +945,12 @@ class DemandServiceIT extends FacadeIT {
             .attachedPhotoBucketKeys(new ArrayList<>())
             .partInfo(partInfo)
             .seller(seller)
-            .status(PostStatus.PUBLISHED)
+            .status(status)
             .createdAt(LocalDateTime.now())
             .updatedAt(LocalDateTime.now())
             .build();
 
     partInfo.setOffer(offer);
-    offerRepository.save(offer);
+    return offerRepository.save(offer);
   }
 }

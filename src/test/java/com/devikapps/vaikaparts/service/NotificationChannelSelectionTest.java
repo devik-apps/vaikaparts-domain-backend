@@ -9,6 +9,7 @@ import com.devikapps.vaikaparts.mapper.NotificationMapper;
 import com.devikapps.vaikaparts.mapper.user.*;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.classifier.UserType;
+import com.devikapps.vaikaparts.model.exchange.Offer;
 import com.devikapps.vaikaparts.model.user.*;
 import com.devikapps.vaikaparts.repository.*;
 import com.devikapps.vaikaparts.repository.model.user.*;
@@ -34,6 +35,8 @@ class NotificationChannelSelectionTest {
   private final SellerMapper sellers = mock(SellerMapper.class);
   private final ResearcherMapper researchers = mock(ResearcherMapper.class);
   private final ManagerMapper managers = mock(ManagerMapper.class);
+  private final DemandService demandService = mock(DemandService.class);
+  private final OfferService offerService = mock(OfferService.class);
   private final NotificationService service =
       new NotificationService(
           List.of(email, sms, inApp),
@@ -41,8 +44,8 @@ class NotificationChannelSelectionTest {
           sellers,
           researchers,
           managers,
-          mock(DemandService.class),
-          mock(OfferService.class),
+          demandService,
+          offerService,
           mock(DemandPublishedNotificationRepository.class),
           mock(Paginator.class),
           mock(UserService.class),
@@ -98,6 +101,17 @@ class NotificationChannelSelectionTest {
         .build();
   }
 
+  private NotificationRequest rejectedOfferRequest() {
+    when(offerService.getOfferByIdWithoutAuthFilter("offer"))
+        .thenReturn(Offer.builder().id("offer").build());
+    return NotificationRequest.builder()
+        .recipientUserId("user")
+        .resourceId("offer")
+        .notificationType(NotificationType.OFFER_REJECTED)
+        .message("Votre offre n'a pas ete retenue")
+        .build();
+  }
+
   static Stream<Arguments> preferences() {
     return Stream.of(UserType.values())
         .flatMap(
@@ -105,6 +119,14 @@ class NotificationChannelSelectionTest {
                 Stream.of(
                     Arguments.of(type, false, false), Arguments.of(type, true, false),
                     Arguments.of(type, false, true), Arguments.of(type, true, true)));
+  }
+
+  static Stream<Arguments> rejectedOfferEmailCases() {
+    return Stream.of(
+        Arguments.of(true, true, "user@example.com", true),
+        Arguments.of(false, true, "user@example.com", false),
+        Arguments.of(true, false, "user@example.com", false),
+        Arguments.of(true, true, " ", false));
   }
 
   @ParameterizedTest
@@ -136,6 +158,42 @@ class NotificationChannelSelectionTest {
       TransactionSynchronizationManager.getSynchronizations()
           .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
       verify(email, never()).send(any());
+      verify(sms, never()).send(any());
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+  }
+
+  @Test
+  void rejected_offer_never_uses_sms_even_when_seller_opted_in() {
+    prepare(UserType.SELLER, true, true);
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      service.createAndSendNotification(rejectedOfferRequest());
+      TransactionSynchronizationManager.getSynchronizations()
+          .forEach(TransactionSynchronization::afterCommit);
+      verify(inApp).send(any());
+      verify(email).send(any());
+      verify(sms, never()).send(any());
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("rejectedOfferEmailCases")
+  void rejected_offer_email_respects_preference_channel_and_address(
+      boolean wantsEmail, boolean emailChannelEnabled, String emailAddress, boolean expectedEmail) {
+    var seller = prepare(UserType.SELLER, wantsEmail, true);
+    seller.setEmail(emailAddress);
+    when(email.isEnabled()).thenReturn(emailChannelEnabled);
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      service.createAndSendNotification(rejectedOfferRequest());
+      TransactionSynchronizationManager.getSynchronizations()
+          .forEach(TransactionSynchronization::afterCommit);
+      verify(inApp).send(any());
+      verify(email, times(expectedEmail ? 1 : 0)).send(any());
       verify(sms, never()).send(any());
     } finally {
       TransactionSynchronizationManager.clearSynchronization();

@@ -239,6 +239,31 @@ class DemandControllerIT extends FacadeIT {
   }
 
   @Test
+  void should_only_list_published_demands_to_seller_and_exclude_satisfied_from_totals()
+      throws Exception {
+    authenticateSeller();
+    createTestDemand(PostStatus.PUBLISHED);
+    createTestDemand(PostStatus.SATISFIED);
+    createTestDemand(PostStatus.PUBLISHED);
+
+    mockMvc
+        .perform(get(DEMANDS_ENDPOINT + "/all").param("page", "0").param("size", "1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content", hasSize(1)))
+        .andExpect(jsonPath("$.content[0].status").value(PostStatus.PUBLISHED.name()))
+        .andExpect(jsonPath("$.total_elements").value(2))
+        .andExpect(jsonPath("$.total_pages").value(2));
+
+    mockMvc
+        .perform(get(DEMANDS_ENDPOINT + "/all").param("page", "1").param("size", "1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content", hasSize(1)))
+        .andExpect(jsonPath("$.content[0].status").value(PostStatus.PUBLISHED.name()))
+        .andExpect(jsonPath("$.total_elements").value(2))
+        .andExpect(jsonPath("$.total_pages").value(2));
+  }
+
+  @Test
   void should_get_demand_by_id() throws Exception {
     authenticateUser();
     val demand = createTestDemand(PostStatus.PUBLISHED);

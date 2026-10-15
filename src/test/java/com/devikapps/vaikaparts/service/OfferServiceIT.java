@@ -282,6 +282,30 @@ class OfferServiceIT extends FacadeIT {
   }
 
   @Test
+  void should_not_allow_seller_to_close_offer() {
+    val offer = createPersistedOffer(testSeller, PostStatus.PUBLISHED);
+
+    assertThrows(
+        IllegalStateException.class,
+        () -> offerService.updateOfferStatus(offer.getId(), PostStatus.CLOSED));
+
+    assertEquals(
+        PostStatus.PUBLISHED, offerRepository.findById(offer.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
+  void should_not_allow_seller_to_satisfy_offer() {
+    val offer = createPersistedOffer(testSeller, PostStatus.PUBLISHED);
+
+    assertThrows(
+        IllegalStateException.class,
+        () -> offerService.updateOfferStatus(offer.getId(), PostStatus.SATISFIED));
+
+    assertEquals(
+        PostStatus.PUBLISHED, offerRepository.findById(offer.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
   void should_update_suspended_offer_to_published() {
     val offer = createPersistedOffer(testSeller, PostStatus.SUSPENDED);
 
@@ -308,6 +332,18 @@ class OfferServiceIT extends FacadeIT {
     assertThrows(
         IllegalStateException.class,
         () -> offerService.updateOfferStatus(offer.getId(), PostStatus.PUBLISHED));
+  }
+
+  @Test
+  void should_not_leave_satisfied_offer_status() {
+    val offer = createPersistedOffer(testSeller, PostStatus.SATISFIED);
+
+    assertThrows(
+        IllegalStateException.class,
+        () -> offerService.updateOfferStatus(offer.getId(), PostStatus.PUBLISHED));
+
+    assertEquals(
+        PostStatus.SATISFIED, offerRepository.findById(offer.getId()).orElseThrow().getStatus());
   }
 
   @Test
