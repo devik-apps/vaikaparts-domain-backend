@@ -23,6 +23,13 @@ contact-unlock:
   price-mga: ${CONTACT_UNLOCK_PRICE_MGA:5000}
   manual:
     orange-money-number: ${CONTACT_UNLOCK_ORANGE_MONEY_NUMBER:}
+outbox:
+  poll-interval: ${OUTBOX_POLL_INTERVAL:1s}
+  batch-size: ${OUTBOX_BATCH_SIZE:100}
+  confirm-timeout: ${OUTBOX_CONFIRM_TIMEOUT:5s}
+  initial-backoff: ${OUTBOX_INITIAL_BACKOFF:2s}
+  max-backoff: ${OUTBOX_MAX_BACKOFF:5m}
+  lease-duration: ${OUTBOX_LEASE_DURATION:30s}
 pecunia:
   base-url: ${PECUNIA_BASE_URL:}
   api-key: ${PECUNIA_API_KEY:}

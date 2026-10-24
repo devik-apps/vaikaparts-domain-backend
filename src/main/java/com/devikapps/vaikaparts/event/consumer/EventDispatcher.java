@@ -6,7 +6,6 @@ import java.util.function.Consumer;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeansException;
-import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.stereotype.Component;
@@ -26,9 +25,8 @@ import org.springframework.stereotype.Component;
  *   <li>Service must implement: {@code Consumer<InfraEvent>}
  * </ul>
  *
- * <p>If no matching service bean is found, a warning is logged and the event is silently dropped
- * (no exception is thrown). This allows the system to gracefully handle events for which no handler
- * has been registered.
+ * <p>If no matching service bean is found, the lookup failure propagates so the message remains
+ * eligible for broker redelivery after the handler is deployed.
  *
  * <p><b>Example handler implementation:</b>
  *
@@ -75,7 +73,7 @@ public class EventDispatcher implements Consumer<InfraEvent>, ApplicationContext
    *
    * <ul>
    *   <li>If a matching service bean is found, the event is dispatched to it
-   *   <li>If no service bean exists, a warning is logged and the event is dropped
+   *   <li>If no service bean exists, the lookup failure propagates to the listener container
    *   <li>The service must implement {@code Consumer<InfraEvent>}
    * </ul>
    *
@@ -92,16 +90,11 @@ public class EventDispatcher implements Consumer<InfraEvent>, ApplicationContext
             + eventSimpleName.substring(1)
             + EXPECTED_CONSUMER_NAME_SUFFIX;
 
-    try {
-      @SuppressWarnings("unchecked")
-      Consumer<InfraEvent> consumer =
-          (Consumer<InfraEvent>) applicationContext.getBean(serviceBeanName);
+    @SuppressWarnings("unchecked")
+    Consumer<InfraEvent> consumer =
+        (Consumer<InfraEvent>) applicationContext.getBean(serviceBeanName);
 
-      log.info("Dispatching {} to {}", eventSimpleName, serviceBeanName);
-      consumer.accept(event);
-    } catch (NoSuchBeanDefinitionException e) {
-      log.warn(
-          "No service found for event {} (looking for bean: {})", eventSimpleName, serviceBeanName);
-    }
+    log.info("Dispatching {} to {}", eventSimpleName, serviceBeanName);
+    consumer.accept(event);
   }
 }

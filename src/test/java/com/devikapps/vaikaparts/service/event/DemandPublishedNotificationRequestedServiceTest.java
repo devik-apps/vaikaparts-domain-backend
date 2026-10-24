@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -238,5 +239,19 @@ class DemandPublishedNotificationRequestedServiceTest {
     var finalLog = captor.getAllValues().getLast();
     assertEquals(ProcessStatus.SUCCESS, finalLog.getStatus());
     assertNotNull(finalLog.getCompletedAt());
+  }
+
+  @Test
+  void should_ignore_redelivery_after_success() {
+    testEvent.setAttemptNb(1);
+    testEventLog.setStatus(ProcessStatus.SUCCESS);
+    when(notificationRequestedRepository.findById(TEST_EVENT_ID))
+        .thenReturn(Optional.of(testEventLog));
+
+    service.accept(testEvent);
+
+    verify(notificationService, never()).createAndSendNotification(any(NotificationRequest.class));
+    verify(notificationRequestedRepository, never())
+        .save(any(JDemandPublishedNotificationRequested.class));
   }
 }
