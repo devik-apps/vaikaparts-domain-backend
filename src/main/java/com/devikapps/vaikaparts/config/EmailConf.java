@@ -32,7 +32,7 @@ import org.springframework.mail.javamail.JavaMailSenderImpl;
  *   <li>Protocol: SMTP
  *   <li>Authentication: Enabled
  *   <li>STARTTLS: Enabled for encrypted connections
- *   <li>Debug mode: Enabled for troubleshooting
+ *   <li>Debug mode: Disabled to avoid exposing SMTP traffic
  * </ul>
  */
 @InfraGenerated
@@ -89,7 +89,7 @@ public class EmailConf {
    *   <li>SMTP server connection parameters (host, port, credentials)
    *   <li>SMTP protocol with authentication enabled
    *   <li>STARTTLS encryption for secure transmission
-   *   <li>Debug mode enabled for detailed logging
+   *   <li>Bounded timeouts and SMTP debug logging disabled
    * </ul>
    *
    * <p>The mail sender can be injected into services for sending emails programmatically throughout
@@ -109,7 +109,10 @@ public class EmailConf {
     props.put("mail.transport.protocol", "smtp");
     props.put("mail.smtp.auth", "true");
     props.put("mail.smtp.starttls.enable", "true");
-    props.put("mail.debug", "true");
+    props.put("mail.debug", "false");
+    props.put("mail.smtp.connectiontimeout", "5000");
+    props.put("mail.smtp.timeout", "10000");
+    props.put("mail.smtp.writetimeout", "10000");
 
     return mailSender;
   }

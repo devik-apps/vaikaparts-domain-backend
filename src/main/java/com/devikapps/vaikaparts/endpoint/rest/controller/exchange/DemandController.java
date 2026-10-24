@@ -27,9 +27,22 @@ public class DemandController {
   private final DemandService demandService;
 
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-  public ResponseEntity<Demand> createDemand(@Valid @ModelAttribute CreateDemandRequest request) {
+  public ResponseEntity<Demand> createDemand(
+      @Valid @ModelAttribute CreateDemandRequest request,
+      @RequestParam(name = "published", required = false, defaultValue = "false")
+          Boolean published) {
     var demand = demandService.createDemand(request.description(), request.part());
+    if (published) {
+      demand = demandService.updateDemandStatus(demand.getId(), PostStatus.PUBLISHED);
+    }
     return ResponseEntity.status(HttpStatus.CREATED).body(demand);
+  }
+
+  @GetMapping("/all")
+  public Page<Demand> getAllDemands(
+      @RequestParam(name = "page", required = false) Integer page,
+      @RequestParam(name = "size", required = false) Integer size) {
+    return demandService.getAllDemands(page, size);
   }
 
   @GetMapping
@@ -55,6 +68,14 @@ public class DemandController {
       @RequestParam(required = false) Integer size) {
 
     return demandService.getOffersForDemand(demandId, page, size);
+  }
+
+  @PatchMapping("/{demandId}/offers/{offerId}/status")
+  public Offer updateOfferOutcome(
+      @PathVariable String demandId,
+      @PathVariable String offerId,
+      @RequestParam PostStatus status) {
+    return demandService.updateOfferOutcome(demandId, offerId, status);
   }
 
   @GetMapping("/{demandId}")

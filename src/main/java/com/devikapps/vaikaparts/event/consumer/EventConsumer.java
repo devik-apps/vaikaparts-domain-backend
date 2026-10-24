@@ -4,10 +4,9 @@ import com.devikapps.vaikaparts.InfraGenerated;
 import com.devikapps.vaikaparts.event.model.InfraEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
@@ -16,16 +15,16 @@ import org.springframework.stereotype.Component;
  *
  * <p>This component listens to the configured RabbitMQ queue, deserializes incoming JSON messages
  * into {@link InfraEvent} instances, and delegates them to the {@link EventDispatcher} for
- * processing. Event processing is performed asynchronously using a thread pool sized to the
- * available processor count.
+ * processing. The listener waits for event processing to finish so RabbitMQ only acknowledges a
+ * message after its handler returns successfully.
  *
  * <p><b>Features:</b>
  *
  * <ul>
  *   <li>Automatic JSON deserialization with polymorphic type handling
- *   <li>Asynchronous event processing using a fixed thread pool
- *   <li>Graceful shutdown hook for executor cleanup
- *   <li>Comprehensive error handling and logging
+ *   <li>Synchronous event processing tied to RabbitMQ acknowledgement
+ *   <li>Malformed messages rejected without requeue
+ *   <li>Processing failures propagated for broker redelivery
  * </ul>
  *
  * <p><b>Required application property:</b>
@@ -44,28 +43,15 @@ public class EventConsumer implements Consumer<String> {
 
   private final EventDispatcher eventHandler;
   private final ObjectMapper objectMapper;
-  private final ExecutorService executor;
 
   /**
    * Constructs an EventConsumer with required dependencies and configuration.
-   *
-   * <p>Initializes the Jackson ObjectMapper with polymorphic type handling enabled, creates a fixed
-   * thread pool with one thread per available processor, and registers a JVM shutdown hook to
-   * gracefully terminate the executor on application shutdown.
    *
    * @param eventHandler the dispatcher responsible for routing events to appropriate handlers
    */
   public EventConsumer(EventDispatcher eventHandler, ObjectMapper om) {
     this.eventHandler = eventHandler;
     this.objectMapper = om;
-    this.executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-    Runtime.getRuntime()
-        .addShutdownHook(
-            new Thread(
-                () -> {
-                  log.info("Shutting down event consumer executor");
-                  executor.shutdown();
-                }));
   }
 
   /**
@@ -77,44 +63,27 @@ public class EventConsumer implements Consumer<String> {
    *
    * @param rawMessage the raw JSON message string from RabbitMQ
    */
-  @RabbitListener(queues = "${spring.rabbitmq.queue}")
+  @RabbitListener(
+      queues = "${spring.rabbitmq.queue}",
+      containerFactory = "eventListenerContainerFactory")
   public void onMessage(String rawMessage) {
     accept(rawMessage);
   }
 
   /**
-   * Processes a raw message string by deserializing and dispatching it asynchronously.
+   * Processes a raw message string by deserializing and dispatching it before returning.
    *
-   * <p>Submits the message processing to the thread pool executor. The processing includes:
-   *
-   * <ol>
-   *   <li>Deserializing the JSON message to an {@link InfraEvent} instance
-   *   <li>Validating the deserialized event (warns if null)
-   *   <li>Dispatching to the {@link EventDispatcher} for routing to the appropriate handler
-   *   <li>Logging successful dispatch or any errors encountered
-   * </ol>
-   *
-   * <p>Errors during processing are caught and logged but do not prevent other messages from being
-   * processed.
+   * <p>Handler failures propagate to the Rabbit listener container, which prevents acknowledgement
+   * and allows the broker's retry policy to redeliver the message. Malformed JSON is rejected
+   * without requeue because retrying the same invalid payload cannot make it valid.
    *
    * @param rawMessage the raw JSON message string to process
    */
   @Override
   public void accept(String rawMessage) {
-    executor.submit(
-        () -> {
-          try {
-            InfraEvent event = deserialize(rawMessage);
-            if (event == null) {
-              log.warn("Received unprocessable event: {}", rawMessage);
-              return;
-            }
-            eventHandler.accept(event);
-            log.info("Event dispatched: {}", event.getClass().getSimpleName());
-          } catch (Exception e) {
-            log.error("Error while consuming event: {}", rawMessage, e);
-          }
-        });
+    InfraEvent event = deserialize(rawMessage);
+    eventHandler.accept(event);
+    log.info("Event dispatched: {}", event.getClass().getSimpleName());
   }
 
   /**
@@ -123,18 +92,19 @@ public class EventConsumer implements Consumer<String> {
    * <p>Uses the configured ObjectMapper with polymorphic type handling to reconstruct the concrete
    * event type based on the {@code @class} property in the JSON.
    *
-   * <p>Deserialization errors are logged at ERROR level, and null is returned to indicate failure.
-   * This allows the consumer to skip invalid messages rather than crashing.
-   *
    * @param rawMessage the JSON message string to deserialize
-   * @return the deserialized InfraEvent instance, or null if deserialization fails
+   * @return the deserialized InfraEvent instance
+   * @throws AmqpRejectAndDontRequeueException if the message cannot be deserialized
    */
   private InfraEvent deserialize(String rawMessage) {
     try {
-      return objectMapper.readValue(rawMessage, InfraEvent.class);
+      InfraEvent event = objectMapper.readValue(rawMessage, InfraEvent.class);
+      if (event == null) {
+        throw new AmqpRejectAndDontRequeueException("Malformed infrastructure event");
+      }
+      return event;
     } catch (JsonProcessingException e) {
-      log.error("Deserialization failed: {}", rawMessage, e);
-      return null;
+      throw new AmqpRejectAndDontRequeueException("Malformed infrastructure event", e);
     }
   }
 }

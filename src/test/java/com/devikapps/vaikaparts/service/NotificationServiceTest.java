@@ -1,6 +1,7 @@
 package com.devikapps.vaikaparts.service;
 
 import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.EMAIL;
+import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.SMS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -20,17 +21,27 @@ import static org.mockito.Mockito.when;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.NotificationRequest;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.mapper.NotificationMapper;
+import com.devikapps.vaikaparts.mapper.user.ManagerMapper;
+import com.devikapps.vaikaparts.mapper.user.ResearcherMapper;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
+import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
-import com.devikapps.vaikaparts.model.notification.DemandPublishedNotification;
+import com.devikapps.vaikaparts.model.exchange.Offer;
+import com.devikapps.vaikaparts.model.notification.Notification;
+import com.devikapps.vaikaparts.model.user.Manager;
+import com.devikapps.vaikaparts.model.user.Researcher;
 import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotification;
+import com.devikapps.vaikaparts.repository.model.user.JManager;
+import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.service.notification.NotificationChannel;
+import com.devikapps.vaikaparts.service.notification.NotificationMessageResolver;
 import com.devikapps.vaikaparts.service.notification.NotificationService;
+import com.devikapps.vaikaparts.service.notification.delivery.ExternalNotificationDeliveryService;
 import com.devikapps.vaikaparts.service.util.Paginator;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -61,25 +72,38 @@ class NotificationServiceTest {
   @Mock private DemandService demandService;
   @Mock private UserRepository userRepository;
   @Mock private SellerMapper sellerMapper;
+  @Mock private ResearcherMapper researcherMapper;
+  @Mock private ManagerMapper managerMapper;
+  @Mock private OfferService offerService;
   @Mock private Paginator paginator;
-  @Mock private SellerService sellerService;
+  @Mock private UserService userService;
   @Mock private NotificationMapper notificationMapper;
   @Mock private DemandPublishedNotificationRepository demandPublishedNotificationRepository;
+  @Mock private ExternalNotificationDeliveryService externalNotificationDeliveryService;
+  private final NotificationMessageResolver messageResolver = new NotificationMessageResolver();
 
   private NotificationService notificationService;
 
   @BeforeEach
   void setUp() {
+    org.mockito.Mockito.lenient()
+        .when(inAppChannel.getChannelType())
+        .thenReturn(com.devikapps.vaikaparts.model.classifier.NotificationChannelType.IN_APP);
     notificationService =
         new NotificationService(
             List.of(inAppChannel),
             userRepository,
             sellerMapper,
+            researcherMapper,
+            managerMapper,
             demandService,
+            offerService,
             demandPublishedNotificationRepository,
             paginator,
-            sellerService,
-            notificationMapper);
+            userService,
+            notificationMapper,
+            messageResolver,
+            externalNotificationDeliveryService);
   }
 
   @Test
@@ -88,7 +112,11 @@ class NotificationServiceTest {
 
     when(inAppChannel.isEnabled()).thenReturn(true);
     when(userRepository.findJUserById(TEST_SELLER_ID))
-        .thenReturn(Optional.of(JSeller.builder().build()));
+        .thenReturn(
+            Optional.of(
+                JSeller.builder()
+                    .userType(com.devikapps.vaikaparts.model.classifier.UserType.SELLER)
+                    .build()));
     when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
     when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
         .thenReturn(buildTestDemand());
@@ -98,8 +126,8 @@ class NotificationServiceTest {
     assertNotNull(notification);
     assertNotNull(notification.getId());
     assertEquals(TEST_NOTIFICATION_REQUESTED_ID, notification.getNotificationRequestedId());
-    assertEquals(TEST_SELLER_ID, notification.getSeller().getId());
-    assertEquals(TEST_DEMAND_ID, notification.getDemand().getId());
+    assertEquals(TEST_SELLER_ID, notification.getRecipient().getId());
+    assertEquals(TEST_DEMAND_ID, notification.getResource().getId());
     assertEquals(TEST_MESSAGE, notification.getMessage());
     assertEquals(NotificationType.DEMAND_PUBLISHED, notification.getNotificationType());
     assertEquals(TEST_CLICK_ACTION, notification.getClickAction());
@@ -109,83 +137,137 @@ class NotificationServiceTest {
   }
 
   @Test
+  void should_reuse_notification_id_for_same_notification_request() {
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(Optional.of(JSeller.builder().userType(UserType.SELLER).build()));
+    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
+    when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
+        .thenReturn(buildTestDemand());
+
+    var first = notificationService.createAndSendNotification(buildTestRequest());
+    var retry = notificationService.createAndSendNotification(buildTestRequest());
+
+    assertEquals(first.getId(), retry.getId());
+  }
+
+  @Test
+  void should_not_resend_channels_when_notification_request_already_exists() {
+    var existingEntity = JDemandPublishedNotification.builder().id(TEST_NOTIFICATION_ID).build();
+    var existingNotification =
+        Notification.builder()
+            .id(TEST_NOTIFICATION_ID)
+            .notificationRequestedId(TEST_NOTIFICATION_REQUESTED_ID)
+            .build();
+    when(demandPublishedNotificationRepository.findByRequestId(TEST_NOTIFICATION_REQUESTED_ID))
+        .thenReturn(Optional.of(existingEntity));
+    when(notificationMapper.toDomain(existingEntity)).thenReturn(existingNotification);
+
+    var result = notificationService.createAndSendNotification(buildTestRequest());
+
+    assertEquals(TEST_NOTIFICATION_ID, result.getId());
+    verify(inAppChannel, never()).send(any(Notification.class));
+    verify(userRepository, never()).findJUserById(any());
+  }
+
+  @Test
   void should_send_notification_through_enabled_channels() {
     var request = buildTestRequest();
 
     when(inAppChannel.isEnabled()).thenReturn(true);
     when(userRepository.findJUserById(TEST_SELLER_ID))
-        .thenReturn(Optional.of(JSeller.builder().build()));
+        .thenReturn(
+            Optional.of(
+                JSeller.builder()
+                    .userType(com.devikapps.vaikaparts.model.classifier.UserType.SELLER)
+                    .build()));
     when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
     when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
         .thenReturn(buildTestDemand());
 
     notificationService.createAndSendNotification(request);
 
-    ArgumentCaptor<DemandPublishedNotification> captor =
-        ArgumentCaptor.forClass(DemandPublishedNotification.class);
+    ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
     verify(inAppChannel, times(1)).send(captor.capture());
 
     var sentNotification = captor.getValue();
     assertEquals(TEST_NOTIFICATION_REQUESTED_ID, sentNotification.getNotificationRequestedId());
-    assertEquals(TEST_SELLER_ID, sentNotification.getSeller().getId());
-    assertEquals(TEST_DEMAND_ID, sentNotification.getDemand().getId());
+    assertEquals(TEST_SELLER_ID, sentNotification.getRecipient().getId());
+    assertEquals(TEST_DEMAND_ID, sentNotification.getResource().getId());
   }
 
   @Test
   void should_not_send_through_disabled_channels() {
-    when(inAppChannel.isEnabled()).thenReturn(true);
     when(inAppChannel.isEnabled()).thenReturn(false);
     when(userRepository.findJUserById(TEST_SELLER_ID))
-        .thenReturn(Optional.of(JSeller.builder().build()));
+        .thenReturn(
+            Optional.of(
+                JSeller.builder()
+                    .userType(com.devikapps.vaikaparts.model.classifier.UserType.SELLER)
+                    .build()));
     when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
     when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
         .thenReturn(buildTestDemand());
 
-    notificationService.createAndSendNotification(buildTestRequest());
+    assertThrows(
+        IllegalStateException.class,
+        () -> notificationService.createAndSendNotification(buildTestRequest()));
 
-    verify(inAppChannel, never()).send(any(DemandPublishedNotification.class));
+    verify(inAppChannel, never()).send(any(Notification.class));
   }
 
   @Test
-  void should_continue_sending_to_other_channels_if_one_fails() {
-    NotificationChannel failingChannel = mock(NotificationChannel.class);
-
-    when(inAppChannel.isEnabled()).thenReturn(true);
-    when(failingChannel.isEnabled()).thenReturn(true);
-    when(failingChannel.getChannelType()).thenReturn(EMAIL);
-    when(userRepository.findJUserById(TEST_SELLER_ID))
-        .thenReturn(Optional.of(JSeller.builder().build()));
-    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
-    when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
-        .thenReturn(buildTestDemand());
-    doThrow(new RuntimeException("Channel failure")).when(failingChannel).send(any());
-
-    notificationService =
-        new NotificationService(
-            List.of(failingChannel, inAppChannel),
-            userRepository,
-            sellerMapper,
-            demandService,
-            demandPublishedNotificationRepository,
-            paginator,
-            sellerService,
-            notificationMapper);
-
-    assertDoesNotThrow(() -> notificationService.createAndSendNotification(buildTestRequest()));
-
-    verify(failingChannel, times(1)).send(any(DemandPublishedNotification.class));
-    verify(inAppChannel, times(1)).send(any(DemandPublishedNotification.class));
-  }
-
-  @Test
-  void should_send_to_multiple_channels() {
+  void should_not_call_seller_demand_external_provider_before_worker_claims_delivery() {
     NotificationChannel emailChannel = mock(NotificationChannel.class);
 
     when(inAppChannel.isEnabled()).thenReturn(true);
     when(emailChannel.isEnabled()).thenReturn(true);
     when(emailChannel.getChannelType()).thenReturn(EMAIL);
     when(userRepository.findJUserById(TEST_SELLER_ID))
-        .thenReturn(Optional.of(JSeller.builder().build()));
+        .thenReturn(
+            Optional.of(
+                JSeller.builder()
+                    .userType(com.devikapps.vaikaparts.model.classifier.UserType.SELLER)
+                    .build()));
+    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
+    when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
+        .thenReturn(buildTestDemand());
+
+    notificationService =
+        new NotificationService(
+            List.of(emailChannel, inAppChannel),
+            userRepository,
+            sellerMapper,
+            researcherMapper,
+            managerMapper,
+            demandService,
+            offerService,
+            demandPublishedNotificationRepository,
+            paginator,
+            userService,
+            notificationMapper,
+            messageResolver,
+            externalNotificationDeliveryService);
+
+    assertDoesNotThrow(() -> notificationService.createAndSendNotification(buildTestRequest()));
+
+    verify(emailChannel, never()).send(any(Notification.class));
+    verify(inAppChannel, times(1)).send(any(Notification.class));
+  }
+
+  @Test
+  void should_enqueue_seller_demand_external_channels_instead_of_sending_immediately() {
+    NotificationChannel emailChannel = mock(NotificationChannel.class);
+
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    when(emailChannel.isEnabled()).thenReturn(true);
+    when(emailChannel.getChannelType()).thenReturn(EMAIL);
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(
+            Optional.of(
+                JSeller.builder()
+                    .userType(com.devikapps.vaikaparts.model.classifier.UserType.SELLER)
+                    .build()));
     when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
     when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
         .thenReturn(buildTestDemand());
@@ -195,16 +277,268 @@ class NotificationServiceTest {
             List.of(inAppChannel, emailChannel),
             userRepository,
             sellerMapper,
+            researcherMapper,
+            managerMapper,
             demandService,
+            offerService,
             demandPublishedNotificationRepository,
             paginator,
-            sellerService,
-            notificationMapper);
+            userService,
+            notificationMapper,
+            messageResolver,
+            externalNotificationDeliveryService);
 
     notificationService.createAndSendNotification(buildTestRequest());
 
-    verify(inAppChannel, times(1)).send(any(DemandPublishedNotification.class));
-    verify(emailChannel, times(1)).send(any(DemandPublishedNotification.class));
+    verify(inAppChannel, times(1)).send(any(Notification.class));
+    verify(emailChannel, never()).send(any(Notification.class));
+    verify(externalNotificationDeliveryService)
+        .enqueue(any(Notification.class), eq(List.of(emailChannel)));
+  }
+
+  @Test
+  void should_fail_creation_when_persistent_external_enqueue_fails() {
+    NotificationChannel emailChannel = mock(NotificationChannel.class);
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    when(emailChannel.isEnabled()).thenReturn(true);
+    when(emailChannel.getChannelType()).thenReturn(EMAIL);
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(Optional.of(JSeller.builder().userType(UserType.SELLER).build()));
+    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
+    when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
+        .thenReturn(buildTestDemand());
+    doThrow(new IllegalStateException("delivery queue unavailable"))
+        .when(externalNotificationDeliveryService)
+        .enqueue(any(Notification.class), any());
+    notificationService =
+        new NotificationService(
+            List.of(inAppChannel, emailChannel),
+            userRepository,
+            sellerMapper,
+            researcherMapper,
+            managerMapper,
+            demandService,
+            offerService,
+            demandPublishedNotificationRepository,
+            paginator,
+            userService,
+            notificationMapper,
+            messageResolver,
+            externalNotificationDeliveryService);
+
+    var error =
+        assertThrows(
+            IllegalStateException.class,
+            () -> notificationService.createAndSendNotification(buildTestRequest()));
+
+    assertEquals("delivery queue unavailable", error.getMessage());
+    verify(inAppChannel).send(any(Notification.class));
+    verify(emailChannel, never()).send(any(Notification.class));
+  }
+
+  @Test
+  void should_not_enqueue_seller_demand_sms_when_seller_did_not_opt_in() {
+    NotificationChannel smsChannel = mock(NotificationChannel.class);
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    when(smsChannel.isEnabled()).thenReturn(true);
+    when(smsChannel.getChannelType()).thenReturn(SMS);
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(Optional.of(JSeller.builder().userType(UserType.SELLER).build()));
+    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
+    when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
+        .thenReturn(buildTestDemand());
+    notificationService =
+        new NotificationService(
+            List.of(inAppChannel, smsChannel),
+            userRepository,
+            sellerMapper,
+            researcherMapper,
+            managerMapper,
+            demandService,
+            offerService,
+            demandPublishedNotificationRepository,
+            paginator,
+            userService,
+            notificationMapper,
+            messageResolver,
+            externalNotificationDeliveryService);
+
+    notificationService.createAndSendNotification(buildTestRequest());
+
+    verify(inAppChannel).send(any(Notification.class));
+    verify(smsChannel, never()).send(any(Notification.class));
+    verify(externalNotificationDeliveryService, never()).enqueue(any(), any());
+  }
+
+  @Test
+  void shouldSendContactUnlockSmsRegardlessOfNotificationPreference() {
+    NotificationChannel smsChannel = mock(NotificationChannel.class);
+    var offer = Offer.builder().id("offer-123").build();
+    var recipient =
+        Seller.builder()
+            .id(TEST_SELLER_ID)
+            .phoneNumber("0322222222")
+            .smsNotificationsEnabled(false)
+            .userType(UserType.SELLER)
+            .build();
+    var request =
+        NotificationRequest.builder()
+            .recipientUserId(TEST_SELLER_ID)
+            .resourceId("offer-123")
+            .notificationType(NotificationType.CONTACT_UNLOCKED)
+            .message("Buyer — 0321111111 — buyer@example.com")
+            .build();
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    when(smsChannel.isEnabled()).thenReturn(true);
+    when(smsChannel.getChannelType()).thenReturn(SMS);
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(Optional.of(JSeller.builder().userType(UserType.SELLER).build()));
+    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(recipient);
+    when(offerService.getOfferByIdWithoutAuthFilter("offer-123")).thenReturn(offer);
+    notificationService =
+        new NotificationService(
+            List.of(inAppChannel, smsChannel),
+            userRepository,
+            sellerMapper,
+            researcherMapper,
+            managerMapper,
+            demandService,
+            offerService,
+            demandPublishedNotificationRepository,
+            paginator,
+            userService,
+            notificationMapper,
+            messageResolver,
+            externalNotificationDeliveryService);
+
+    notificationService.createAndSendNotification(request);
+
+    verify(smsChannel).send(any(Notification.class));
+  }
+
+  @Test
+  void shouldAllowContactUnlockNotificationForResearcher() {
+    var request =
+        NotificationRequest.builder()
+            .recipientUserId("researcher")
+            .resourceId("offer-123")
+            .notificationType(NotificationType.CONTACT_UNLOCKED)
+            .message("Seller — 0322222222 — seller@example.com")
+            .build();
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    when(userRepository.findJUserById("researcher"))
+        .thenReturn(Optional.of(JResearcher.builder().userType(UserType.RESEARCHER).build()));
+    when(researcherMapper.toResearcher(any(JResearcher.class)))
+        .thenReturn(
+            Researcher.builder()
+                .id("researcher")
+                .phoneNumber("0321111111")
+                .userType(UserType.RESEARCHER)
+                .build());
+    when(offerService.getOfferByIdWithoutAuthFilter("offer-123"))
+        .thenReturn(Offer.builder().id("offer-123").build());
+
+    var notification = notificationService.createAndSendNotification(request);
+
+    assertEquals("researcher", notification.getRecipient().getId());
+    assertEquals(NotificationType.CONTACT_UNLOCKED, notification.getNotificationType());
+  }
+
+  @Test
+  void should_build_system_announcement_for_manager_without_resource() {
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    var managerId = "manager-123";
+    var request =
+        NotificationRequest.builder()
+            .recipientUserId(managerId)
+            .message("System maintenance")
+            .notificationType(NotificationType.SYSTEM_ANNOUNCEMENT)
+            .build();
+    var manager = Manager.builder().id(managerId).userType(UserType.MANAGER).build();
+
+    when(userRepository.findJUserById(managerId))
+        .thenReturn(Optional.of(JManager.builder().userType(UserType.MANAGER).build()));
+    when(managerMapper.toManager(any(JManager.class))).thenReturn(manager);
+
+    var notification = notificationService.createAndSendNotification(request);
+
+    assertEquals(managerId, notification.getRecipient().getId());
+    assertEquals(UserType.MANAGER, notification.getRecipient().getUserType());
+    assertNull(notification.getResource());
+  }
+
+  @Test
+  void should_resolve_offer_for_offer_notification() {
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    var offerId = "offer-123";
+    var offer = Offer.builder().id(offerId).build();
+    var request =
+        NotificationRequest.builder()
+            .recipientUserId(TEST_SELLER_ID)
+            .resourceId(offerId)
+            .notificationType(NotificationType.OFFER_ACCEPTED)
+            .message(TEST_MESSAGE)
+            .build();
+
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(Optional.of(JSeller.builder().userType(UserType.SELLER).build()));
+    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
+    when(offerService.getOfferByIdWithoutAuthFilter(offerId)).thenReturn(offer);
+
+    var notification = notificationService.createAndSendNotification(request);
+
+    assertEquals(offer, notification.getResource());
+    verify(demandService, never()).getDemandByIdWithoutAuthFilter(any());
+  }
+
+  @Test
+  void should_notify_researcher_of_published_offer() {
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    var request =
+        NotificationRequest.builder()
+            .recipientUserId("researcher")
+            .resourceId("offer")
+            .notificationType(NotificationType.OFFER_PUBLISHED)
+            .message("New offer")
+            .build();
+    var offer = Offer.builder().id("offer").build();
+    when(userRepository.findJUserById("researcher"))
+        .thenReturn(Optional.of(JResearcher.builder().userType(UserType.RESEARCHER).build()));
+    when(researcherMapper.toResearcher(any(JResearcher.class)))
+        .thenReturn(Researcher.builder().id("researcher").userType(UserType.RESEARCHER).build());
+    when(offerService.getOfferByIdWithoutAuthFilter("offer")).thenReturn(offer);
+
+    var notification = notificationService.createAndSendNotification(request);
+
+    assertEquals("researcher", notification.getRecipient().getId());
+    assertEquals(NotificationType.OFFER_PUBLISHED, notification.getNotificationType());
+    assertEquals(offer, notification.getResource());
+    verify(inAppChannel).send(notification);
+  }
+
+  @Test
+  void should_reject_demand_published_notification_for_researcher() {
+    var researcherId = "researcher-123";
+    var request =
+        NotificationRequest.builder()
+            .recipientUserId(researcherId)
+            .resourceId(TEST_DEMAND_ID)
+            .notificationType(NotificationType.DEMAND_PUBLISHED)
+            .message(TEST_MESSAGE)
+            .build();
+
+    when(userRepository.findJUserById(researcherId))
+        .thenReturn(Optional.of(JResearcher.builder().userType(UserType.RESEARCHER).build()));
+    when(researcherMapper.toResearcher(any(JResearcher.class)))
+        .thenReturn(Researcher.builder().id(researcherId).userType(UserType.RESEARCHER).build());
+
+    var exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> notificationService.createAndSendNotification(request));
+
+    assertTrue(exception.getMessage().contains("DEMAND_PUBLISHED"));
+    assertTrue(exception.getMessage().contains("RESEARCHER"));
   }
 
   @Test
@@ -216,8 +550,9 @@ class NotificationServiceTest {
     var jPage = new PageImpl<>(List.of(jNotification), pageRequest, 1);
 
     when(paginator.apply(0, 10)).thenReturn(Map.of("page", 0, "size", 10));
-    when(sellerService.getCurrentSeller()).thenReturn(seller);
-    when(demandPublishedNotificationRepository.findBySellerIdOrderByCreatedAtDesc(
+    when(userService.getCurrentUser())
+        .thenReturn(JSeller.builder().id(TEST_SELLER_ID).userType(UserType.SELLER).build());
+    when(demandPublishedNotificationRepository.findByRecipientIdOrderByCreatedAtDesc(
             eq(TEST_SELLER_ID), any(PageRequest.class)))
         .thenReturn(jPage);
     when(notificationMapper.toDomain(jNotification)).thenReturn(domainNotification);
@@ -226,11 +561,11 @@ class NotificationServiceTest {
 
     assertEquals(1, result.getTotalElements());
     assertEquals(1, result.getContent().size());
-    assertEquals(TEST_SELLER_ID, result.getContent().getFirst().getSeller().getId());
+    assertEquals(TEST_SELLER_ID, result.getContent().getFirst().getRecipient().getId());
     assertFalse(result.getContent().getFirst().isRead());
-    verify(sellerService, times(1)).getCurrentSeller();
+    verify(userService, times(1)).getCurrentUser();
     verify(demandPublishedNotificationRepository, times(1))
-        .findBySellerIdOrderByCreatedAtDesc(eq(TEST_SELLER_ID), any(PageRequest.class));
+        .findByRecipientIdOrderByCreatedAtDesc(eq(TEST_SELLER_ID), any(PageRequest.class));
     verify(notificationMapper, times(1)).toDomain(jNotification);
   }
 
@@ -240,8 +575,9 @@ class NotificationServiceTest {
     Page<JDemandPublishedNotification> emptyPage = new PageImpl<>(List.of(), pageRequest, 0);
 
     when(paginator.apply(0, 10)).thenReturn(Map.of("page", 0, "size", 10));
-    when(sellerService.getCurrentSeller()).thenReturn(buildTestSeller());
-    when(demandPublishedNotificationRepository.findBySellerIdOrderByCreatedAtDesc(
+    when(userService.getCurrentUser())
+        .thenReturn(JSeller.builder().id(TEST_SELLER_ID).userType(UserType.SELLER).build());
+    when(demandPublishedNotificationRepository.findByRecipientIdOrderByCreatedAtDesc(
             eq(TEST_SELLER_ID), any(PageRequest.class)))
         .thenReturn(emptyPage);
 
@@ -257,8 +593,9 @@ class NotificationServiceTest {
     var jNotification = JDemandPublishedNotification.builder().build();
     var domainNotification = buildTestDomainNotification();
 
-    when(sellerService.getCurrentSeller()).thenReturn(buildTestSeller());
-    when(demandPublishedNotificationRepository.findByIdAndSellerId(
+    when(userService.getCurrentUser())
+        .thenReturn(JSeller.builder().id(TEST_SELLER_ID).userType(UserType.SELLER).build());
+    when(demandPublishedNotificationRepository.findByIdAndRecipientId(
             TEST_NOTIFICATION_ID, TEST_SELLER_ID))
         .thenReturn(Optional.of(jNotification));
     when(notificationMapper.toDomain(jNotification)).thenReturn(domainNotification);
@@ -266,17 +603,18 @@ class NotificationServiceTest {
     var result = notificationService.getNotification(TEST_NOTIFICATION_ID);
 
     assertEquals(TEST_NOTIFICATION_ID, result.getId());
-    assertEquals(TEST_SELLER_ID, result.getSeller().getId());
+    assertEquals(TEST_SELLER_ID, result.getRecipient().getId());
     assertFalse(result.isRead());
-    verify(sellerService, times(1)).getCurrentSeller();
+    verify(userService, times(1)).getCurrentUser();
     verify(demandPublishedNotificationRepository, times(1))
-        .findByIdAndSellerId(TEST_NOTIFICATION_ID, TEST_SELLER_ID);
+        .findByIdAndRecipientId(TEST_NOTIFICATION_ID, TEST_SELLER_ID);
   }
 
   @Test
   void should_throw_when_getting_notification_not_found() {
-    when(sellerService.getCurrentSeller()).thenReturn(buildTestSeller());
-    when(demandPublishedNotificationRepository.findByIdAndSellerId(
+    when(userService.getCurrentUser())
+        .thenReturn(JSeller.builder().id(TEST_SELLER_ID).userType(UserType.SELLER).build());
+    when(demandPublishedNotificationRepository.findByIdAndRecipientId(
             TEST_NOTIFICATION_ID, TEST_SELLER_ID))
         .thenReturn(Optional.empty());
 
@@ -287,7 +625,7 @@ class NotificationServiceTest {
 
     assertTrue(ex.getMessage().contains(TEST_NOTIFICATION_ID));
     verify(demandPublishedNotificationRepository, times(1))
-        .findByIdAndSellerId(TEST_NOTIFICATION_ID, TEST_SELLER_ID);
+        .findByIdAndRecipientId(TEST_NOTIFICATION_ID, TEST_SELLER_ID);
     verify(notificationMapper, never()).toDomain(any());
   }
 
@@ -297,8 +635,9 @@ class NotificationServiceTest {
     var markedDomain = buildTestDomainNotification();
     markedDomain.setRead(true);
 
-    when(sellerService.getCurrentSeller()).thenReturn(buildTestSeller());
-    when(demandPublishedNotificationRepository.findByIdAndSellerId(
+    when(userService.getCurrentUser())
+        .thenReturn(JSeller.builder().id(TEST_SELLER_ID).userType(UserType.SELLER).build());
+    when(demandPublishedNotificationRepository.findByIdAndRecipientId(
             TEST_NOTIFICATION_ID, TEST_SELLER_ID))
         .thenReturn(Optional.of(jNotification));
     when(demandPublishedNotificationRepository.save(jNotification))
@@ -316,8 +655,9 @@ class NotificationServiceTest {
 
   @Test
   void should_throw_when_marking_as_read_notification_not_found() {
-    when(sellerService.getCurrentSeller()).thenReturn(buildTestSeller());
-    when(demandPublishedNotificationRepository.findByIdAndSellerId(
+    when(userService.getCurrentUser())
+        .thenReturn(JSeller.builder().id(TEST_SELLER_ID).userType(UserType.SELLER).build());
+    when(demandPublishedNotificationRepository.findByIdAndRecipientId(
             TEST_NOTIFICATION_ID, TEST_SELLER_ID))
         .thenReturn(Optional.empty());
 
@@ -331,11 +671,11 @@ class NotificationServiceTest {
     verify(notificationMapper, never()).toDomain(any());
   }
 
-  private DemandPublishedNotification buildTestDomainNotification() {
-    return DemandPublishedNotification.builder()
+  private Notification buildTestDomainNotification() {
+    return Notification.builder()
         .id(TEST_NOTIFICATION_ID)
-        .seller(buildTestSeller())
-        .demand(buildTestDemand())
+        .recipient(buildTestSeller())
+        .resource(buildTestDemand())
         .message(TEST_MESSAGE)
         .notificationType(NotificationType.DEMAND_PUBLISHED)
         .read(false)
@@ -347,8 +687,8 @@ class NotificationServiceTest {
   private NotificationRequest buildTestRequest() {
     return NotificationRequest.builder()
         .notificationRequestedId(TEST_NOTIFICATION_REQUESTED_ID)
-        .sellerId(TEST_SELLER_ID)
-        .demandId(TEST_DEMAND_ID)
+        .recipientUserId(TEST_SELLER_ID)
+        .resourceId(TEST_DEMAND_ID)
         .message(TEST_MESSAGE)
         .notificationType(NotificationType.DEMAND_PUBLISHED)
         .clickAction(TEST_CLICK_ACTION)
@@ -356,7 +696,12 @@ class NotificationServiceTest {
   }
 
   private Seller buildTestSeller() {
-    return Seller.builder().id(TEST_SELLER_ID).build();
+    return Seller.builder()
+        .id(TEST_SELLER_ID)
+        .email("seller@example.com")
+        .emailNotificationsEnabled(true)
+        .userType(com.devikapps.vaikaparts.model.classifier.UserType.SELLER)
+        .build();
   }
 
   private Demand buildTestDemand() {

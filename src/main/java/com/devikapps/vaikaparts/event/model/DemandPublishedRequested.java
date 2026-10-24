@@ -21,6 +21,9 @@ public class DemandPublishedRequested extends InfraEvent {
   private final String id;
   private final String demandId;
 
+  // Keep the historical wire type; null means a demand publication.
+  private final String offerId;
+
   @Override
   public Duration maxConsumerDuration() {
     return MAX_CONSUMER_DURATION;

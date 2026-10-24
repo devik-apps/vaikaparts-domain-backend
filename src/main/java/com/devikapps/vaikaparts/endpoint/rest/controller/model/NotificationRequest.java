@@ -9,8 +9,8 @@ import lombok.Setter;
 @Setter
 @Builder
 public class NotificationRequest {
-  private final String sellerId;
-  private final String demandId;
+  private final String recipientUserId;
+  private final String resourceId;
   private final String message;
   private final NotificationType notificationType;
   private final String clickAction;

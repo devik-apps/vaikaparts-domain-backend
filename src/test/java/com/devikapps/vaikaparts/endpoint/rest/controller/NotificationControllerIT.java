@@ -109,7 +109,7 @@ class NotificationControllerIT extends FacadeIT {
         .andExpect(jsonPath("$.total_elements").value(2))
         .andExpect(jsonPath("$.content").isArray())
         .andExpect(jsonPath("$.content.length()").value(2))
-        .andExpect(jsonPath("$.content[0].seller.id").value(testSeller.getId()))
+        .andExpect(jsonPath("$.content[0].recipient.id").value(testSeller.getId()))
         .andExpect(jsonPath("$.content[0].read").value(false))
         .andExpect(jsonPath("$.content[0].notification_type").value("DEMAND_PUBLISHED"))
         .andExpect(jsonPath("$.content[0].id").isNotEmpty())
@@ -152,7 +152,7 @@ class NotificationControllerIT extends FacadeIT {
         .perform(get(BASE_URL).contentType(APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.total_elements").value(1))
-        .andExpect(jsonPath("$.content[0].seller.id").value(testSeller.getId()));
+        .andExpect(jsonPath("$.content[0].recipient.id").value(testSeller.getId()));
   }
 
   @Test
@@ -163,7 +163,7 @@ class NotificationControllerIT extends FacadeIT {
         .perform(get(BASE_URL + "/" + saved.getId()).contentType(APPLICATION_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(saved.getId()))
-        .andExpect(jsonPath("$.seller.id").value(testSeller.getId()))
+        .andExpect(jsonPath("$.recipient.id").value(testSeller.getId()))
         .andExpect(jsonPath("$.message").value(TEST_MESSAGE))
         .andExpect(jsonPath("$.notification_type").value("DEMAND_PUBLISHED"))
         .andExpect(jsonPath("$.read").value(false))
@@ -200,7 +200,7 @@ class NotificationControllerIT extends FacadeIT {
         .andExpect(jsonPath("$.id").value(saved.getId()))
         .andExpect(jsonPath("$.read").value(true))
         .andExpect(jsonPath("$.read_at").isNotEmpty())
-        .andExpect(jsonPath("$.seller.id").value(testSeller.getId()))
+        .andExpect(jsonPath("$.recipient.id").value(testSeller.getId()))
         .andExpect(jsonPath("$.message").value(TEST_MESSAGE));
   }
 
@@ -258,7 +258,7 @@ class NotificationControllerIT extends FacadeIT {
         JDemandPublishedNotification.builder()
             .id(randomUUID().toString())
             .notificationRequested(nr)
-            .seller(seller)
+            .recipient(seller)
             .demand(demand)
             .message(TEST_MESSAGE)
             .notificationType(NotificationType.DEMAND_PUBLISHED)

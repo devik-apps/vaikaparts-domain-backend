@@ -2,6 +2,7 @@ package com.devikapps.vaikaparts.repository.model.user;
 
 import static java.lang.String.format;
 
+import com.devikapps.vaikaparts.model.classifier.UserLanguage;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
 import jakarta.persistence.Column;
@@ -12,8 +13,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Inheritance;
 import jakarta.persistence.InheritanceType;
 import jakarta.persistence.Table;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -59,10 +61,22 @@ public class JUser {
   private UserStatus status;
 
   @Column(name = "created_at", nullable = false)
-  private LocalDateTime createdAt;
+  private OffsetDateTime createdAt;
 
   @Column(name = "updated_at", nullable = false)
-  private LocalDateTime updatedAt;
+  private OffsetDateTime updatedAt;
+
+  @Column(name = "email_notifications_enabled", nullable = false)
+  private boolean emailNotificationsEnabled;
+
+  @Column(name = "sms_notifications_enabled", nullable = false)
+  private boolean smsNotificationsEnabled;
+
+  @Column(name = "preferred_language", nullable = false)
+  @Enumerated(EnumType.STRING)
+  @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+  @Builder.Default
+  private UserLanguage preferredLanguage = UserLanguage.FR;
 
   @Override
   public String toString() {

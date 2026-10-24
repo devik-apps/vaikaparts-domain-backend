@@ -3,11 +3,13 @@ package com.devikapps.vaikaparts.repository;
 import com.devikapps.vaikaparts.model.classifier.PartCategory;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -25,6 +27,10 @@ public interface DemandRepository extends JpaRepository<JDemand, String> {
       WHERE d.id = :id
       """)
   Optional<JDemand> findByIdWithRelations(@Param("id") String id);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("SELECT d FROM JDemand d WHERE d.id = :id")
+  Optional<JDemand> findByIdForUpdate(@Param("id") String id);
 
   @Query(
       value =

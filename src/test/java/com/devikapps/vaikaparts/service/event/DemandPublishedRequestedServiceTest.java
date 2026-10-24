@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -16,18 +17,21 @@ import static org.mockito.Mockito.when;
 
 import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
-import com.devikapps.vaikaparts.event.model.EventProducer;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
+import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
+import com.devikapps.vaikaparts.service.outbox.OutboxService;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,7 +52,8 @@ class DemandPublishedRequestedServiceTest {
   @Mock private DemandRepository demandRepository;
   @Mock private UserRepository userRepository;
   @Mock private SellerMapper sellerMapper;
-  @Mock private EventProducer<DemandPublishedNotificationRequested> notificationRequestedProducer;
+  @Mock private NotificationRequestedRepository notificationRequestedRepository;
+  @Mock private OutboxService outboxService;
 
   @InjectMocks private DemandPublishedRequestedService service;
 
@@ -70,6 +75,8 @@ class DemandPublishedRequestedServiceTest {
     testJSeller2 = mock(JSeller.class);
     testSeller1 = mock(Seller.class);
     testSeller2 = mock(Seller.class);
+    lenient().when(testSeller1.getHandleAllCategory()).thenReturn(true);
+    lenient().when(testSeller2.getHandleAllCategory()).thenReturn(true);
 
     testEventLog =
         JDemandPublishedRequested.builder()
@@ -146,11 +153,11 @@ class DemandPublishedRequestedServiceTest {
 
     service.accept(testEvent);
 
-    ArgumentCaptor<List<DemandPublishedNotificationRequested>> captor =
-        ArgumentCaptor.forClass(List.class);
-    verify(notificationRequestedProducer, times(1)).accept(captor.capture());
+    ArgumentCaptor<DemandPublishedNotificationRequested> captor =
+        ArgumentCaptor.forClass(DemandPublishedNotificationRequested.class);
+    verify(outboxService, times(2)).enqueue(captor.capture());
 
-    var publishedEvents = captor.getValue();
+    var publishedEvents = captor.getAllValues();
     assertEquals(2, publishedEvents.size());
     assertTrue(publishedEvents.stream().anyMatch(e -> e.getSellerId().equals(TEST_SELLER_1_ID)));
     assertTrue(publishedEvents.stream().anyMatch(e -> e.getSellerId().equals(TEST_SELLER_2_ID)));
@@ -158,6 +165,17 @@ class DemandPublishedRequestedServiceTest {
     assertTrue(
         publishedEvents.stream()
             .allMatch(e -> e.getDemandPublishedRequestedId().equals(TEST_EVENT_ID)));
+    assertTrue(
+        publishedEvents.stream()
+            .anyMatch(
+                event ->
+                    event
+                        .getId()
+                        .equals(
+                            UUID.nameUUIDFromBytes(
+                                    (TEST_EVENT_ID + ":seller:" + TEST_SELLER_1_ID)
+                                        .getBytes(StandardCharsets.UTF_8))
+                                .toString())));
   }
 
   @Test
@@ -199,7 +217,7 @@ class DemandPublishedRequestedServiceTest {
 
     service.accept(testEvent);
 
-    verify(notificationRequestedProducer, never()).accept(any());
+    verify(outboxService, never()).enqueue(any());
 
     ArgumentCaptor<JDemandPublishedRequested> captor =
         ArgumentCaptor.forClass(JDemandPublishedRequested.class);
@@ -238,5 +256,19 @@ class DemandPublishedRequestedServiceTest {
   void should_throw_exception_when_demand_not_found() {
     when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID)).thenReturn(Optional.empty());
     assertThrows(RuntimeException.class, () -> service.accept(testEvent));
+  }
+
+  @Test
+  void should_ignore_redelivery_after_parent_succeeded() {
+    testEventLog.setStatus(ProcessStatus.SUCCESS);
+    when(demandPublishedRequestedRepository.findById(TEST_EVENT_ID))
+        .thenReturn(Optional.of(testEventLog));
+    when(demandRepository.findByIdWithRelations(TEST_DEMAND_ID))
+        .thenReturn(Optional.of(testDemand));
+
+    service.accept(testEvent);
+
+    verify(userRepository, never()).findAllByUserTypeAndStatus(any(), any());
+    verify(outboxService, never()).enqueue(any());
   }
 }
