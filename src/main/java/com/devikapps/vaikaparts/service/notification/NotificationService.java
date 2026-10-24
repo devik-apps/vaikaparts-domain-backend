@@ -3,6 +3,8 @@ package com.devikapps.vaikaparts.service.notification;
 import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.IN_APP;
 import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.SMS;
 import static java.lang.String.format;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.UUID.nameUUIDFromBytes;
 import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
@@ -27,6 +29,7 @@ import com.devikapps.vaikaparts.repository.model.user.JUser;
 import com.devikapps.vaikaparts.service.DemandService;
 import com.devikapps.vaikaparts.service.OfferService;
 import com.devikapps.vaikaparts.service.UserService;
+import com.devikapps.vaikaparts.service.notification.delivery.ExternalNotificationDeliveryService;
 import com.devikapps.vaikaparts.service.util.Paginator;
 import com.devikapps.vaikaparts.sms.SmsSendException;
 import jakarta.validation.constraints.NotBlank;
@@ -60,6 +63,7 @@ public class NotificationService {
   private final UserService userService;
   private final NotificationMapper notificationMapper;
   private final NotificationMessageResolver messageResolver;
+  private final ExternalNotificationDeliveryService externalNotificationDeliveryService;
 
   @Transactional
   public Notification createAndSendNotification(NotificationRequest request) {
@@ -69,6 +73,17 @@ public class NotificationService {
         "[NOTIF-PIPELINE][NOTIFICATION] Creating notification type={} for recipient user={}",
         forJava(notificationType.toString()),
         forJava(request.getRecipientUserId()));
+
+    var notificationRequestId = request.getNotificationRequestedId();
+    if (notificationRequestId != null) {
+      var existing = demandPublishedNotificationRepository.findByRequestId(notificationRequestId);
+      if (existing.isPresent()) {
+        log.info(
+            "[NOTIF-PIPELINE][NOTIFICATION] Reusing notification for already processed request={}",
+            forJava(notificationRequestId));
+        return notificationMapper.toDomain(existing.get());
+      }
+    }
 
     var notification = buildNotification(request);
     sendThroughChannels(notification);
@@ -169,7 +184,7 @@ public class NotificationService {
     var resource = handleNotificationType(request, recipient.getUserType());
 
     return Notification.builder()
-        .id(randomUUID().toString())
+        .id(notificationId(request.getNotificationRequestedId()))
         .recipient(recipient)
         .notificationRequestedId(request.getNotificationRequestedId())
         .resource(resource)
@@ -184,6 +199,12 @@ public class NotificationService {
         .clickAction(request.getClickAction())
         .createdAt(LocalDateTime.now())
         .build();
+  }
+
+  private String notificationId(String notificationRequestId) {
+    if (notificationRequestId == null) return randomUUID().toString();
+    return nameUUIDFromBytes(("notification-request:" + notificationRequestId).getBytes(UTF_8))
+        .toString();
   }
 
   private void sendThroughChannels(Notification notification) {
@@ -208,6 +229,11 @@ public class NotificationService {
             .toList();
     if (externalChannels.isEmpty()) return;
 
+    if (requiresPersistentExternalDelivery(notification)) {
+      externalNotificationDeliveryService.enqueue(notification, externalChannels);
+      return;
+    }
+
     if (TransactionSynchronizationManager.isSynchronizationActive()) {
       log.info(
           "[NOTIF-PIPELINE][EXTERNAL_WAIT_COMMIT] notificationId={}, channels={}",
@@ -227,6 +253,11 @@ public class NotificationService {
           forJava(notification.getId()));
       externalChannels.forEach(channel -> sendChannel(notification, channel));
     }
+  }
+
+  private boolean requiresPersistentExternalDelivery(Notification notification) {
+    return notification.getNotificationType() == NotificationType.DEMAND_PUBLISHED
+        && notification.getRecipient().getUserType() == UserType.SELLER;
   }
 
   private boolean isEligibleForNotification(

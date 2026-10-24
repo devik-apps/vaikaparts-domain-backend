@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -14,7 +13,6 @@ import static org.mockito.Mockito.when;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPart;
 import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
-import com.devikapps.vaikaparts.event.model.EventProducer;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.file.FilenameSanitizer;
@@ -24,10 +22,13 @@ import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.exchange.Part;
 import com.devikapps.vaikaparts.model.user.Researcher;
+import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
+import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
+import com.devikapps.vaikaparts.service.outbox.OutboxService;
 import com.devikapps.vaikaparts.service.util.ImageUploader;
 import com.devikapps.vaikaparts.service.util.Paginator;
 import java.time.LocalDateTime;
@@ -68,7 +69,8 @@ class DemandServiceTest {
   @Mock private Paginator paginator;
   @Mock private FilenameSanitizer filenameSanitizer;
   @Mock private ImageUploader imageUploader;
-  @Mock private EventProducer<DemandPublishedRequested> demandPublishedRequestedProducer;
+  @Mock private DemandPublishedRequestedRepository demandPublishedRequestedRepository;
+  @Mock private OutboxService outboxService;
 
   @InjectMocks private DemandService demandService;
 
@@ -153,7 +155,8 @@ class DemandServiceTest {
     assertNull(testJDemand.getCanceledAt());
     assertNull(testJDemand.getSuspendedAt());
     verify(demandRepository, times(1)).save(testJDemand);
-    verify(demandPublishedRequestedProducer, times(1)).accept(anyList());
+    verify(demandPublishedRequestedRepository, times(1)).save(any(JDemandPublishedRequested.class));
+    verify(outboxService, times(1)).enqueue(any(DemandPublishedRequested.class));
   }
 
   @Test
@@ -168,13 +171,12 @@ class DemandServiceTest {
 
     demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.PUBLISHED);
 
-    ArgumentCaptor<List<DemandPublishedRequested>> captor = ArgumentCaptor.forClass(List.class);
-    verify(demandPublishedRequestedProducer, times(1)).accept(captor.capture());
+    ArgumentCaptor<DemandPublishedRequested> captor =
+        ArgumentCaptor.forClass(DemandPublishedRequested.class);
+    verify(outboxService, times(1)).enqueue(captor.capture());
 
-    List<DemandPublishedRequested> events = captor.getValue();
-    assertEquals(1, events.size());
-    assertEquals(TEST_DEMAND_ID, events.getFirst().getDemandId());
-    assertNotNull(events.getFirst().getId());
+    assertEquals(TEST_DEMAND_ID, captor.getValue().getDemandId());
+    assertNotNull(captor.getValue().getId());
   }
 
   @Test
@@ -202,7 +204,7 @@ class DemandServiceTest {
 
     demandService.updateDemandStatus(TEST_DEMAND_ID, PostStatus.SUSPENDED);
 
-    verify(demandPublishedRequestedProducer, never()).accept(anyList());
+    verify(outboxService, never()).enqueue(any());
   }
 
   @Test

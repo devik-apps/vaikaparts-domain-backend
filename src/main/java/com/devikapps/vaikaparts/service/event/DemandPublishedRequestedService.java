@@ -2,12 +2,10 @@ package com.devikapps.vaikaparts.service.event;
 
 import static com.devikapps.vaikaparts.model.classifier.UserStatus.ENABLED;
 import static com.devikapps.vaikaparts.model.classifier.UserType.SELLER;
-import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.event.model.DemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
-import com.devikapps.vaikaparts.event.model.EventProducer;
 import com.devikapps.vaikaparts.exception.DemandPublishedRequestedException;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.classifier.PartCategory;
@@ -15,20 +13,23 @@ import com.devikapps.vaikaparts.model.classifier.ProcessStatus;
 import com.devikapps.vaikaparts.model.user.Seller;
 import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
+import com.devikapps.vaikaparts.repository.NotificationRequestedRepository;
 import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
+import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotificationRequested;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
+import com.devikapps.vaikaparts.service.outbox.OutboxService;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Service
@@ -40,7 +41,8 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
   private final OfferRepository offerRepository;
   private final UserRepository userRepository;
   private final SellerMapper sellerMapper;
-  private final EventProducer<DemandPublishedNotificationRequested> notificationRequestedProducer;
+  private final NotificationRequestedRepository notificationRequestedRepository;
+  private final OutboxService outboxService;
 
   @Override
   @Transactional
@@ -60,6 +62,12 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
         forJava(event.getId()),
         eventLog.getStatus());
 
+    if (eventLog.getStatus() == ProcessStatus.SUCCESS) {
+      log.info(
+          "[NOTIF-PIPELINE][BATCH] Ignoring completed parent event {}", forJava(event.getId()));
+      return;
+    }
+
     try {
       updateEventLogStatus(eventLog);
 
@@ -75,7 +83,7 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
       eventLog.setTotalSellersToNotify(recipientCount);
       demandPublishedRequestedRepository.save(eventLog);
 
-      publishNotificationRequests(event, demand, sellers);
+      publishNotificationRequests(event, eventLog, demand, sellers);
 
       eventLog.setStatus(ProcessStatus.SUCCESS);
       eventLog.setAttemptNb(event.getAttemptNb());
@@ -96,7 +104,8 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
     }
   }
 
-  private List<Seller> matchSellerToPartCategory(List<Seller> activeSellers, PartCategory partCategory) {
+  private List<Seller> matchSellerToPartCategory(
+      List<Seller> activeSellers, PartCategory partCategory) {
     var matchingSellers =
         activeSellers.stream()
             .filter(
@@ -160,19 +169,22 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
             .toList();
 
     log.info(
-        "[NOTIF-PIPELINE][BATCH] Found {} active sellers before category filtering", sellers.size());
+        "[NOTIF-PIPELINE][BATCH] Found {} active sellers before category filtering",
+        sellers.size());
     return sellers;
   }
 
   private void publishNotificationRequests(
-      DemandPublishedRequested parentEvent, JDemand demand, List<Seller> sellers) {
+      DemandPublishedRequested parentEvent,
+      JDemandPublishedRequested parentLog,
+      JDemand demand,
+      List<Seller> sellers) {
 
     if (sellers.isEmpty() && parentEvent.getOfferId() == null) {
       log.info("[NOTIF-PIPELINE][BATCH] No recipients: parentId={}", forJava(parentEvent.getId()));
       return;
     }
 
-    List<DemandPublishedNotificationRequested> notificationEvents;
     if (parentEvent.getOfferId() != null) {
       var offer =
           offerRepository
@@ -182,15 +194,25 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
       if (!demand.getId().equals(offer.getDemand().getId())) {
         throw new IllegalArgumentException("Offer does not belong to the event demand");
       }
-      notificationEvents =
-          List.of(
-              DemandPublishedNotificationRequested.builder()
-                  .id(randomUUID().toString())
-                  .demandPublishedRequestedId(parentEvent.getId())
-                  .demandId(demand.getId())
-                  .offerId(offer.getId())
-                  .researcherId(demand.getResearcher().getId())
-                  .build());
+      var childId = stableChildId(parentEvent.getId(), "offer", offer.getId());
+      var notificationEvent =
+          DemandPublishedNotificationRequested.builder()
+              .id(childId)
+              .demandPublishedRequestedId(parentEvent.getId())
+              .demandId(demand.getId())
+              .offerId(offer.getId())
+              .researcherId(demand.getResearcher().getId())
+              .build();
+      persistChildIfAbsent(
+          notificationEvent,
+          JDemandPublishedNotificationRequested.builder()
+              .id(childId)
+              .demandPublishedRequested(parentLog)
+              .offer(offer)
+              .researcher(demand.getResearcher())
+              .notificationType(
+                  com.devikapps.vaikaparts.model.classifier.NotificationType.OFFER_PUBLISHED)
+              .build());
       log.info(
           "[NOTIF-PIPELINE][BATCH] Offer child prepared: parentId={}, offerId={},"
               + " recipientType=RESEARCHER, recipientId={}",
@@ -198,55 +220,47 @@ public class DemandPublishedRequestedService implements Consumer<DemandPublished
           forJava(offer.getId()),
           forJava(demand.getResearcher().getId()));
     } else {
-      notificationEvents =
-          sellers.stream()
-              .map(
-                  seller ->
-                      DemandPublishedNotificationRequested.builder()
-                          .id(randomUUID().toString())
-                          .demandPublishedRequestedId(parentEvent.getId())
-                          .sellerId(seller.getId())
-                          .demandId(demand.getId())
-                          .build())
-              .toList();
+      for (var seller : sellers) {
+        var childId = stableChildId(parentEvent.getId(), "seller", seller.getId());
+        var notificationEvent =
+            DemandPublishedNotificationRequested.builder()
+                .id(childId)
+                .demandPublishedRequestedId(parentEvent.getId())
+                .sellerId(seller.getId())
+                .demandId(demand.getId())
+                .build();
+        persistChildIfAbsent(
+            notificationEvent,
+            JDemandPublishedNotificationRequested.builder()
+                .id(childId)
+                .demandPublishedRequested(parentLog)
+                .seller(sellerMapper.toPersistence(seller))
+                .demand(demand)
+                .notificationType(
+                    com.devikapps.vaikaparts.model.classifier.NotificationType.DEMAND_PUBLISHED)
+                .build());
+      }
     }
+  }
 
-    if (TransactionSynchronizationManager.isSynchronizationActive()) {
-      log.info(
-          "[NOTIF-PIPELINE][WAIT_COMMIT] parentId={}, children={}",
-          forJava(parentEvent.getId()),
-          notificationEvents.size());
-      TransactionSynchronizationManager.registerSynchronization(
-          new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-              log.info(
-                  "[NOTIF-PIPELINE][AFTER_COMMIT] parentId={}, children={}",
-                  forJava(parentEvent.getId()),
-                  notificationEvents.size());
-              notificationRequestedProducer.accept(notificationEvents);
-              log.info(
-                  "[NOTIF-PIPELINE][BATCH] Producer returned for {}"
-                      + " DemandPublishedNotificationRequested events after commit",
-                  notificationEvents.size());
-            }
-
-            @Override
-            public void afterCompletion(int status) {
-              log.info(
-                  "[NOTIF-PIPELINE][TX_COMPLETED] parentId={}, status={} (0=committed, 1=rolled"
-                      + " back, 2=unknown)",
-                  forJava(parentEvent.getId()),
-                  status);
-            }
-          });
-    } else {
-      log.warn(
-          "[NOTIF-PIPELINE][BATCH] No active transaction synchronization. Publishing {}"
-              + " DemandPublishedNotificationRequested events immediately.",
-          notificationEvents.size());
-      notificationRequestedProducer.accept(notificationEvents);
+  private void persistChildIfAbsent(
+      DemandPublishedNotificationRequested event, JDemandPublishedNotificationRequested childLog) {
+    if (notificationRequestedRepository.existsById(event.getId())) {
+      return;
     }
+    var now = LocalDateTime.now();
+    childLog.setStatus(ProcessStatus.PENDING);
+    childLog.setAttemptNb(0);
+    childLog.setCreatedAt(now);
+    childLog.setUpdatedAt(now);
+    notificationRequestedRepository.save(childLog);
+    outboxService.enqueue(event);
+  }
+
+  private String stableChildId(String parentId, String recipientType, String recipientId) {
+    return UUID.nameUUIDFromBytes(
+            (parentId + ":" + recipientType + ":" + recipientId).getBytes(StandardCharsets.UTF_8))
+        .toString();
   }
 
   private void handleEventProcessingError(

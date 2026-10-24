@@ -9,7 +9,6 @@ import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPart;
 import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
-import com.devikapps.vaikaparts.event.model.EventProducer;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.mapper.exchange.DemandMapper;
@@ -19,11 +18,14 @@ import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.exchange.Offer;
 import com.devikapps.vaikaparts.model.exchange.Part;
 import com.devikapps.vaikaparts.model.user.Researcher;
+import com.devikapps.vaikaparts.repository.DemandPublishedRequestedRepository;
 import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.OfferRepository;
+import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.service.notification.OfferOutcomeNotificationPublisher;
+import com.devikapps.vaikaparts.service.outbox.OutboxService;
 import com.devikapps.vaikaparts.service.util.ImageUploader;
 import com.devikapps.vaikaparts.service.util.Paginator;
 import java.time.Duration;
@@ -56,7 +58,8 @@ public class DemandService {
   private final Paginator paginator;
   private final BucketComponent bucketComponent;
   private final ImageUploader imageUploader;
-  private final EventProducer<DemandPublishedRequested> demandPublishedRequestedProducer;
+  private final DemandPublishedRequestedRepository demandPublishedRequestedRepository;
+  private final OutboxService outboxService;
   private final OfferOutcomeNotificationPublisher offerOutcomeNotificationPublisher;
 
   @Transactional
@@ -138,7 +141,7 @@ public class DemandService {
 
     var updatedJDemand = demandRepository.save(jDemand);
 
-    if (shouldNotifySellers) publishDemandPublishedEvent(updatedJDemand);
+    if (shouldNotifySellers) enqueueDemandPublishedEvent(updatedJDemand);
 
     log.info(
         "Successfully updated demand {} to status {}",
@@ -371,22 +374,33 @@ public class DemandService {
     return newStatus == PostStatus.PUBLISHED;
   }
 
-  private void publishDemandPublishedEvent(JDemand jDemand) {
+  private void enqueueDemandPublishedEvent(JDemand jDemand) {
     var event =
         DemandPublishedRequested.builder()
             .id(randomUUID().toString())
             .demandId(jDemand.getId())
             .build();
+    var now = LocalDateTime.now();
+
+    demandPublishedRequestedRepository.save(
+        JDemandPublishedRequested.builder()
+            .id(event.getId())
+            .demand(jDemand)
+            .status(com.devikapps.vaikaparts.model.classifier.ProcessStatus.PENDING)
+            .attemptNb(0)
+            .totalSellersToNotify(0)
+            .notificationsSentCount(0)
+            .createdAt(now)
+            .updatedAt(now)
+            .build());
+    outboxService.enqueue(event);
 
     log.info(
         "[NOTIF-PIPELINE][DEMAND] Publication requested: eventId={}, demandId={}",
         forJava(event.getId()),
         forJava(jDemand.getId()));
-    demandPublishedRequestedProducer.accept(List.of(event));
-
     log.info(
-        "[NOTIF-PIPELINE][DEMAND] Producer returned: eventId={}, demandId={} (not delivery"
-            + " confirmation)",
+        "[NOTIF-PIPELINE][DEMAND] Event persisted to outbox: eventId={}, demandId={}",
         forJava(event.getId()),
         forJava(jDemand.getId()));
   }

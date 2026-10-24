@@ -36,4 +36,11 @@ public interface DemandPublishedNotificationRepository
           + " = :recipientId")
   Optional<JDemandPublishedNotification> findByIdAndRecipientId(
       @Param("notificationId") String notificationId, @Param("recipientId") String recipientId);
+
+  @Query(
+      "SELECT n FROM JDemandPublishedNotification n"
+          + " LEFT JOIN n.notificationRequested demandRequest"
+          + " LEFT JOIN n.offerNotificationRequested offerRequest"
+          + " WHERE demandRequest.id = :requestId OR offerRequest.id = :requestId")
+  Optional<JDemandPublishedNotification> findByRequestId(@Param("requestId") String requestId);
 }

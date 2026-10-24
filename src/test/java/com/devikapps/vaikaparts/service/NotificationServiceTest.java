@@ -41,6 +41,7 @@ import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.service.notification.NotificationChannel;
 import com.devikapps.vaikaparts.service.notification.NotificationMessageResolver;
 import com.devikapps.vaikaparts.service.notification.NotificationService;
+import com.devikapps.vaikaparts.service.notification.delivery.ExternalNotificationDeliveryService;
 import com.devikapps.vaikaparts.service.util.Paginator;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -78,6 +79,7 @@ class NotificationServiceTest {
   @Mock private UserService userService;
   @Mock private NotificationMapper notificationMapper;
   @Mock private DemandPublishedNotificationRepository demandPublishedNotificationRepository;
+  @Mock private ExternalNotificationDeliveryService externalNotificationDeliveryService;
   private final NotificationMessageResolver messageResolver = new NotificationMessageResolver();
 
   private NotificationService notificationService;
@@ -100,7 +102,8 @@ class NotificationServiceTest {
             paginator,
             userService,
             notificationMapper,
-            messageResolver);
+            messageResolver,
+            externalNotificationDeliveryService);
   }
 
   @Test
@@ -131,6 +134,40 @@ class NotificationServiceTest {
     assertFalse(notification.isRead());
     assertNotNull(notification.getCreatedAt());
     assertNull(notification.getReadAt());
+  }
+
+  @Test
+  void should_reuse_notification_id_for_same_notification_request() {
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(Optional.of(JSeller.builder().userType(UserType.SELLER).build()));
+    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
+    when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
+        .thenReturn(buildTestDemand());
+
+    var first = notificationService.createAndSendNotification(buildTestRequest());
+    var retry = notificationService.createAndSendNotification(buildTestRequest());
+
+    assertEquals(first.getId(), retry.getId());
+  }
+
+  @Test
+  void should_not_resend_channels_when_notification_request_already_exists() {
+    var existingEntity = JDemandPublishedNotification.builder().id(TEST_NOTIFICATION_ID).build();
+    var existingNotification =
+        Notification.builder()
+            .id(TEST_NOTIFICATION_ID)
+            .notificationRequestedId(TEST_NOTIFICATION_REQUESTED_ID)
+            .build();
+    when(demandPublishedNotificationRepository.findByRequestId(TEST_NOTIFICATION_REQUESTED_ID))
+        .thenReturn(Optional.of(existingEntity));
+    when(notificationMapper.toDomain(existingEntity)).thenReturn(existingNotification);
+
+    var result = notificationService.createAndSendNotification(buildTestRequest());
+
+    assertEquals(TEST_NOTIFICATION_ID, result.getId());
+    verify(inAppChannel, never()).send(any(Notification.class));
+    verify(userRepository, never()).findJUserById(any());
   }
 
   @Test
@@ -180,12 +217,12 @@ class NotificationServiceTest {
   }
 
   @Test
-  void should_continue_sending_to_other_channels_if_one_fails() {
-    NotificationChannel failingChannel = mock(NotificationChannel.class);
+  void should_not_call_seller_demand_external_provider_before_worker_claims_delivery() {
+    NotificationChannel emailChannel = mock(NotificationChannel.class);
 
     when(inAppChannel.isEnabled()).thenReturn(true);
-    when(failingChannel.isEnabled()).thenReturn(true);
-    when(failingChannel.getChannelType()).thenReturn(EMAIL);
+    when(emailChannel.isEnabled()).thenReturn(true);
+    when(emailChannel.getChannelType()).thenReturn(EMAIL);
     when(userRepository.findJUserById(TEST_SELLER_ID))
         .thenReturn(
             Optional.of(
@@ -195,11 +232,10 @@ class NotificationServiceTest {
     when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
     when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
         .thenReturn(buildTestDemand());
-    doThrow(new RuntimeException("Channel failure")).when(failingChannel).send(any());
 
     notificationService =
         new NotificationService(
-            List.of(failingChannel, inAppChannel),
+            List.of(emailChannel, inAppChannel),
             userRepository,
             sellerMapper,
             researcherMapper,
@@ -210,16 +246,17 @@ class NotificationServiceTest {
             paginator,
             userService,
             notificationMapper,
-            messageResolver);
+            messageResolver,
+            externalNotificationDeliveryService);
 
     assertDoesNotThrow(() -> notificationService.createAndSendNotification(buildTestRequest()));
 
-    verify(failingChannel, times(1)).send(any(Notification.class));
+    verify(emailChannel, never()).send(any(Notification.class));
     verify(inAppChannel, times(1)).send(any(Notification.class));
   }
 
   @Test
-  void should_send_to_multiple_channels() {
+  void should_enqueue_seller_demand_external_channels_instead_of_sending_immediately() {
     NotificationChannel emailChannel = mock(NotificationChannel.class);
 
     when(inAppChannel.isEnabled()).thenReturn(true);
@@ -248,12 +285,89 @@ class NotificationServiceTest {
             paginator,
             userService,
             notificationMapper,
-            messageResolver);
+            messageResolver,
+            externalNotificationDeliveryService);
 
     notificationService.createAndSendNotification(buildTestRequest());
 
     verify(inAppChannel, times(1)).send(any(Notification.class));
-    verify(emailChannel, times(1)).send(any(Notification.class));
+    verify(emailChannel, never()).send(any(Notification.class));
+    verify(externalNotificationDeliveryService)
+        .enqueue(any(Notification.class), eq(List.of(emailChannel)));
+  }
+
+  @Test
+  void should_fail_creation_when_persistent_external_enqueue_fails() {
+    NotificationChannel emailChannel = mock(NotificationChannel.class);
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    when(emailChannel.isEnabled()).thenReturn(true);
+    when(emailChannel.getChannelType()).thenReturn(EMAIL);
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(Optional.of(JSeller.builder().userType(UserType.SELLER).build()));
+    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
+    when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
+        .thenReturn(buildTestDemand());
+    doThrow(new IllegalStateException("delivery queue unavailable"))
+        .when(externalNotificationDeliveryService)
+        .enqueue(any(Notification.class), any());
+    notificationService =
+        new NotificationService(
+            List.of(inAppChannel, emailChannel),
+            userRepository,
+            sellerMapper,
+            researcherMapper,
+            managerMapper,
+            demandService,
+            offerService,
+            demandPublishedNotificationRepository,
+            paginator,
+            userService,
+            notificationMapper,
+            messageResolver,
+            externalNotificationDeliveryService);
+
+    var error =
+        assertThrows(
+            IllegalStateException.class,
+            () -> notificationService.createAndSendNotification(buildTestRequest()));
+
+    assertEquals("delivery queue unavailable", error.getMessage());
+    verify(inAppChannel).send(any(Notification.class));
+    verify(emailChannel, never()).send(any(Notification.class));
+  }
+
+  @Test
+  void should_not_enqueue_seller_demand_sms_when_seller_did_not_opt_in() {
+    NotificationChannel smsChannel = mock(NotificationChannel.class);
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    when(smsChannel.isEnabled()).thenReturn(true);
+    when(smsChannel.getChannelType()).thenReturn(SMS);
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(Optional.of(JSeller.builder().userType(UserType.SELLER).build()));
+    when(sellerMapper.toSeller(any(JSeller.class))).thenReturn(buildTestSeller());
+    when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
+        .thenReturn(buildTestDemand());
+    notificationService =
+        new NotificationService(
+            List.of(inAppChannel, smsChannel),
+            userRepository,
+            sellerMapper,
+            researcherMapper,
+            managerMapper,
+            demandService,
+            offerService,
+            demandPublishedNotificationRepository,
+            paginator,
+            userService,
+            notificationMapper,
+            messageResolver,
+            externalNotificationDeliveryService);
+
+    notificationService.createAndSendNotification(buildTestRequest());
+
+    verify(inAppChannel).send(any(Notification.class));
+    verify(smsChannel, never()).send(any(Notification.class));
+    verify(externalNotificationDeliveryService, never()).enqueue(any(), any());
   }
 
   @Test
@@ -294,7 +408,8 @@ class NotificationServiceTest {
             paginator,
             userService,
             notificationMapper,
-            messageResolver);
+            messageResolver,
+            externalNotificationDeliveryService);
 
     notificationService.createAndSendNotification(request);
 

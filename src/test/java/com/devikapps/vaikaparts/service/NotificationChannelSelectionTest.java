@@ -16,6 +16,7 @@ import com.devikapps.vaikaparts.repository.model.user.*;
 import com.devikapps.vaikaparts.service.notification.NotificationChannel;
 import com.devikapps.vaikaparts.service.notification.NotificationMessageResolver;
 import com.devikapps.vaikaparts.service.notification.NotificationService;
+import com.devikapps.vaikaparts.service.notification.delivery.ExternalNotificationDeliveryService;
 import com.devikapps.vaikaparts.service.util.Paginator;
 import java.util.List;
 import java.util.Optional;
@@ -50,7 +51,8 @@ class NotificationChannelSelectionTest {
           mock(Paginator.class),
           mock(UserService.class),
           mock(NotificationMapper.class),
-          new NotificationMessageResolver());
+          new NotificationMessageResolver(),
+          mock(ExternalNotificationDeliveryService.class));
 
   private User prepare(UserType type, boolean enableEmail, boolean enableSms) {
     when(inApp.getChannelType()).thenReturn(IN_APP);
