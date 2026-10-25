@@ -11,7 +11,9 @@ import com.devikapps.vaikaparts.config.sec.SecurityConf;
 import com.devikapps.vaikaparts.endpoint.rest.controller.user.UserController;
 import com.devikapps.vaikaparts.model.classifier.UserLanguage;
 import com.devikapps.vaikaparts.model.user.Researcher;
+import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.service.JwtValidationService;
+import com.devikapps.vaikaparts.service.UserCreationService;
 import com.devikapps.vaikaparts.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +29,8 @@ class UserControllerSecurityTest {
   @Autowired private MockMvc mvc;
   @MockitoBean private UserService userService;
   @MockitoBean private JwtValidationService jwtValidationService;
+  @MockitoBean private UserCreationService userCreationService;
+  @MockitoBean private UserRepository userRepository;
 
   @Test
   void authenticated_patch_does_not_require_csrf_token() throws Exception {
