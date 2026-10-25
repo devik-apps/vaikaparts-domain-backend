@@ -13,21 +13,20 @@ import com.devikapps.vaikaparts.repository.event.*;
 import com.devikapps.vaikaparts.repository.model.exchange.*;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.service.notification.NotificationService;
-import java.util.Collection;
+import com.devikapps.vaikaparts.service.outbox.OutboxService;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 class OfferThroughDemandEventsTest {
   @Test
-  @SuppressWarnings("unchecked")
-  void persists_parent_then_sends_one_researcher_child_only_after_commit() {
+  void persists_parent_and_enqueues_one_researcher_child() {
     var parents = mock(DemandPublishedRequestedRepository.class);
     var demands = mock(DemandRepository.class);
     var offers = mock(OfferRepository.class);
     var users = mock(UserRepository.class);
-    EventProducer<DemandPublishedNotificationRequested> producer = mock(EventProducer.class);
+    var children = mock(NotificationRequestedRepository.class);
+    var outbox = mock(OutboxService.class);
     var demand =
         JDemand.builder()
             .id("demand")
@@ -39,30 +38,30 @@ class OfferThroughDemandEventsTest {
     when(parents.save(any())).thenAnswer(i -> i.getArgument(0));
     var service =
         new DemandPublishedRequestedService(
-            parents, demands, offers, users, mock(SellerMapper.class), producer);
-    TransactionSynchronizationManager.initSynchronization();
-    try {
-      service.accept(
-          DemandPublishedRequested.builder()
-              .id("parent")
-              .demandId("demand")
-              .offerId("offer")
-              .build());
-      verifyNoInteractions(producer, users);
-      verify(parents, atLeastOnce()).save(any());
-      TransactionSynchronizationManager.getSynchronizations().forEach(s -> s.afterCommit());
-      ArgumentCaptor<Collection<DemandPublishedNotificationRequested>> events =
-          ArgumentCaptor.forClass(Collection.class);
-      verify(producer).accept(events.capture());
-      assertEquals(1, events.getValue().size());
-      var child = events.getValue().iterator().next();
-      assertEquals("parent", child.getDemandPublishedRequestedId());
-      assertEquals("offer", child.getOfferId());
-      assertEquals("researcher", child.getResearcherId());
-      assertNull(child.getSellerId());
-    } finally {
-      TransactionSynchronizationManager.clearSynchronization();
-    }
+            parents, demands, offers, users, mock(SellerMapper.class), children, outbox);
+    service.accept(
+        DemandPublishedRequested.builder()
+            .id("parent")
+            .demandId("demand")
+            .offerId("offer")
+            .build());
+    verifyNoInteractions(users);
+    verify(parents, atLeastOnce()).save(any());
+    var saved = ArgumentCaptor.forClass(JDemandPublishedNotificationRequested.class);
+    verify(children).save(saved.capture());
+    var persistedChild = saved.getValue();
+    assertEquals("parent", persistedChild.getDemandPublishedRequested().getId());
+    assertEquals("offer", persistedChild.getOffer().getId());
+    assertEquals("researcher", persistedChild.getResearcher().getId());
+    assertNull(persistedChild.getSeller());
+    var events = ArgumentCaptor.forClass(DemandPublishedNotificationRequested.class);
+    verify(outbox).enqueue(events.capture());
+    var child = events.getValue();
+    assertEquals(persistedChild.getId(), child.getId());
+    assertEquals("parent", child.getDemandPublishedRequestedId());
+    assertEquals("offer", child.getOfferId());
+    assertEquals("researcher", child.getResearcherId());
+    assertNull(child.getSellerId());
   }
 
   @Test
