@@ -2,6 +2,8 @@ package com.devikapps.vaikaparts.config;
 
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.devikapps.vaikaparts.config.sec.AuthenticatedSupabaseUser;
+import com.devikapps.vaikaparts.model.classifier.UserStatus;
+import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.service.JwtValidationService;
 import com.devikapps.vaikaparts.service.UserCreationService;
 import jakarta.servlet.FilterChain;
@@ -34,6 +36,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
   private static final int BEARER_PREFIX_LENGTH = 7;
   private final UserCreationService userCreationService;
   private final JwtValidationService jwtValidationService;
+  private final UserRepository userRepository;
   private static final String USER_TYPE_KEY = "user_type";
 
   @Override
@@ -66,6 +69,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         .validateToken(token)
         .ifPresent(
             jwt -> {
+              if (userRepository.findBySupabaseUserId(jwt.getSubject())
+                  .filter(localUser -> localUser.getStatus() != UserStatus.ENABLED)
+                  .isPresent()) {
+                SecurityContextHolder.clearContext();
+                return;
+              }
               var user = createPrincipal(jwt);
               UsernamePasswordAuthenticationToken authentication =
                   createAuthentication(user, request);
