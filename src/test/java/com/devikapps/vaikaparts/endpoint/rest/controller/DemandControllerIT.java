@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.devikapps.vaikaparts.conf.FacadeIT;
 import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
 import com.devikapps.vaikaparts.model.Location;
+import com.devikapps.vaikaparts.model.classifier.ManagerRole;
 import com.devikapps.vaikaparts.model.classifier.PartCategory;
 import com.devikapps.vaikaparts.model.classifier.PartCondition;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
@@ -23,6 +24,7 @@ import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
 import com.devikapps.vaikaparts.repository.model.exchange.JPartInfo;
+import com.devikapps.vaikaparts.repository.model.user.JManager;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import java.time.LocalDateTime;
@@ -264,6 +266,42 @@ class DemandControllerIT extends FacadeIT {
   }
 
   @Test
+  void should_list_all_demands_across_researchers_and_statuses_to_manager() throws Exception {
+    val manager = createTestManager();
+    val otherResearcher = createOtherResearcher();
+    val publishedDemand = createTestDemand(PostStatus.PUBLISHED);
+    publishedDemand.setCreatedAt(LocalDateTime.now());
+    demandRepository.save(publishedDemand);
+    val draftDemand = createDemandForResearcher(otherResearcher, PostStatus.DRAFT);
+    draftDemand.setCreatedAt(LocalDateTime.now().minusDays(1));
+    demandRepository.save(draftDemand);
+
+    authenticateAs(manager.getSupabaseUserId());
+    mockMvc
+        .perform(get(DEMANDS_ENDPOINT + "/all").param("page", "0").param("size", "1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content", hasSize(1)))
+        .andExpect(jsonPath("$.content[0].researcher.id").value(TEST_RESEARCHER_ID))
+        .andExpect(jsonPath("$.content[0].status").value(PostStatus.PUBLISHED.name()))
+        .andExpect(jsonPath("$.total_elements").value(2))
+        .andExpect(jsonPath("$.total_pages").value(2));
+
+    mockMvc
+        .perform(get(DEMANDS_ENDPOINT + "/all").param("page", "1").param("size", "1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content", hasSize(1)))
+        .andExpect(jsonPath("$.content[0].researcher.id").value(otherResearcher.getId()))
+        .andExpect(jsonPath("$.content[0].status").value(PostStatus.DRAFT.name()))
+        .andExpect(jsonPath("$.total_elements").value(2))
+        .andExpect(jsonPath("$.total_pages").value(2));
+
+    authenticateUser();
+    mockMvc
+        .perform(get(DEMANDS_ENDPOINT + "/all").param("page", "0").param("size", "10"))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
   void should_get_demand_by_id() throws Exception {
     authenticateUser();
     val demand = createTestDemand(PostStatus.PUBLISHED);
@@ -458,10 +496,34 @@ class DemandControllerIT extends FacadeIT {
             .build());
   }
 
+  private JManager createTestManager() {
+    return userRepository.save(
+        JManager.builder()
+            .id("manager-" + currentTimeMillis())
+            .supabaseUserId("supabase-manager-" + currentTimeMillis())
+            .name("Test Manager")
+            .email("manager-" + currentTimeMillis() + "@gmail.com")
+            .phoneNumber(TEST_PHONE)
+            .profileImgKey("")
+            .userType(UserType.MANAGER)
+            .status(UserStatus.ENABLED)
+            .managerRole(ManagerRole.MANAGER)
+            .build());
+  }
+
   private void authenticateSeller() {
     val authentication =
         new UsernamePasswordAuthenticationToken(
             "supabase-seller-123",
+            null,
+            Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+  }
+
+  private void authenticateAs(String supabaseUserId) {
+    val authentication =
+        new UsernamePasswordAuthenticationToken(
+            supabaseUserId,
             null,
             Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
     SecurityContextHolder.getContext().setAuthentication(authentication);

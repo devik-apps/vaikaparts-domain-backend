@@ -14,6 +14,7 @@ import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.mapper.exchange.DemandMapper;
 import com.devikapps.vaikaparts.mapper.exchange.OfferMapper;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
+import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.exchange.Offer;
 import com.devikapps.vaikaparts.model.exchange.Part;
@@ -85,9 +86,7 @@ public class DemandService {
 
   @Transactional(readOnly = true)
   public Page<Demand> getAllDemands(Integer page, Integer size) {
-
-    var currentSeller = userService.getCurrentSeller();
-    var sellerId = currentSeller.getId();
+    var currentUser = userService.getCurrentUser();
     var pagination = paginator.apply(page, size);
     var pageable =
         PageRequest.of(
@@ -95,9 +94,17 @@ public class DemandService {
             pagination.get(SIZE_FIELD),
             Sort.by(CREATED_AT_FIELD).descending());
 
-    log.info("Fetching demands for authenticated seller : {}", sellerId);
-
-    Page<JDemand> jDemands = demandRepository.findByStatus(PostStatus.PUBLISHED, pageable);
+    Page<JDemand> jDemands;
+    if (currentUser.getUserType() == UserType.SELLER) {
+      log.info("Fetching demands for authenticated seller : {}", currentUser.getId());
+      jDemands = demandRepository.findByStatus(PostStatus.PUBLISHED, pageable);
+    } else if (currentUser.getUserType() == UserType.MANAGER) {
+      log.info("Fetching all demands for authenticated manager : {}", currentUser.getId());
+      jDemands = demandRepository.findAllWithRelations(pageable);
+    } else {
+      throw new IllegalStateException(
+          format("User is not a SELLER. Actual type: %s", currentUser.getUserType()));
+    }
     return jDemands.map(demandMapper::toDomain);
   }
 
