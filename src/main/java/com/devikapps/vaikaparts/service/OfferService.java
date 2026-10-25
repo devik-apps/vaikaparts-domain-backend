@@ -54,6 +54,7 @@ public class OfferService {
   private final OfferMapper offerMapper;
   private final DemandMapper demandMapper;
   private final SellerService sellerService;
+  private final UserService userService;
   private final Paginator paginator;
   private final BucketComponent bucketComponent;
   private final ImageUploader imageUploader;
@@ -166,7 +167,7 @@ public class OfferService {
   @Transactional(readOnly = true)
   public Page<Offer> getSellerOffersByStatus(PostStatus status, Integer page, Integer size) {
     log.info(
-        "Fetching offers with status: {} for authenticated seller", forJava(status.toString()));
+        "Fetching offers with status: {} for authenticated user", forJava(status.toString()));
 
     var pagination = paginator.apply(page, size);
     var pageable =
@@ -175,22 +176,23 @@ public class OfferService {
             pagination.get(SIZE_FIELD),
             Sort.by(CREATED_AT_FIELD).descending());
 
-    var currentSeller = sellerService.getCurrentSeller();
-    var sellerId = currentSeller.getId();
-
-    var jOffers = offerRepository.findBySellerIdAndStatus(sellerId, status, pageable);
-    log.info(
-        "Found {} offers with status {} for seller {}",
-        jOffers.getTotalElements(),
-        forJava(status.toString()),
-        forJava(sellerId));
+    var currentUser = userService.getCurrentUser();
+    var jOffers =
+        switch (currentUser.getUserType()) {
+          case SELLER ->
+              offerRepository.findBySellerIdAndStatus(currentUser.getId(), status, pageable);
+          case MANAGER -> offerRepository.findAllByStatusWithRelations(status, pageable);
+          case RESEARCHER ->
+              throw new IllegalStateException("User is not a SELLER. Actual type: RESEARCHER");
+        };
+    log.info("Found {} offers with status {}", jOffers.getTotalElements(), forJava(status.toString()));
 
     return jOffers.map(offerMapper::toDomain);
   }
 
   @Transactional(readOnly = true)
   public Page<Offer> getAllSellerOffers(Integer page, Integer size) {
-    log.info("Fetching all offers for authenticated seller");
+    log.info("Fetching all offers for authenticated user");
 
     var pagination = paginator.apply(page, size);
     var pageable =
@@ -199,11 +201,15 @@ public class OfferService {
             pagination.get(SIZE_FIELD),
             Sort.by(CREATED_AT_FIELD).descending());
 
-    var currentSeller = sellerService.getCurrentSeller();
-    var sellerId = currentSeller.getId();
-
-    var jOffers = offerRepository.findBySellerIdWithRelations(sellerId, pageable);
-    log.info("Found {} total offers for seller {}", jOffers.getTotalElements(), forJava(sellerId));
+    var currentUser = userService.getCurrentUser();
+    var jOffers =
+        switch (currentUser.getUserType()) {
+          case SELLER -> offerRepository.findBySellerIdWithRelations(currentUser.getId(), pageable);
+          case MANAGER -> offerRepository.findAllWithRelations(pageable);
+          case RESEARCHER ->
+              throw new IllegalStateException("User is not a SELLER. Actual type: RESEARCHER");
+        };
+    log.info("Found {} total offers", jOffers.getTotalElements());
 
     return jOffers.map(offerMapper::toDomain);
   }
