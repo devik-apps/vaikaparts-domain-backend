@@ -49,6 +49,30 @@ public interface OfferRepository extends JpaRepository<JOffer, String> {
   Page<JOffer> findBySellerIdWithRelations(@Param("sellerId") String sellerId, Pageable pageable);
 
   @Query(
+      value =
+          """
+          SELECT o FROM JOffer o
+          LEFT JOIN FETCH o.seller
+          LEFT JOIN FETCH o.demand
+          LEFT JOIN FETCH o.partInfo
+          """,
+      countQuery = "SELECT COUNT(o) FROM JOffer o")
+  Page<JOffer> findAllWithRelations(Pageable pageable);
+
+  @Query(
+      value =
+          """
+          SELECT o FROM JOffer o
+          LEFT JOIN FETCH o.seller
+          LEFT JOIN FETCH o.demand
+          LEFT JOIN FETCH o.partInfo
+          WHERE o.status = :status
+          """,
+      countQuery = "SELECT COUNT(o) FROM JOffer o WHERE o.status = :status")
+  Page<JOffer> findAllByStatusWithRelations(
+      @Param("status") PostStatus status, Pageable pageable);
+
+  @Query(
       """
       SELECT o FROM JOffer o
       LEFT JOIN FETCH o.seller

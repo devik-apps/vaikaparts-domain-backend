@@ -1,6 +1,8 @@
 package com.devikapps.vaikaparts.endpoint.rest.controller;
 
 import static java.lang.System.currentTimeMillis;
+import static java.util.UUID.randomUUID;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -13,6 +15,7 @@ import com.devikapps.vaikaparts.mapper.ValueObjectMapper;
 import com.devikapps.vaikaparts.model.Location;
 import com.devikapps.vaikaparts.model.classifier.PartCategory;
 import com.devikapps.vaikaparts.model.classifier.PartCondition;
+import com.devikapps.vaikaparts.model.classifier.ManagerRole;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.model.classifier.UserStatus;
 import com.devikapps.vaikaparts.model.classifier.UserType;
@@ -24,6 +27,7 @@ import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
 import com.devikapps.vaikaparts.repository.model.exchange.JPartInfo;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
+import com.devikapps.vaikaparts.repository.model.user.JManager;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -48,6 +52,7 @@ class OfferControllerIT extends FacadeIT {
   private static final String TEST_SELLER_NAME = "Jane Seller";
   private static final String TEST_RESEARCHER_ID = "researcher-123";
   private static final String TEST_RESEARCHER_SUPABASE_ID = "supabase-researcher-123";
+  private static final String TEST_MANAGER_SUPABASE_ID = "supabase-manager-123";
   private static final String TEST_EMAIL = "seller@gmail.com";
   private static final String TEST_PHONE = "+1234567890";
   private static final String TEST_DESCRIPTION = "Offering a headlight for Toyota Corolla 2015";
@@ -503,6 +508,71 @@ class OfferControllerIT extends FacadeIT {
   }
 
   @Test
+  void should_page_all_offers_across_sellers_for_manager() throws Exception {
+    createTestManager();
+    authenticateManager();
+    val otherSeller = createOtherSeller();
+    createPersistedOffer(testSeller, testDemand, PostStatus.DRAFT);
+    createPersistedOffer(otherSeller, testDemand, PostStatus.PUBLISHED);
+    createPersistedOffer(testSeller, testDemand, PostStatus.CANCELED);
+
+    mockMvc
+        .perform(get(OFFERS_ENDPOINT).param("page", "0").param("size", "1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content", hasSize(1)))
+        .andExpect(jsonPath("$.content[0].seller_id").value(TEST_SELLER_ID))
+        .andExpect(jsonPath("$.content[0].status").value(PostStatus.CANCELED.name()))
+        .andExpect(jsonPath("$.total_elements").value(3))
+        .andExpect(jsonPath("$.total_pages").value(3));
+
+    mockMvc
+        .perform(get(OFFERS_ENDPOINT).param("page", "1").param("size", "1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content", hasSize(1)))
+        .andExpect(jsonPath("$.content[0].seller_id").value(otherSeller.getId()))
+        .andExpect(jsonPath("$.content[0].status").value(PostStatus.PUBLISHED.name()))
+        .andExpect(jsonPath("$.total_elements").value(3));
+
+    mockMvc
+        .perform(get(OFFERS_ENDPOINT).param("page", "2").param("size", "1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content", hasSize(1)))
+        .andExpect(jsonPath("$.content[0].seller_id").value(TEST_SELLER_ID))
+        .andExpect(jsonPath("$.content[0].status").value(PostStatus.DRAFT.name()))
+        .andExpect(jsonPath("$.total_elements").value(3));
+  }
+
+  @Test
+  void should_filter_published_offers_across_sellers_for_manager() throws Exception {
+    createTestManager();
+    authenticateManager();
+    val otherSeller = createOtherSeller();
+    createPersistedOffer(testSeller, testDemand, PostStatus.PUBLISHED);
+    createPersistedOffer(otherSeller, testDemand, PostStatus.PUBLISHED);
+    createPersistedOffer(otherSeller, testDemand, PostStatus.DRAFT);
+
+    mockMvc
+        .perform(get(OFFERS_ENDPOINT).param("status", PostStatus.PUBLISHED.name()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content", hasSize(2)))
+        .andExpect(jsonPath("$.content[0].status").value(PostStatus.PUBLISHED.name()))
+        .andExpect(jsonPath("$.content[1].status").value(PostStatus.PUBLISHED.name()))
+        .andExpect(
+            jsonPath("$.content[*].seller_id", containsInAnyOrder(TEST_SELLER_ID, otherSeller.getId())))
+        .andExpect(jsonPath("$.total_elements").value(2));
+  }
+
+  @Test
+  void should_deny_researcher_offer_lists() throws Exception {
+    authenticateResearcher();
+
+    mockMvc.perform(get(OFFERS_ENDPOINT)).andExpect(status().isBadRequest());
+    mockMvc
+        .perform(get(OFFERS_ENDPOINT).param("status", PostStatus.PUBLISHED.name()))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
   void should_get_offer_by_id() throws Exception {
     authenticateSeller();
     val offer = createPersistedOffer(testSeller, testDemand, PostStatus.PUBLISHED);
@@ -633,6 +703,30 @@ class OfferControllerIT extends FacadeIT {
     SecurityContextHolder.getContext().setAuthentication(authentication);
   }
 
+  private void authenticateManager() {
+    val authentication =
+        new UsernamePasswordAuthenticationToken(
+            TEST_MANAGER_SUPABASE_ID,
+            null,
+            Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+  }
+
+  private JManager createTestManager() {
+    return userRepository.save(
+        JManager.builder()
+            .id("manager-123")
+            .supabaseUserId(TEST_MANAGER_SUPABASE_ID)
+            .name("Test Manager")
+            .email("manager@gmail.com")
+            .phoneNumber("+2222222222")
+            .profileImgKey("")
+            .userType(UserType.MANAGER)
+            .status(UserStatus.ENABLED)
+            .managerRole(ManagerRole.MANAGER)
+            .build());
+  }
+
   private JSeller createTestSeller() {
     return userRepository.save(
         JSeller.builder()
@@ -712,7 +806,7 @@ class OfferControllerIT extends FacadeIT {
   private JOffer createPersistedOffer(JSeller seller, JDemand demand, PostStatus status) {
     val partInfo =
         JPartInfo.builder()
-            .id("part-info-" + currentTimeMillis())
+            .id("part-info-" + randomUUID())
             .partName(TEST_PART_NAME)
             .carBrand(TEST_CAR_BRAND)
             .carModel(TEST_CAR_MODEL)
@@ -725,7 +819,7 @@ class OfferControllerIT extends FacadeIT {
 
     val offer =
         JOffer.builder()
-            .id("offer-" + currentTimeMillis())
+            .id("offer-" + randomUUID())
             .demand(demand)
             .description(TEST_DESCRIPTION)
             .attachedPhotoBucketKeys(new ArrayList<>())
