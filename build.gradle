@@ -74,6 +74,14 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.security:spring-security-crypto'
     implementation 'org.bouncycastle:bcprov-jdk18on:1.83'
+    // Use only the library's RFC encryption/VAPID support; delivery uses JDK HttpClient.
+    implementation('nl.martijndwars:web-push:5.1.2') {
+        exclude group: 'org.bouncycastle', module: 'bcprov-jdk15on'
+        exclude group: 'org.apache.httpcomponents', module: 'httpasyncclient'
+        exclude group: 'org.asynchttpclient', module: 'async-http-client'
+        exclude group: 'com.beust', module: 'jcommander'
+    }
+    implementation 'org.bitbucket.b_c:jose4j:0.9.6'
 
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'

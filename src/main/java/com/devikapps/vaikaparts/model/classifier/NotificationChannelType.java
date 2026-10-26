@@ -3,5 +3,6 @@ package com.devikapps.vaikaparts.model.classifier;
 public enum NotificationChannelType {
   IN_APP,
   EMAIL,
-  SMS
+  SMS,
+  WEB_PUSH
 }
