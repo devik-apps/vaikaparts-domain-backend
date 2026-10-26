@@ -60,6 +60,48 @@ import org.springframework.data.domain.PageRequest;
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
 
+  @Test
+  void shouldSelectWebPushWithoutEmailSmsPreferencesOrContactDetails() {
+    var webPushChannel = mock(NotificationChannel.class);
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    when(webPushChannel.isEnabled()).thenReturn(true);
+    when(webPushChannel.getChannelType())
+        .thenReturn(com.devikapps.vaikaparts.model.classifier.NotificationChannelType.WEB_PUSH);
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(Optional.of(JSeller.builder().userType(UserType.SELLER).build()));
+    when(sellerMapper.toSeller(any(JSeller.class)))
+        .thenReturn(
+            Seller.builder()
+                .id(TEST_SELLER_ID)
+                .userType(UserType.SELLER)
+                .emailNotificationsEnabled(false)
+                .smsNotificationsEnabled(false)
+                .build());
+    var request =
+        NotificationRequest.builder()
+            .recipientUserId(TEST_SELLER_ID)
+            .notificationType(NotificationType.SYSTEM_ANNOUNCEMENT)
+            .message("Announcement")
+            .build();
+    var service =
+        new NotificationService(
+            List.of(inAppChannel, webPushChannel),
+            userRepository,
+            sellerMapper,
+            researcherMapper,
+            managerMapper,
+            demandService,
+            offerService,
+            demandPublishedNotificationRepository,
+            paginator,
+            userService,
+            notificationMapper,
+            messageResolver,
+            externalNotificationDeliveryService);
+    service.createAndSendNotification(request);
+    verify(webPushChannel).send(any(Notification.class));
+  }
+
   private static final String TEST_NOTIFICATION_REQUESTED_ID = "notification-requested-123";
   private static final String TEST_SELLER_ID = "seller-123";
   private static final String TEST_DEMAND_ID = "demand-456";

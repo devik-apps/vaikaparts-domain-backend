@@ -267,10 +267,12 @@ public class NotificationService {
   }
 
   private boolean isRequestedByRecipient(Notification notification, NotificationChannel channel) {
+    if (channel.getChannelType()
+        == com.devikapps.vaikaparts.model.classifier.NotificationChannelType.WEB_PUSH) return true;
     var recipient = notification.getRecipient();
     boolean requested =
         switch (channel.getChannelType()) {
-          case IN_APP -> true;
+          case IN_APP, WEB_PUSH -> true;
           case EMAIL -> recipient.isEmailNotificationsEnabled();
           case SMS ->
               notification.getNotificationType() == NotificationType.CONTACT_UNLOCKED
@@ -281,6 +283,7 @@ public class NotificationService {
           case EMAIL -> recipient.getEmail();
           case SMS -> recipient.getPhoneNumber();
           case IN_APP -> "in-app";
+          case WEB_PUSH -> null; // Already returned above; no email/phone address is required.
         };
     boolean hasAddress = address != null && !address.isBlank();
     if (!requested || !hasAddress) {
