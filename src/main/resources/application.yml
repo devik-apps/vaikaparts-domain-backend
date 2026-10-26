@@ -3,6 +3,11 @@ server:
 vaikaparts:
   frontend-base-url: ${VAIKAPARTS_FRONTEND_BASE_URL:https://vaikaparts.com}
 notifications:
+  web-push:
+    enabled: ${NOTIFICATIONS_WEB_PUSH_ENABLED:false}
+    public-key: ${VAPID_PUBLIC_KEY:}
+    private-key: ${VAPID_PRIVATE_KEY:}
+    subject: ${VAPID_SUBJECT:}
   email:
     enabled: ${NOTIFICATIONS_EMAIL_ENABLED:false}
   sms:
