@@ -1353,6 +1353,60 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServer'
+  /v1/notifications/push-subscriptions:
+    post:
+      operationId: registerPushSubscription
+      tags: [Notifications]
+      summary: Register a push notification subscription
+      description: Registers the authenticated user's browser push subscription.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushSubscriptionRequest'
+      responses:
+        204:
+          description: Push subscription registered successfully
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      operationId: removePushSubscription
+      tags: [Notifications]
+      summary: Remove a push notification subscription
+      description: Removes the authenticated user's subscription for the supplied endpoint. Repeating the request is safe.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushSubscriptionDeleteRequest'
+      responses:
+        204:
+          description: Push subscription removed, or was already absent
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+  /v1/notifications/push-subscriptions/vapid-public-key:
+    get:
+      operationId: getVapidPublicKey
+      tags: [Notifications]
+      summary: Retrieve the VAPID public key
+      description: Returns the public key required by clients to subscribe to push notifications.
+      responses:
+        200:
+          description: VAPID public key is available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VapidPublicKeyResponse'
+        503:
+          description: Push notifications are disabled or the VAPID public key is unavailable
+        401:
+          $ref: '#/components/responses/Unauthorized'
 components:
   securitySchemes:
     supabaseAuth:
@@ -2163,6 +2217,34 @@ components:
           example: {"action": "VIEW_DEMAND", "demandId": "demand-ctrl-789"}
         read_at:
           $ref: '#/components/schemas/DateTime'
+    PushSubscriptionRequest:
+      type: object
+      required: [endpoint, keys]
+      properties:
+        endpoint:
+          type: string
+          format: uri
+        keys:
+          type: object
+          required: [p256dh, auth]
+          properties:
+            p256dh:
+              type: string
+            auth:
+              type: string
+    PushSubscriptionDeleteRequest:
+      type: object
+      required: [endpoint]
+      properties:
+        endpoint:
+          type: string
+          format: uri
+    VapidPublicKeyResponse:
+      type: object
+      required: [publicKey]
+      properties:
+        publicKey:
+          type: string
     PageResponse:
       type: object
       required: [content, pageable, total_elements, total_pages, last, first, size, number, number_of_elements, empty]
