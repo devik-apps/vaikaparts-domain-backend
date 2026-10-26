@@ -9,6 +9,7 @@ import com.devikapps.vaikaparts.mapper.NotificationMapper;
 import com.devikapps.vaikaparts.mapper.user.*;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.classifier.UserType;
+import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.exchange.Offer;
 import com.devikapps.vaikaparts.model.user.*;
 import com.devikapps.vaikaparts.repository.*;
@@ -32,6 +33,12 @@ class NotificationChannelSelectionTest {
   private final NotificationChannel inApp = mock(NotificationChannel.class);
   private final NotificationChannel email = mock(NotificationChannel.class);
   private final NotificationChannel sms = mock(NotificationChannel.class);
+  private final NotificationChannel webPush = mock(NotificationChannel.class);
+  private final ExternalNotificationDeliveryService deliveries =
+      mock(ExternalNotificationDeliveryService.class);
+  private final DemandPublishedNotificationRepository notifications =
+      mock(DemandPublishedNotificationRepository.class);
+  private final NotificationMapper notificationMapper = mock(NotificationMapper.class);
   private final UserRepository users = mock(UserRepository.class);
   private final SellerMapper sellers = mock(SellerMapper.class);
   private final ResearcherMapper researchers = mock(ResearcherMapper.class);
@@ -40,21 +47,146 @@ class NotificationChannelSelectionTest {
   private final OfferService offerService = mock(OfferService.class);
   private final NotificationService service =
       new NotificationService(
-          List.of(email, sms, inApp),
+          List.of(email, sms, inApp, webPush),
           users,
           sellers,
           researchers,
           managers,
           demandService,
           offerService,
-          mock(DemandPublishedNotificationRepository.class),
+          notifications,
           mock(Paginator.class),
           mock(UserService.class),
-          mock(NotificationMapper.class),
+          notificationMapper,
           new NotificationMessageResolver(),
-          mock(ExternalNotificationDeliveryService.class));
+          deliveries);
+
+  static Stream<Arguments> webPushCases() {
+    return Stream.of(
+            Arguments.of(NotificationType.SYSTEM_ANNOUNCEMENT, UserType.SELLER),
+            Arguments.of(NotificationType.SYSTEM_ANNOUNCEMENT, UserType.RESEARCHER),
+            Arguments.of(NotificationType.SYSTEM_ANNOUNCEMENT, UserType.MANAGER),
+            Arguments.of(NotificationType.DEMAND_CANCELED, UserType.SELLER),
+            Arguments.of(NotificationType.DEMAND_CANCELED, UserType.RESEARCHER),
+            Arguments.of(NotificationType.DEMAND_CANCELED, UserType.MANAGER),
+            Arguments.of(NotificationType.OFFER_PUBLISHED, UserType.RESEARCHER),
+            Arguments.of(NotificationType.DEMAND_PUBLISHED, UserType.SELLER),
+            Arguments.of(NotificationType.DEMAND_PUBLISHED, UserType.MANAGER),
+            Arguments.of(NotificationType.OFFER_ACCEPTED, UserType.SELLER),
+            Arguments.of(NotificationType.OFFER_ACCEPTED, UserType.MANAGER),
+            Arguments.of(NotificationType.OFFER_REJECTED, UserType.SELLER),
+            Arguments.of(NotificationType.OFFER_REJECTED, UserType.MANAGER),
+            Arguments.of(NotificationType.CONTACT_UNLOCKED, UserType.SELLER),
+            Arguments.of(NotificationType.CONTACT_UNLOCKED, UserType.RESEARCHER))
+        .flatMap(
+            args ->
+                Stream.of(false, true)
+                    .flatMap(
+                        emailPreference ->
+                            Stream.of(false, true)
+                                .map(
+                                    smsPreference ->
+                                        Arguments.of(
+                                            args.get()[0],
+                                            args.get()[1],
+                                            emailPreference,
+                                            smsPreference))));
+  }
+
+  @ParameterizedTest
+  @MethodSource("webPushCases")
+  void webPushIsSelectedForEveryValidTypeAndRoleRegardlessOfEmailSmsPreferences(
+      NotificationType type, UserType role, boolean wantsEmail, boolean wantsSms) {
+    var user = prepare(role, wantsEmail, wantsSms);
+    user.setEmail(null);
+    user.setPhoneNumber(null);
+    when(webPush.isEnabled()).thenReturn(true);
+    when(demandService.getDemandByIdWithoutAuthFilter("resource"))
+        .thenReturn(Demand.builder().id("resource").build());
+    when(offerService.getOfferByIdWithoutAuthFilter("resource"))
+        .thenReturn(Offer.builder().id("resource").build());
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      var notification =
+          service.createAndSendNotification(
+              NotificationRequest.builder()
+                  .recipientUserId("user")
+                  .notificationType(type)
+                  .resourceId("resource")
+                  .message("Test")
+                  .build());
+      verify(deliveries).enqueue(notification, List.of(webPush));
+      verify(inApp).send(notification);
+      TransactionSynchronizationManager.getSynchronizations()
+          .forEach(TransactionSynchronization::afterCommit);
+      verify(webPush, never()).send(any());
+      verify(email, never()).send(any());
+      verify(sms, never()).send(any());
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+  }
+
+  @Test
+  void webPushIsQueuedWhileEmailAndSmsKeepTheirAfterCommitTiming() {
+    prepare(UserType.RESEARCHER, true, true);
+    when(webPush.isEnabled()).thenReturn(true);
+    TransactionSynchronizationManager.initSynchronization();
+    try {
+      var notification = service.createAndSendNotification(request());
+      verify(deliveries).enqueue(notification, List.of(webPush));
+      verify(email, never()).send(any());
+      verify(sms, never()).send(any());
+      TransactionSynchronizationManager.getSynchronizations()
+          .forEach(TransactionSynchronization::afterCommit);
+      verify(email).send(notification);
+      verify(sms).send(notification);
+      verify(webPush, never()).send(any());
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+  }
+
+  @Test
+  void sellerDemandKeepsAllSelectedExternalChannelsInTheQueue() {
+    prepare(UserType.SELLER, true, true);
+    when(webPush.isEnabled()).thenReturn(true);
+    when(demandService.getDemandByIdWithoutAuthFilter("demand"))
+        .thenReturn(Demand.builder().id("demand").build());
+    var notification =
+        service.createAndSendNotification(
+            NotificationRequest.builder()
+                .recipientUserId("user")
+                .notificationType(NotificationType.DEMAND_PUBLISHED)
+                .resourceId("demand")
+                .message("Test")
+                .build());
+    verify(deliveries).enqueue(notification, List.of(email, sms, webPush));
+    verify(email, never()).send(any());
+    verify(sms, never()).send(any());
+    verify(webPush, never()).send(any());
+  }
+
+  @Test
+  void duplicateRequestDoesNotEnqueueAnotherWebPushDelivery() {
+    prepare(UserType.SELLER, false, false);
+    when(webPush.isEnabled()).thenReturn(true);
+    var request = request();
+    request.setNotificationRequestedId("request-1");
+    var first = service.createAndSendNotification(request);
+    var row =
+        com.devikapps.vaikaparts.repository.event.JDemandPublishedNotification.builder()
+            .id(first.getId())
+            .build();
+    when(notifications.findByRequestId("request-1")).thenReturn(Optional.of(row));
+    when(notificationMapper.toDomain(row)).thenReturn(first);
+    assertSame(first, service.createAndSendNotification(request));
+    verify(inApp).send(first);
+    verify(deliveries).enqueue(first, List.of(webPush));
+  }
 
   private User prepare(UserType type, boolean enableEmail, boolean enableSms) {
+    when(webPush.getChannelType()).thenReturn(WEB_PUSH);
     when(inApp.getChannelType()).thenReturn(IN_APP);
     when(email.getChannelType()).thenReturn(EMAIL);
     when(sms.getChannelType()).thenReturn(SMS);
