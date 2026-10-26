@@ -98,8 +98,9 @@ class NotificationServiceTest {
             notificationMapper,
             messageResolver,
             externalNotificationDeliveryService);
-    service.createAndSendNotification(request);
-    verify(webPushChannel).send(any(Notification.class));
+    var notification = service.createAndSendNotification(request);
+    verify(externalNotificationDeliveryService).enqueue(notification, List.of(webPushChannel));
+    verify(webPushChannel, never()).send(any(Notification.class));
   }
 
   private static final String TEST_NOTIFICATION_REQUESTED_ID = "notification-requested-123";

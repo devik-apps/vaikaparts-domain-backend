@@ -2,6 +2,7 @@ package com.devikapps.vaikaparts.service.notification;
 
 import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.IN_APP;
 import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.SMS;
+import static com.devikapps.vaikaparts.model.classifier.NotificationChannelType.WEB_PUSH;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.UUID.nameUUIDFromBytes;
@@ -229,21 +230,30 @@ public class NotificationService {
             .toList();
     if (externalChannels.isEmpty()) return;
 
-    if (requiresPersistentExternalDelivery(notification)) {
-      externalNotificationDeliveryService.enqueue(notification, externalChannels);
-      return;
+    boolean persistAll = requiresPersistentExternalDelivery(notification);
+    var persistentChannels =
+        externalChannels.stream()
+            .filter(channel -> persistAll || channel.getChannelType() == WEB_PUSH)
+            .toList();
+    if (!persistentChannels.isEmpty()) {
+      externalNotificationDeliveryService.enqueue(notification, persistentChannels);
     }
+    var immediateChannels =
+        externalChannels.stream()
+            .filter(channel -> !persistAll && channel.getChannelType() != WEB_PUSH)
+            .toList();
+    if (immediateChannels.isEmpty()) return;
 
     if (TransactionSynchronizationManager.isSynchronizationActive()) {
       log.info(
           "[NOTIF-PIPELINE][EXTERNAL_WAIT_COMMIT] notificationId={}, channels={}",
           forJava(notification.getId()),
-          externalChannels.size());
+          immediateChannels.size());
       TransactionSynchronizationManager.registerSynchronization(
           new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-              externalChannels.forEach(channel -> sendChannel(notification, channel));
+              immediateChannels.forEach(channel -> sendChannel(notification, channel));
             }
           });
     } else {
@@ -251,7 +261,7 @@ public class NotificationService {
       log.warn(
           "[NOTIF-PIPELINE][EXTERNAL_NO_TRANSACTION] notificationId={} (sending immediately)",
           forJava(notification.getId()));
-      externalChannels.forEach(channel -> sendChannel(notification, channel));
+      immediateChannels.forEach(channel -> sendChannel(notification, channel));
     }
   }
 
