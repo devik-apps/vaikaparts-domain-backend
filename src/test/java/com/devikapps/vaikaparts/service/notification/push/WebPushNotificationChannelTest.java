@@ -3,6 +3,7 @@ package com.devikapps.vaikaparts.service.notification.push;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import com.devikapps.vaikaparts.config.JacksonConf;
 import com.devikapps.vaikaparts.model.classifier.NotificationType;
 import com.devikapps.vaikaparts.model.classifier.UserLanguage;
 import com.devikapps.vaikaparts.model.notification.Notification;
@@ -14,7 +15,9 @@ import com.devikapps.vaikaparts.service.notification.WebPushNotificationChannel;
 import com.devikapps.vaikaparts.service.notification.WebPushProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -23,7 +26,7 @@ class WebPushNotificationChannelTest {
   final WebPushSender sender = mock(WebPushSender.class);
   final WebPushEndpointValidator validator = mock(WebPushEndpointValidator.class);
   final WebPushProperties properties = new WebPushProperties();
-  final ObjectMapper mapper = new ObjectMapper();
+  final ObjectMapper mapper = new JacksonConf().objectMapper();
   final org.springframework.transaction.PlatformTransactionManager transactionManager =
       mock(org.springframework.transaction.PlatformTransactionManager.class);
   final WebPushNotificationChannel channel =
@@ -89,11 +92,13 @@ class WebPushNotificationChannelTest {
     verify(sender, times(NotificationType.values().length)).send(any(), payloads.capture());
     for (int i = 0; i < NotificationType.values().length; i++) {
       var json = mapper.readTree(payloads.getAllValues().get(i));
-      assertEquals(4, json.size());
+      var keys = new HashSet<String>();
+      json.fieldNames().forEachRemaining(keys::add);
+      assertEquals(Set.of("id", "type", "message", "click_action"), keys);
       assertEquals("notification-1", json.get("id").asText());
       assertEquals(NotificationType.values()[i].name(), json.get("type").asText());
       assertFalse(json.get("message").asText().isBlank());
-      assertEquals("/notifications", json.get("clickAction").asText());
+      assertEquals("/notifications", json.get("click_action").asText());
       assertFalse(json.toString().contains("secret@example.com"));
     }
     assertEquals(
@@ -184,7 +189,7 @@ class WebPushNotificationChannelTest {
     verify(sender, times(6)).send(any(), payloads.capture());
     for (var bytes : payloads.getAllValues()) {
       assertTrue(bytes.length <= 3072);
-      assertEquals("/notifications", mapper.readTree(bytes).get("clickAction").asText());
+      assertEquals("/notifications", mapper.readTree(bytes).get("click_action").asText());
     }
   }
 }
