@@ -345,10 +345,10 @@ public class ApiExceptionHandler {
     }
 
     log.error(
-        "Data integrity violation at path: {}, error code: {}, root cause: {}",
+        "Data integrity violation at path: {}, error code: {}, root cause type: {}",
         forJava(getRequestPath(request)),
         forJava(errorCode),
-        forJava(rootCause != null ? rootCause.getMessage() : "unknown"));
+        rootCause != null ? rootCause.getClass().getName() : "unknown");
 
     var errorResponse =
         ErrorResponse.of(HttpStatus.CONFLICT, userMessage, getRequestPath(request), errorCode);
