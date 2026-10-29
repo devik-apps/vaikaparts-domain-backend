@@ -11,6 +11,9 @@ import org.springframework.stereotype.Component;
 @Setter
 public class WebPushProperties {
   private boolean enabled = false;
+  private boolean dispatchEnabled = false;
+  private String dispatchUrl = "";
+  private String dispatchSecret = "";
   private String publicKey = "";
   private String privateKey = "";
   private String subject = "";

@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 
 import com.devikapps.vaikaparts.repository.WebPushSubscriptionRepository;
 import com.devikapps.vaikaparts.service.notification.NotificationMessageResolver;
+import com.devikapps.vaikaparts.service.notification.NextWebPushNotificationChannel;
 import com.devikapps.vaikaparts.service.notification.WebPushNotificationChannel;
 import com.devikapps.vaikaparts.service.notification.WebPushProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -65,6 +66,38 @@ class WebPushConfigurationTest {
               assertThat(context.getStartupFailure())
                   .hasRootCauseMessage(
                       "Enabled web push requires valid VAPID public-key, private-key and subject");
+            });
+  }
+
+  @Test
+  void dispatchModeRegistersNextChannelInsteadOfJavaNativeChannel() {
+    runner
+        .withPropertyValues(
+            "notifications.web-push.enabled=true",
+            "notifications.web-push.dispatch-enabled=true",
+            "notifications.web-push.dispatch-url=http://127.0.0.1:3000/api/push/dispatch",
+            "notifications.web-push.dispatch-secret=0123456789abcdef0123456789abcdef")
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              assertThat(context).hasSingleBean(NextWebPushNotificationChannel.class);
+              assertThat(context).doesNotHaveBean(WebPushNotificationChannel.class);
+            });
+  }
+
+  @Test
+  void dispatchModeRequiresAValidSharedSecret() {
+    runner
+        .withPropertyValues(
+            "notifications.web-push.enabled=true",
+            "notifications.web-push.dispatch-enabled=true",
+            "notifications.web-push.dispatch-url=https://vaikaparts.com/api/push/dispatch",
+            "notifications.web-push.dispatch-secret=short")
+        .run(
+            context -> {
+              assertThat(context).hasFailed();
+              assertThat(context.getStartupFailure())
+                  .hasRootCauseMessage("PUSH_DISPATCH_SECRET must contain at least 32 characters");
             });
   }
 }

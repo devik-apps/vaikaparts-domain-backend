@@ -41,7 +41,7 @@ public record WebPushPayload(String id, String type, String message, String clic
     }
   }
 
-  private static String safeClickAction(String action) {
+  static String safeClickAction(String action) {
     try {
       if (action == null || action.length() > 256) return "/notifications";
       // Decode nested encodings as well: browsers and application routers may normalize them.

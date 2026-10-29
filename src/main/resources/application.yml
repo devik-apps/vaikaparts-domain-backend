@@ -5,6 +5,9 @@ vaikaparts:
 notifications:
   web-push:
     enabled: ${NOTIFICATIONS_WEB_PUSH_ENABLED:false}
+    dispatch-enabled: ${NOTIFICATIONS_WEB_PUSH_DISPATCH_ENABLED:false}
+    dispatch-url: ${PUSH_DISPATCH_URL:}
+    dispatch-secret: ${PUSH_DISPATCH_SECRET:}
     public-key: ${VAPID_PUBLIC_KEY:}
     private-key: ${VAPID_PRIVATE_KEY:}
     subject: ${VAPID_SUBJECT:}
