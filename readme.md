@@ -352,6 +352,22 @@ keys, external service endpoints, and application-specific thresholds. [
 `FacadeIT`](https://github.com/devik-apps/vaikaparts-domain-backend/blob/preprod/src/test/java/com/devikapps/vaikaparts/conf/FacadeIT.java) discovers and applies `EnvConf` implementations
 through reflection, allowing test-specific overrides without modifying application configuration files.
 
+### Web Push dispatch
+
+To route Java `WEB_PUSH` notifications through the Next.js client, configure:
+
+```dotenv
+NOTIFICATIONS_WEB_PUSH_ENABLED=true
+NOTIFICATIONS_WEB_PUSH_DISPATCH_ENABLED=true
+PUSH_DISPATCH_URL=https://vaikaparts.com/api/push/dispatch
+PUSH_DISPATCH_SECRET=<same random secret configured in Next.js>
+```
+
+Generate the shared secret with `openssl rand -hex 32` and set the same value as `PUSH_DISPATCH_SECRET` in both
+deployments. Keep it server-side; it is separate from the VAPID key pair. `PUSH_DISPATCH_URL` must point to the
+Next.js route over HTTPS (HTTP is accepted only for localhost development). If dispatch mode is disabled, Java keeps
+using its native VAPID sender and Java-managed subscriptions.
+
 ---
 
 # 4. API Documentation
