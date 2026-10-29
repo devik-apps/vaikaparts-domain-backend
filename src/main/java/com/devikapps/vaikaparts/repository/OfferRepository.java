@@ -73,13 +73,15 @@ public interface OfferRepository extends JpaRepository<JOffer, String> {
       @Param("status") PostStatus status, Pageable pageable);
 
   @Query(
-      """
-      SELECT o FROM JOffer o
-      LEFT JOIN FETCH o.seller
-      LEFT JOIN FETCH o.partInfo pi
-      LEFT JOIN FETCH pi.partImageBuckets
-      WHERE o.demand.id = :demandId
-      """)
+      value =
+          """
+          SELECT o FROM JOffer o
+          LEFT JOIN FETCH o.seller
+          LEFT JOIN FETCH o.partInfo pi
+          LEFT JOIN FETCH pi.partImageBuckets
+          WHERE o.demand.id = :demandId
+          """,
+      countQuery = "SELECT COUNT(DISTINCT o.id) FROM JOffer o WHERE o.demand.id = :demandId")
   Page<JOffer> findByDemandId(@Param("demandId") String demandId, Pageable pageable);
 
   @Query(
