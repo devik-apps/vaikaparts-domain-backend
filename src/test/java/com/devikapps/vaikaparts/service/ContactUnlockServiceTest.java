@@ -17,6 +17,7 @@ import static org.mockito.Mockito.when;
 import com.devikapps.vaikaparts.client.PecuniaClient;
 import com.devikapps.vaikaparts.client.PecuniaClient.PapiPaymentResponse;
 import com.devikapps.vaikaparts.client.PecuniaClient.PaymentResponse;
+import com.devikapps.vaikaparts.client.PecuniaClientException;
 import com.devikapps.vaikaparts.client.PecuniaNotFoundException;
 import com.devikapps.vaikaparts.client.PecuniaUnknownOutcomeException;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockRequest;
@@ -181,6 +182,24 @@ class ContactUnlockServiceTest {
   }
 
   @Test
+  void shouldRejectInvalidPapiPayerBeforeReservingOrCallingPecunia() {
+    buyer.setName("Ada");
+    buyer.setPhoneNumber("not-a-madagascar-number");
+
+    assertThrows(
+        IllegalStateException.class,
+        () -> service.initiate("offer-id", new ContactUnlockRequest("PAPI", "MVOLA", null)));
+    buyer.setPhoneNumber("0340000000");
+    buyer.setName("A".repeat(256));
+    assertThrows(
+        IllegalStateException.class,
+        () -> service.initiate("offer-id", new ContactUnlockRequest("PAPI", "MVOLA", null)));
+
+    verify(persistence, never()).reserve(any());
+    verify(pecuniaClient, never()).initiatePapi(any(), any(), any(), any(), any(), any());
+  }
+
+  @Test
   void shouldRejectPapiPriceBelowProviderMinimum() {
     service =
         new ContactUnlockService(
@@ -264,6 +283,56 @@ class ContactUnlockServiceTest {
   }
 
   @Test
+  void shouldRejectStatusWithMismatchedReservedPaymentMethod() {
+    var unlock = papiUnlock(PENDING);
+    unlock.setPaymentMethod("AIRTEL_MONEY");
+    unlock.setPaymentAmount(new BigDecimal("5000"));
+    when(persistence.findOwned("buyer-id", "offer-id", "unlock-id"))
+        .thenReturn(Optional.of(unlock));
+    when(pecuniaClient.findPapiByReference("unlock-id"))
+        .thenReturn(papiPayment("unlock-id", "MVOLA", "Ada", "0340000000", "SUCCESS"));
+    service =
+        new ContactUnlockService(
+            userRepository,
+            offerRepository,
+            persistence,
+            pecuniaClient,
+            contactReleaseService,
+            new BigDecimal("6000"),
+            "0320000000");
+
+    assertThrows(
+        IllegalStateException.class, () -> service.getUnlockStatus("offer-id", "unlock-id"));
+    verify(contactReleaseService, never()).releasePapi(any(), any());
+    verify(persistence, never()).failPapi(any(), any());
+  }
+
+  @Test
+  void shouldValidateStatusAgainstReservedAmountAfterConfiguredPriceChanges() {
+    var unlock = papiUnlock(PENDING);
+    unlock.setPaymentAmount(new BigDecimal("5000"));
+    when(persistence.findOwned("buyer-id", "offer-id", "unlock-id"))
+        .thenReturn(Optional.of(unlock));
+    when(pecuniaClient.findPapiByReference("unlock-id"))
+        .thenReturn(papiPayment("unlock-id", "MVOLA", "Ada", "0340000000", "PENDING"));
+    when(persistence.attachPapiPayment(eq(unlock), any())).thenReturn(unlock);
+    service =
+        new ContactUnlockService(
+            userRepository,
+            offerRepository,
+            persistence,
+            pecuniaClient,
+            contactReleaseService,
+            new BigDecimal("6000"),
+            "0320000000");
+
+    var result = service.getUnlockStatus("offer-id", "unlock-id");
+
+    assertEquals(PENDING, result.status());
+    assertEquals(new BigDecimal("5000"), result.amount());
+  }
+
+  @Test
   void shouldReturnNotFoundWhenAnotherResearcherOwnsTheUnlock() {
     when(persistence.findOwned("buyer-id", "offer-id", "unlock-id")).thenReturn(Optional.empty());
 
@@ -334,6 +403,25 @@ class ContactUnlockServiceTest {
     order.verify(pecuniaClient).initiatePapi(any(), any(), any(), any(), any(), any());
     order.verify(pecuniaClient).findPapiByReference(result.unlockRequestId());
     order.verify(pecuniaClient).initiatePapi(any(), any(), any(), any(), any(), any());
+  }
+
+  @Test
+  void shouldReturnReservedUnlockWhenPapiOutcomeAndRecoveryLookupAreUnavailable() {
+    buyer.setName("Ada");
+    buyer.setPhoneNumber("0340000000");
+    when(persistence.findActive("buyer-id", "offer-id")).thenReturn(Optional.empty());
+    when(persistence.reserve(any())).thenAnswer(invocation -> invocation.getArgument(0));
+    when(pecuniaClient.initiatePapi(any(), any(), any(), any(), any(), any()))
+        .thenThrow(new PecuniaUnknownOutcomeException("timeout"));
+    when(pecuniaClient.findPapiByReference(any()))
+        .thenThrow(new PecuniaClientException("Pecunia unavailable"));
+
+    var result = service.initiate("offer-id", new ContactUnlockRequest("PAPI", "MVOLA", null));
+
+    assertEquals(PENDING, result.status());
+    org.junit.jupiter.api.Assertions.assertNotNull(result.unlockRequestId());
+    assertEquals(new BigDecimal("5000"), result.amount());
+    verify(pecuniaClient).initiatePapi(any(), any(), any(), any(), any(), any());
   }
 
   @Test
@@ -413,6 +501,8 @@ class ContactUnlockServiceTest {
         .buyer(buyer)
         .seller(JSeller.builder().id("seller-id").build())
         .provider("PAPI")
+        .paymentMethod("MVOLA")
+        .paymentAmount(new BigDecimal("5000"))
         .status(status)
         .build();
   }
