@@ -236,33 +236,43 @@ write_version_output() {
 
 publish() {
 	local version="${1}"
+	local scope="${2}"
+	local attempt
 
-	log_info "Publishing TypeScript client to GitHub Packages (npm)..."
-	log_info "Registry : ${NPM_REGISTRY}"
-	log_info "Actor    : ${GITHUB_ACTOR}"
-	log_info "Version  : ${version}"
+	for attempt in {1..10}; do
+		patch_package_json "${version}" "${scope}"
 
-	local output
-	local exit_code=0
+		log_info "Publishing TypeScript client to GitHub Packages (npm)..."
+		log_info "Registry : ${NPM_REGISTRY}"
+		log_info "Actor    : ${GITHUB_ACTOR}"
+		log_info "Version  : ${version}"
 
-	output=$(
-		cd "${GENERATED_DIR}"
-		npm publish --access restricted --userconfig "${NPMRC_FILE}" 2>&1
-	) || exit_code=$?
+		local output
+		local exit_code=0
 
-	if [[ ${exit_code} -ne 0 ]]; then
-		if echo "${output}" | grep -q "409\|Cannot publish over\|already exists"; then
-			log_error "Package version '${version}' already exists (conflict)."
-			log_error "Verify that tag '${CLIENT_TAG_PREFIX}${version}' does not already exist."
-			exit 1
+		output=$(
+			cd "${GENERATED_DIR}"
+			npm publish --access restricted --userconfig "${NPMRC_FILE}" 2>&1
+		) || exit_code=$?
+
+		if [[ ${exit_code} -ne 0 ]]; then
+			if echo "${output}" | grep -q "409\|Cannot publish over\|already exists"; then
+				version=$(increment_patch_version "${version}")
+				log_warn "Package version is already taken; trying '${version}'."
+				continue
+			fi
+			log_error "Publish failed with exit code ${exit_code}."
+			echo "${output}" >&2
+			exit "${exit_code}"
 		fi
-		log_error "Publish failed with exit code ${exit_code}."
-		echo "${output}" >&2
-		exit "${exit_code}"
-	fi
 
-	log_info "TypeScript client version '${version}' published successfully."
-	write_version_output "${version}"
+		log_info "TypeScript client version '${version}' published successfully."
+		write_version_output "${version}"
+		return 0
+	done
+
+	log_error "Could not publish after ${attempt} version conflicts."
+	exit 1
 }
 
 main() {
@@ -278,8 +288,7 @@ main() {
 	github_org=$(resolve_github_org)
 
 	configure_npm_auth
-	patch_package_json "${next_version}" "${github_org}"
-	publish "${next_version}"
+	publish "${next_version}" "${github_org}"
 }
 
 main "$@"
