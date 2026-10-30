@@ -14,6 +14,7 @@ import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.repository.model.user.JUser;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -49,10 +50,11 @@ public class NotificationMapper {
   }
 
   private User mapRecipient(JUser user) {
-    return switch (user.getUserType()) {
-      case SELLER -> sellerMapper.toSeller((JSeller) user);
-      case RESEARCHER -> researcherMapper.toResearcher((JResearcher) user);
-      case MANAGER -> managerMapper.toManager((JManager) user);
+    var recipient = (JUser) Hibernate.unproxy(user);
+    return switch (recipient.getUserType()) {
+      case SELLER -> sellerMapper.toSeller((JSeller) recipient);
+      case RESEARCHER -> researcherMapper.toResearcher((JResearcher) recipient);
+      case MANAGER -> managerMapper.toManager((JManager) recipient);
     };
   }
 
