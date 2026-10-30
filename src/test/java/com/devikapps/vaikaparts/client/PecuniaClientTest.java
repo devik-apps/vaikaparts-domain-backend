@@ -3,8 +3,8 @@ package com.devikapps.vaikaparts.client;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.devikapps.vaikaparts.config.JacksonConf;
 import com.devikapps.vaikaparts.config.PecuniaConf;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import java.math.BigDecimal;
 import java.net.InetSocketAddress;
@@ -40,7 +40,7 @@ class PecuniaClientTest {
           apiKey.set(exchange.getRequestHeaders().getFirst("X-Api-Key"));
           var body =
               """
-              {"id":"payment-id","transactionId":"unlock-id","merchantReference":"unlock-id","status":"PENDING","amount":5000,"currency":"MGA","type":"PROFILE_UNLOCK","provider":"PAPI","paymentMethod":"ORANGE_MONEY","payer":{"name":"Ada","phoneNumber":"0340000000"}}
+              {"id":"payment-id","transaction_id":"unlock-id","merchant_reference":"unlock-id","status":"PENDING","amount":5000,"currency":"MGA","type":"PROFILE_UNLOCK","provider":"PAPI","payment_method":"ORANGE_MONEY","payer":{"name":"Ada","phone_number":"0340000000"}}
               """;
           exchange.getResponseHeaders().add("Content-Type", "application/json");
           exchange.sendResponseHeaders(201, body.getBytes(StandardCharsets.UTF_8).length);
@@ -55,14 +55,14 @@ class PecuniaClientTest {
     assertEquals("/v1/payments/papi", path.get());
     assertEquals("POST", method.get());
     assertEquals("secret", apiKey.get());
-    var json = new ObjectMapper().readTree(requestBody.get());
+    var json = new JacksonConf().objectMapper().readTree(requestBody.get());
     assertEquals(5000, json.get("amount").asInt());
     assertEquals("unlock-id", json.get("reference").asText());
     assertEquals("PROFILE_UNLOCK", json.get("type").asText());
-    assertEquals("ORANGE_MONEY", json.get("paymentMethod").asText());
+    assertEquals("ORANGE_MONEY", json.get("payment_method").asText());
     assertEquals("Ada", json.get("payer").get("name").asText());
-    assertEquals("0340000000", json.get("payer").get("phoneNumber").asText());
-    assertEquals("123456", json.get("temporaryCode").asText());
+    assertEquals("0340000000", json.get("payer").get("phone_number").asText());
+    assertEquals("123456", json.get("temporary_code").asText());
     assertEquals("payment-id", response.id());
     assertEquals("PENDING", response.status());
   }
@@ -77,7 +77,7 @@ class PecuniaClientTest {
           method.set(exchange.getRequestMethod());
           var body =
               """
-              {"id":"payment-id","transactionId":"unlock-id","merchantReference":"unlock-id","status":"SUCCESS","amount":5000,"currency":"MGA","type":"PROFILE_UNLOCK","provider":"PAPI","paymentMethod":"MVOLA","payer":{"name":"Ada","phoneNumber":"0340000000"}}
+              {"id":"payment-id","transaction_id":"unlock-id","merchant_reference":"unlock-id","status":"SUCCESS","amount":5000,"currency":"MGA","type":"PROFILE_UNLOCK","provider":"PAPI","payment_method":"MVOLA","payer":{"name":"Ada","phone_number":"0340000000"}}
               """;
           exchange.getResponseHeaders().add("Content-Type", "application/json");
           exchange.sendResponseHeaders(200, body.getBytes(StandardCharsets.UTF_8).length);
@@ -104,6 +104,17 @@ class PecuniaClientTest {
     assertThrows(PecuniaClientException.class, () -> client.findPapiByReference("unlock-id"));
   }
 
+  @Test
+  void shouldIdentifyMissingPapiPaymentForSafeSameReferenceRetry() throws Exception {
+    startServer(
+        exchange -> {
+          exchange.sendResponseHeaders(404, -1);
+          exchange.close();
+        });
+
+    assertThrows(PecuniaNotFoundException.class, () -> client.findPapiByReference("unlock-id"));
+  }
+
   private void startServer(com.sun.net.httpserver.HttpHandler handler) throws Exception {
     server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
     server.createContext("/", handler);
@@ -113,6 +124,6 @@ class PecuniaClientTest {
     conf.setApiKey("secret");
     conf.setConnectTimeout(Duration.ofSeconds(2));
     conf.setRequestTimeout(Duration.ofSeconds(2));
-    client = new PecuniaClient(conf, new ObjectMapper());
+    client = new PecuniaClient(conf, new JacksonConf().objectMapper());
   }
 }
