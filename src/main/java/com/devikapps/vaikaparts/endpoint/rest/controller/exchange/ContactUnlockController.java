@@ -25,8 +25,13 @@ public class ContactUnlockController {
   @PostMapping
   public ResponseEntity<ContactUnlockResponse> initiate(
       @PathVariable String offerId, @Valid @RequestBody ContactUnlockRequest request) {
-    return ResponseEntity.status(HttpStatus.CREATED)
-        .body(service.initiate(offerId, request.provider()));
+    return ResponseEntity.status(HttpStatus.CREATED).body(service.initiate(offerId, request));
+  }
+
+  @GetMapping("/{unlockRequestId}")
+  public ContactUnlockResponse getStatus(
+      @PathVariable String offerId, @PathVariable String unlockRequestId) {
+    return service.getUnlockStatus(offerId, unlockRequestId);
   }
 
   @GetMapping("/me")
