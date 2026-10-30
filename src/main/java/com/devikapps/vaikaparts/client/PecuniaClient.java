@@ -49,15 +49,40 @@ public class PecuniaClient implements AutoCloseable {
     var payload =
         new PaymentRequest(
             amount, "MGA", description, "PROFILE_UNLOCK", unlockRequestId, buyerId, sellerId);
-    return exchange("/v1/payments/vanilla-pay", "POST", payload);
+    return exchange("/v1/payments/vanilla-pay", "POST", payload, PaymentResponse.class);
   }
 
   public PaymentResponse findByUnlockRequestId(String unlockRequestId) {
     var encoded = URLEncoder.encode(unlockRequestId, StandardCharsets.UTF_8);
-    return exchange("/v1/payments/by-unlock-request/" + encoded, "GET", null);
+    return exchange(
+        "/v1/payments/by-unlock-request/" + encoded, "GET", null, PaymentResponse.class);
   }
 
-  private PaymentResponse exchange(String path, String method, PaymentRequest payload) {
+  public PapiPaymentResponse initiatePapi(
+      String reference,
+      BigDecimal amount,
+      String paymentMethod,
+      String payerName,
+      String payerPhoneNumber,
+      String temporaryCode) {
+    var payload =
+        new PapiPaymentRequest(
+            amount,
+            "PROFILE_UNLOCK",
+            "Unlock seller contact for reference " + reference,
+            reference,
+            paymentMethod,
+            new PapiParty(payerName, payerPhoneNumber),
+            temporaryCode);
+    return exchange("/v1/payments/papi", "POST", payload, PapiPaymentResponse.class);
+  }
+
+  public PapiPaymentResponse findPapiByReference(String reference) {
+    var encoded = URLEncoder.encode(reference, StandardCharsets.UTF_8);
+    return exchange("/v1/payments/papi/" + encoded, "GET", null, PapiPaymentResponse.class);
+  }
+
+  private <T> T exchange(String path, String method, Object payload, Class<T> responseType) {
     validateConfiguration();
     try {
       var builder =
@@ -81,7 +106,7 @@ public class PecuniaClient implements AutoCloseable {
       if (response.statusCode() < 200 || response.statusCode() >= 300) {
         throw new PecuniaClientException("Pecunia returned HTTP " + response.statusCode());
       }
-      return objectMapper.readValue(response.body(), PaymentResponse.class);
+      return objectMapper.readValue(response.body(), responseType);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new PecuniaUnknownOutcomeException("Pecunia request interrupted", e);
@@ -124,6 +149,17 @@ public class PecuniaClient implements AutoCloseable {
       String buyerId,
       String sellerId) {}
 
+  private record PapiPaymentRequest(
+      BigDecimal amount,
+      String type,
+      String description,
+      String reference,
+      String paymentMethod,
+      PapiParty payer,
+      String temporaryCode) {}
+
+  public record PapiParty(String name, String phoneNumber) {}
+
   @JsonIgnoreProperties(ignoreUnknown = true)
   public record PaymentResponse(
       String paymentId,
@@ -138,4 +174,18 @@ public class PecuniaClient implements AutoCloseable {
       String buyerId,
       String sellerId,
       String provider) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public record PapiPaymentResponse(
+      String id,
+      String transactionId,
+      String merchantReference,
+      String status,
+      BigDecimal amount,
+      String currency,
+      String type,
+      String provider,
+      String paymentMethod,
+      PapiParty payer,
+      String papiPaymentReference) {}
 }
