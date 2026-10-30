@@ -61,6 +61,10 @@ jobs:
           chmod +x .shell/fix-ts-client-barrel-exports.sh
           bash .shell/fix-ts-client-barrel-exports.sh
 
+      - name: Install generated client dependencies
+        run: npm install --include=dev --ignore-scripts --no-audit --no-fund
+        working-directory: build/generated/openapi-ts-client
+
       - name: Publish TypeScript client to GitHub Packages
         run: bash .shell/publish-ts-client-to-github-package.sh
         env:
