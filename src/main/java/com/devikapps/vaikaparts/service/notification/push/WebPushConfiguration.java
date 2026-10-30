@@ -2,6 +2,7 @@ package com.devikapps.vaikaparts.service.notification.push;
 
 import com.devikapps.vaikaparts.repository.WebPushSubscriptionRepository;
 import com.devikapps.vaikaparts.service.notification.NotificationMessageResolver;
+import com.devikapps.vaikaparts.service.notification.NextWebPushNotificationChannel;
 import com.devikapps.vaikaparts.service.notification.WebPushNotificationChannel;
 import com.devikapps.vaikaparts.service.notification.WebPushProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,6 +21,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class WebPushConfiguration {
   @Bean
   @ConditionalOnProperty(prefix = "notifications.web-push", name = "enabled", havingValue = "true")
+  @ConditionalOnProperty(
+      prefix = "notifications.web-push",
+      name = "dispatch-enabled",
+      havingValue = "false",
+      matchIfMissing = true)
   public LibraryWebPushSender webPushSender(
       WebPushProperties properties, WebPushEndpointValidator validator) {
     return new LibraryWebPushSender(
@@ -33,6 +39,11 @@ public class WebPushConfiguration {
 
   @Bean
   @ConditionalOnProperty(prefix = "notifications.web-push", name = "enabled", havingValue = "true")
+  @ConditionalOnProperty(
+      prefix = "notifications.web-push",
+      name = "dispatch-enabled",
+      havingValue = "false",
+      matchIfMissing = true)
   public WebPushNotificationChannel webPushNotificationChannel(
       WebPushSubscriptionRepository repository,
       LibraryWebPushSender sender,
@@ -45,5 +56,23 @@ public class WebPushConfiguration {
     cleanupTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     return new WebPushNotificationChannel(
         repository, sender, validator, properties, resolver, mapper, cleanupTransaction);
+  }
+
+  @Bean
+  @ConditionalOnProperty(prefix = "notifications.web-push", name = "enabled", havingValue = "true")
+  @ConditionalOnProperty(
+      prefix = "notifications.web-push", name = "dispatch-enabled", havingValue = "true")
+  public PushDispatchClient pushDispatchClient(
+      WebPushProperties properties, NotificationMessageResolver resolver, ObjectMapper mapper) {
+    return new PushDispatchClient(properties, resolver, mapper);
+  }
+
+  @Bean
+  @ConditionalOnProperty(prefix = "notifications.web-push", name = "enabled", havingValue = "true")
+  @ConditionalOnProperty(
+      prefix = "notifications.web-push", name = "dispatch-enabled", havingValue = "true")
+  public NextWebPushNotificationChannel nextWebPushNotificationChannel(
+      PushDispatchClient client, WebPushProperties properties) {
+    return new NextWebPushNotificationChannel(client, properties);
   }
 }
