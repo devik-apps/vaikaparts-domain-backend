@@ -79,7 +79,7 @@ public class ContactUnlockService {
     if (!"PAPI".equals(unlock.getProvider()) || unlock.getStatus() != PENDING) return map(unlock);
 
     var payment = pecuniaClient.findPapiByReference(unlockRequestId);
-    validatePapiPayment(unlock, payment, null, null);
+    validatePapiPayment(unlock, payment, unlock.getPaymentMethod(), null);
     unlock = persistence.attachPapiPayment(unlock, payment);
     return switch (payment.status()) {
       case "PENDING" -> map(unlock);
@@ -127,7 +127,10 @@ public class ContactUnlockService {
     if (!(user instanceof JResearcher buyer)) {
       throw new IllegalStateException("Only a researcher can unlock seller contacts");
     }
-    if (papi && (blank(buyer.getName()) || blank(buyer.getPhoneNumber()))) {
+    if (papi
+        && (blank(buyer.getName())
+            || buyer.getName().length() > 255
+            || !validMadagascarPhone(buyer.getPhoneNumber()))) {
       throw new IllegalStateException(
           "Complete your name and phone number before paying with PAPI");
     }
@@ -146,13 +149,14 @@ public class ContactUnlockService {
     if (active.isPresent()) {
       var existing = active.orElseThrow();
       if ("PAPI".equals(existing.getProvider())) {
+        if (!request.paymentMethod().equals(existing.getPaymentMethod())) return map(existing);
         try {
           return getUnlockStatus(offerId, existing.getUnlockRequestId());
         } catch (PecuniaNotFoundException notCreatedYet) {
           var recovered =
               pecuniaClient.initiatePapi(
                   existing.getUnlockRequestId(),
-                  price,
+                  existing.getPaymentAmount(),
                   request.paymentMethod(),
                   buyer.getName(),
                   buyer.getPhoneNumber(),
@@ -185,6 +189,8 @@ public class ContactUnlockService {
                   .buyer(buyer)
                   .seller(offer.getSeller())
                   .provider(provider)
+                  .paymentMethod(papi ? request.paymentMethod() : null)
+                  .paymentAmount(papi ? price : null)
                   .status("MANUAL_ORANGE_MONEY".equals(provider) ? PENDING_MANUAL_REVIEW : PENDING)
                   .createdAt(now)
                   .updatedAt(now)
@@ -213,14 +219,20 @@ public class ContactUnlockService {
         try {
           payment = pecuniaClient.findPapiByReference(reserved.getUnlockRequestId());
         } catch (PecuniaNotFoundException notCreatedYet) {
-          payment =
-              pecuniaClient.initiatePapi(
-                  reserved.getUnlockRequestId(),
-                  price,
-                  request.paymentMethod(),
-                  buyer.getName(),
-                  buyer.getPhoneNumber(),
-                  request.temporaryCode());
+          try {
+            payment =
+                pecuniaClient.initiatePapi(
+                    reserved.getUnlockRequestId(),
+                    price,
+                    request.paymentMethod(),
+                    buyer.getName(),
+                    buyer.getPhoneNumber(),
+                    request.temporaryCode());
+          } catch (PecuniaClientException retryUnavailable) {
+            return map(reserved);
+          }
+        } catch (PecuniaClientException unavailable) {
+          return map(reserved);
         }
       }
       return attachAndMapPapi(reserved, payment, request.paymentMethod(), buyer);
@@ -303,7 +315,8 @@ public class ContactUnlockService {
         || !"MGA".equals(payment.currency())
         || !"PROFILE_UNLOCK".equals(payment.type())
         || payment.amount() == null
-        || payment.amount().compareTo(price) != 0
+        || unlock.getPaymentAmount() == null
+        || payment.amount().compareTo(unlock.getPaymentAmount()) != 0
         || payment.status() == null
         || !java.util.Set.of("PENDING", "SUCCESS", "FAILED").contains(payment.status())
         || payment.paymentMethod() == null
@@ -329,7 +342,7 @@ public class ContactUnlockService {
         unlock.getStatus(),
         unlock.getPaymentUrl(),
         manual ? manualPaymentPhoneNumber : null,
-        manual || "PAPI".equals(unlock.getProvider()) ? price : null,
+        manual ? price : "PAPI".equals(unlock.getProvider()) ? unlock.getPaymentAmount() : null,
         manual || "PAPI".equals(unlock.getProvider()) ? "MGA" : null);
   }
 
@@ -342,5 +355,11 @@ public class ContactUnlockService {
     if (digits.startsWith("261") && digits.length() == 12) return "0" + digits.substring(3);
     if (digits.length() == 9) return "0" + digits;
     return digits;
+  }
+
+  private boolean validMadagascarPhone(String phoneNumber) {
+    if (blank(phoneNumber)) return false;
+    var digits = phoneNumber.replaceAll("[^0-9]", "");
+    return digits.matches("(?:[0-9]{9}|0[0-9]{9}|261[0-9]{9})");
   }
 }

@@ -75,7 +75,8 @@
 - Modify: `src/main/java/com/devikapps/vaikaparts/service/ContactUnlockService.java`
 - Modify: `src/main/java/com/devikapps/vaikaparts/service/ContactUnlockPersistenceService.java`
 - Modify: `src/main/java/com/devikapps/vaikaparts/service/ContactReleaseService.java`
-- Modify: `src/main/java/com/devikapps/vaikaparts/repository/ContactUnlockRepository.java` for owner-scoped status lookup; no schema migration is required.
+- Modify: `src/main/java/com/devikapps/vaikaparts/repository/ContactUnlockRepository.java` for owner-scoped status lookup.
+- Add: `src/main/resources/db/migration/V1_0_45__Add_contact_unlock_papi_details.sql` to preserve the reserved PAPI method and amount for reconciliation.
 - Test: `src/test/java/com/devikapps/vaikaparts/service/ContactReleaseServiceIT.java`
 - Test: `src/test/java/com/devikapps/vaikaparts/service/ContactUnlockServiceTest.java`
 
