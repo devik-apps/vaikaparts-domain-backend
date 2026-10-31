@@ -49,15 +49,71 @@ public class PecuniaClient implements AutoCloseable {
     var payload =
         new PaymentRequest(
             amount, "MGA", description, "PROFILE_UNLOCK", unlockRequestId, buyerId, sellerId);
-    return exchange("/v1/payments/vanilla-pay", "POST", payload);
+    return exchange("/v1/payments/vanilla-pay", "POST", payload, PaymentResponse.class);
   }
 
   public PaymentResponse findByUnlockRequestId(String unlockRequestId) {
     var encoded = URLEncoder.encode(unlockRequestId, StandardCharsets.UTF_8);
-    return exchange("/v1/payments/by-unlock-request/" + encoded, "GET", null);
+    return exchange(
+        "/v1/payments/by-unlock-request/" + encoded, "GET", null, PaymentResponse.class);
   }
 
-  private PaymentResponse exchange(String path, String method, PaymentRequest payload) {
+  public PapiPaymentResponse initiatePapi(
+      String reference,
+      BigDecimal amount,
+      String paymentMethod,
+      String payerName,
+      String payerPhoneNumber,
+      String temporaryCode) {
+    var payload =
+        new PapiPaymentRequest(
+            amount,
+            "PROFILE_UNLOCK",
+            "Unlock seller contact for reference " + reference,
+            reference,
+            paymentMethod,
+            new PapiParty(payerName, payerPhoneNumber),
+            temporaryCode);
+    return exchange("/v1/payments/papi", "POST", payload, PapiPaymentResponse.class);
+  }
+
+  public PapiPaymentResponse findPapiByReference(String reference) {
+    var encoded = URLEncoder.encode(reference, StandardCharsets.UTF_8);
+    return exchange("/v1/payments/papi/" + encoded, "GET", null, PapiPaymentResponse.class);
+  }
+
+  public PapiFeeQuote quotePapiFees(String paymentMethod, BigDecimal amount) {
+    if (paymentMethod == null
+        || !java.util.Set.of("MVOLA", "AIRTEL_MONEY", "ORANGE_MONEY").contains(paymentMethod)
+        || amount == null
+        || amount.signum() <= 0) {
+      throw new IllegalArgumentException(
+          "A supported PAPI method and positive amount are required");
+    }
+    var method = URLEncoder.encode(paymentMethod, StandardCharsets.UTF_8);
+    var encodedAmount =
+        URLEncoder.encode(amount.stripTrailingZeros().toPlainString(), StandardCharsets.UTF_8);
+    var quote =
+        exchange(
+            "/v1/payments/papi/fees?paymentMethod=" + method + "&amount=" + encodedAmount,
+            "GET",
+            null,
+            PapiFeeQuote.class);
+    if (quote == null
+        || !paymentMethod.equals(quote.paymentMethod())
+        || quote.amount() == null
+        || quote.amount().compareTo(amount) != 0
+        || quote.payerFee() == null
+        || quote.payerFee().signum() < 0
+        || quote.totalAmount() == null
+        || quote.totalAmount().compareTo(amount.add(quote.payerFee())) != 0
+        || !"MGA".equals(quote.currency())) {
+      throw new PecuniaClientException("Pecunia returned an invalid PAPI fee quote");
+    }
+    return quote;
+  }
+
+  private <T> T exchange(String path, String method, Object payload, Class<T> responseType) {
     validateConfiguration();
     try {
       var builder =
@@ -78,10 +134,13 @@ public class PecuniaClient implements AutoCloseable {
       var response =
           httpClient.send(
               builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+      if (response.statusCode() == 404 && path.startsWith("/v1/payments/papi/")) {
+        throw new PecuniaNotFoundException("Pecunia PAPI payment was not found");
+      }
       if (response.statusCode() < 200 || response.statusCode() >= 300) {
         throw new PecuniaClientException("Pecunia returned HTTP " + response.statusCode());
       }
-      return objectMapper.readValue(response.body(), PaymentResponse.class);
+      return objectMapper.readValue(response.body(), responseType);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new PecuniaUnknownOutcomeException("Pecunia request interrupted", e);
@@ -124,6 +183,25 @@ public class PecuniaClient implements AutoCloseable {
       String buyerId,
       String sellerId) {}
 
+  private record PapiPaymentRequest(
+      BigDecimal amount,
+      String type,
+      String description,
+      String reference,
+      String paymentMethod,
+      PapiParty payer,
+      String temporaryCode) {}
+
+  public record PapiParty(String name, String phoneNumber) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public record PapiFeeQuote(
+      String paymentMethod,
+      BigDecimal amount,
+      BigDecimal payerFee,
+      BigDecimal totalAmount,
+      String currency) {}
+
   @JsonIgnoreProperties(ignoreUnknown = true)
   public record PaymentResponse(
       String paymentId,
@@ -138,4 +216,20 @@ public class PecuniaClient implements AutoCloseable {
       String buyerId,
       String sellerId,
       String provider) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public record PapiPaymentResponse(
+      String id,
+      String transactionId,
+      String merchantReference,
+      String status,
+      BigDecimal amount,
+      String currency,
+      String type,
+      String provider,
+      String paymentMethod,
+      PapiParty payer,
+      String papiPaymentReference,
+      BigDecimal payerFee,
+      BigDecimal totalAmount) {}
 }

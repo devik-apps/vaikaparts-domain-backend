@@ -4,6 +4,7 @@ import static java.lang.String.format;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.InfraGenerated;
+import com.devikapps.vaikaparts.client.PecuniaClientException;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ErrorResponse;
 import com.devikapps.vaikaparts.exception.MissingAuthorizationException;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
@@ -52,6 +53,18 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 @RequiredArgsConstructor
 @InfraGenerated
 public class ApiExceptionHandler {
+
+  @ExceptionHandler(PecuniaClientException.class)
+  public ResponseEntity<ErrorResponse> handlePecuniaUnavailable(
+      PecuniaClientException ex, WebRequest req) {
+    var err =
+        ErrorResponse.of(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Payment fee service is temporarily unavailable",
+            getRequestPath(req),
+            "PECUNIA_UNAVAILABLE");
+    return new ResponseEntity<>(err, HttpStatus.SERVICE_UNAVAILABLE);
+  }
 
   @ExceptionHandler(ResourceNotFoundException.class)
   public ResponseEntity<ErrorResponse> handleResourceNotFoundException(

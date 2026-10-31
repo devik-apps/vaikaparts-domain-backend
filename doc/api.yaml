@@ -1133,6 +1133,43 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServer'
+  /v1/offers/{offerId}/contact-unlocks/fees:
+    get:
+      operationId: quoteContactUnlockFees
+      tags: [Offers]
+      summary: Quote the exact PAPI payer fee before contact unlock checkout
+      description: Returns the server-configured base unlock amount and Pecunia's provider-specific fee. Does not create a contact unlock or payment.
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: payment_method
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [MVOLA, AIRTEL_MONEY, ORANGE_MONEY]
+      responses:
+        200:
+          description: Exact base amount, provider fee, and total payer debit in MGA.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactUnlockFeeQuoteResponse'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        503:
+          description: The fee provider is temporarily unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/offers/{offerId}/contact-unlocks/me:
     get:
       operationId: getUnlockedSellerContact
@@ -1151,6 +1188,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SellerContactResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
+  /v1/offers/{offerId}/contact-unlocks/{unlockRequestId}:
+    get:
+      operationId: getContactUnlockStatus
+      tags: [Offers]
+      summary: Get the current researcher's contact-unlock payment status
+      description: For PAPI, this reads the latest status from Pecunia. Seller contacts are returned only by the separate /me endpoint after release.
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: unlockRequestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Contact unlock identifier, status, and safe payment metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactUnlockResponse'
         401:
           $ref: '#/components/responses/Unauthorized'
         404:
@@ -2008,7 +2075,15 @@ components:
       properties:
         provider:
           type: string
-          enum: [VANILLA_PAY, MANUAL_ORANGE_MONEY]
+          enum: [VANILLA_PAY, MANUAL_ORANGE_MONEY, PAPI]
+        payment_method:
+          type: string
+          description: Required only for provider PAPI.
+          enum: [MVOLA, AIRTEL_MONEY, ORANGE_MONEY]
+        temporary_code:
+          type: string
+          writeOnly: true
+          description: Required for PAPI ORANGE_MONEY only. Used for this initiation request and never stored or returned.
     ContactUnlockResponse:
       type: object
       required: [unlock_request_id, status]
@@ -2031,6 +2106,33 @@ components:
         currency:
           type: string
           nullable: true
+        payer_fee:
+          type: number
+          nullable: true
+          description: PAPI payer fee returned by Pecunia; absent for other providers.
+        total_amount:
+          type: number
+          nullable: true
+          description: Total payer debit returned by Pecunia; absent for other providers.
+    ContactUnlockFeeQuoteResponse:
+      type: object
+      required: [payment_method, amount, payer_fee, total_amount, currency]
+      properties:
+        payment_method:
+          type: string
+          enum: [MVOLA, AIRTEL_MONEY, ORANGE_MONEY]
+        amount:
+          type: number
+          description: Server-configured contact-unlock base amount in MGA; sent to PAPI as payment amount.
+        payer_fee:
+          type: number
+          description: Exact PAPI payer fee returned by Pecunia; may be zero.
+        total_amount:
+          type: number
+          description: Exact total amount debited from the payer, including the PAPI fee.
+        currency:
+          type: string
+          enum: [MGA]
     ManualContactUnlockReviewRequest:
       type: object
       properties:

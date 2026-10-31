@@ -15,8 +15,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.devikapps.vaikaparts.client.PecuniaClient;
+import com.devikapps.vaikaparts.client.PecuniaClient.PapiPaymentResponse;
 import com.devikapps.vaikaparts.client.PecuniaClient.PaymentResponse;
 import com.devikapps.vaikaparts.conf.FacadeIT;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockRequest;
 import com.devikapps.vaikaparts.event.model.ContactReleaseRequested;
 import com.devikapps.vaikaparts.repository.ContactUnlockRepository;
 import com.devikapps.vaikaparts.repository.DemandPublishedNotificationRepository;
@@ -146,6 +148,50 @@ class ContactUnlockFlowIT extends FacadeIT {
     assertEquals("flow-seller", notifications.getFirst().getRecipient().getId());
   }
 
+  @Test
+  void shouldReleasePapiContactOnlyAfterStatusPollingConfirmsSuccess() {
+    createOffer("papi-flow-offer");
+    when(pecuniaClient.initiatePapi(any(), any(), any(), any(), any(), any()))
+        .thenAnswer(invocation -> papiPayment(invocation.getArgument(0), "PENDING"));
+
+    var initiated =
+        contactUnlockService.initiate(
+            "papi-flow-offer", new ContactUnlockRequest("PAPI", "MVOLA", null));
+
+    verify(pecuniaClient)
+        .initiatePapi(
+            initiated.unlockRequestId(),
+            new BigDecimal("3000"),
+            "MVOLA",
+            "Buyer",
+            "+261340000001",
+            null);
+    assertEquals(PENDING, initiated.status());
+    assertEquals(null, initiated.paymentUrl());
+    assertEquals(BigDecimal.ZERO, initiated.payerFee());
+    assertEquals(new BigDecimal("3000"), initiated.totalAmount());
+    var unlockBeforeConfirmation =
+        contactUnlockRepository.findById(initiated.unlockRequestId()).orElseThrow();
+    assertEquals(PENDING, unlockBeforeConfirmation.getStatus());
+    assertEquals(0, unlockBeforeConfirmation.getPayerFee().compareTo(BigDecimal.ZERO));
+    assertEquals(0, unlockBeforeConfirmation.getTotalAmount().compareTo(new BigDecimal("3000")));
+
+    when(pecuniaClient.findPapiByReference(initiated.unlockRequestId()))
+        .thenReturn(papiPayment(initiated.unlockRequestId(), "SUCCESS"));
+    var released =
+        contactUnlockService.getUnlockStatus("papi-flow-offer", initiated.unlockRequestId());
+    var repeated =
+        contactUnlockService.getUnlockStatus("papi-flow-offer", initiated.unlockRequestId());
+
+    assertEquals(RELEASED, released.status());
+    assertEquals(RELEASED, repeated.status());
+    assertEquals(0, released.payerFee().compareTo(BigDecimal.ZERO));
+    assertEquals(0, released.totalAmount().compareTo(new BigDecimal("3000")));
+    assertEquals(1, notificationRepository.count());
+    verify(pecuniaClient, times(1)).findPapiByReference(initiated.unlockRequestId());
+    assertEquals("Seller", contactUnlockService.getSellerContact("papi-flow-offer").name());
+  }
+
   @ParameterizedTest
   @ValueSource(ints = {10, 100})
   void shouldReleaseEveryIndependentUnlockWithoutDuplicates(int count) {
@@ -194,7 +240,7 @@ class ContactUnlockFlowIT extends FacadeIT {
         "transaction-1",
         paymentUrl,
         "PENDING",
-        new BigDecimal("5000"),
+        new BigDecimal("3000"),
         "MGA",
         "Unlock seller contact for offer flow-offer",
         "PROFILE_UNLOCK",
@@ -202,6 +248,23 @@ class ContactUnlockFlowIT extends FacadeIT {
         buyer.getId(),
         seller.getId(),
         "VANILLA_PAY");
+  }
+
+  private PapiPaymentResponse papiPayment(String reference, String status) {
+    return new PapiPaymentResponse(
+        "papi-payment-id",
+        reference,
+        reference,
+        status,
+        new BigDecimal("3000"),
+        "MGA",
+        "PROFILE_UNLOCK",
+        "PAPI",
+        "MVOLA",
+        new PecuniaClient.PapiParty("Buyer", "0340000001"),
+        null,
+        BigDecimal.ZERO,
+        new BigDecimal("3000"));
   }
 
   private ContactReleaseRequested releaseEvent(

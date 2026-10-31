@@ -1,5 +1,6 @@
 package com.devikapps.vaikaparts.endpoint.rest.controller.exchange;
 
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockFeeQuoteResponse;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockRequest;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockResponse;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.SellerContactResponse;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -25,8 +27,19 @@ public class ContactUnlockController {
   @PostMapping
   public ResponseEntity<ContactUnlockResponse> initiate(
       @PathVariable String offerId, @Valid @RequestBody ContactUnlockRequest request) {
-    return ResponseEntity.status(HttpStatus.CREATED)
-        .body(service.initiate(offerId, request.provider()));
+    return ResponseEntity.status(HttpStatus.CREATED).body(service.initiate(offerId, request));
+  }
+
+  @GetMapping("/fees")
+  public ContactUnlockFeeQuoteResponse quotePapiFees(
+      @PathVariable String offerId, @RequestParam(name = "payment_method") String paymentMethod) {
+    return service.quotePapiFees(offerId, paymentMethod);
+  }
+
+  @GetMapping("/{unlockRequestId}")
+  public ContactUnlockResponse getStatus(
+      @PathVariable String offerId, @PathVariable String unlockRequestId) {
+    return service.getUnlockStatus(offerId, unlockRequestId);
   }
 
   @GetMapping("/me")
