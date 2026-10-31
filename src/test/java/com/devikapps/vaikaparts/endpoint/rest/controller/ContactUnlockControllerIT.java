@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.devikapps.vaikaparts.config.JacksonConf;
 import com.devikapps.vaikaparts.endpoint.rest.controller.exchange.ContactUnlockController;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockFeeQuoteResponse;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockRequest;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockResponse;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.SellerContactResponse;
@@ -78,15 +79,48 @@ class ContactUnlockControllerIT {
     org.mockito.Mockito.when(service.getUnlockStatus("offer-id", "unlock-id"))
         .thenReturn(
             new ContactUnlockResponse(
-                "unlock-id", PENDING, null, null, new java.math.BigDecimal("5000"), "MGA"));
+                "unlock-id", PENDING, null, null, new java.math.BigDecimal("3000"), "MGA"));
 
     mvc.perform(get("/v1/offers/offer-id/contact-unlocks/unlock-id"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.unlock_request_id").value("unlock-id"))
         .andExpect(jsonPath("$.status").value("PENDING"))
-        .andExpect(jsonPath("$.amount").value(5000))
+        .andExpect(jsonPath("$.amount").value(3000))
         .andExpect(jsonPath("$.payment_url").doesNotExist())
         .andExpect(jsonPath("$.phone_number").doesNotExist());
+  }
+
+  @Test
+  void shouldExposeExactPapiFeeQuote() throws Exception {
+    org.mockito.Mockito.when(service.quotePapiFees("offer-id", "ORANGE_MONEY"))
+        .thenReturn(
+            new ContactUnlockFeeQuoteResponse(
+                "ORANGE_MONEY",
+                new java.math.BigDecimal("3000"),
+                new java.math.BigDecimal("250"),
+                new java.math.BigDecimal("3250"),
+                "MGA"));
+
+    mvc.perform(
+            get("/v1/offers/offer-id/contact-unlocks/fees")
+                .queryParam("payment_method", "ORANGE_MONEY"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.payment_method").value("ORANGE_MONEY"))
+        .andExpect(jsonPath("$.amount").value(3000))
+        .andExpect(jsonPath("$.payer_fee").value(250))
+        .andExpect(jsonPath("$.total_amount").value(3250))
+        .andExpect(jsonPath("$.currency").value("MGA"));
+  }
+
+  @Test
+  void shouldReturnServiceUnavailableWhenPecuniaCannotQuoteFees() throws Exception {
+    org.mockito.Mockito.when(service.quotePapiFees("offer-id", "MVOLA"))
+        .thenThrow(
+            new com.devikapps.vaikaparts.client.PecuniaClientException("upstream unavailable"));
+
+    mvc.perform(
+            get("/v1/offers/offer-id/contact-unlocks/fees").queryParam("payment_method", "MVOLA"))
+        .andExpect(status().isServiceUnavailable());
   }
 
   @Test

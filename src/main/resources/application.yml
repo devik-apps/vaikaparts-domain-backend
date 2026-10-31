@@ -28,7 +28,7 @@ contact-release:
       multiplier: ${CONTACT_RELEASE_RETRY_MULTIPLIER:2.0}
       max-interval: ${CONTACT_RELEASE_RETRY_MAX_INTERVAL_MS:10000}
 contact-unlock:
-  price-mga: ${CONTACT_UNLOCK_PRICE_MGA:5000}
+  price-mga: ${CONTACT_UNLOCK_PRICE_MGA:3000}
   manual:
     orange-money-number: ${CONTACT_UNLOCK_ORANGE_MONEY_NUMBER:}
 outbox:
