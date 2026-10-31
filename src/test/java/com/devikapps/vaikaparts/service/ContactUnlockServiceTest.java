@@ -15,6 +15,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.devikapps.vaikaparts.client.PecuniaClient;
+import com.devikapps.vaikaparts.client.PecuniaClient.PapiFeeQuote;
 import com.devikapps.vaikaparts.client.PecuniaClient.PapiPaymentResponse;
 import com.devikapps.vaikaparts.client.PecuniaClient.PaymentResponse;
 import com.devikapps.vaikaparts.client.PecuniaClientException;
@@ -127,6 +128,46 @@ class ContactUnlockServiceTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"MVOLA", "AIRTEL_MONEY", "ORANGE_MONEY"})
+  void shouldQuoteConfiguredPapiAmountWithoutCreatingUnlock(String method) {
+    service =
+        new ContactUnlockService(
+            userRepository,
+            offerRepository,
+            persistence,
+            pecuniaClient,
+            contactReleaseService,
+            new BigDecimal("3000"),
+            "0320000000");
+    when(pecuniaClient.quotePapiFees(method, new BigDecimal("3000")))
+        .thenReturn(
+            new PapiFeeQuote(
+                method, new BigDecimal("3000"), BigDecimal.ZERO, new BigDecimal("3000"), "MGA"));
+
+    var quote = service.quotePapiFees("offer-id", method);
+
+    assertEquals(method, quote.paymentMethod());
+    assertEquals(new BigDecimal("3000"), quote.amount());
+    assertEquals(BigDecimal.ZERO, quote.payerFee());
+    assertEquals(new BigDecimal("3000"), quote.totalAmount());
+    assertEquals("MGA", quote.currency());
+    verify(persistence, never()).reserve(any());
+  }
+
+  @Test
+  void shouldNotQuoteForUnsupportedMethodOrAnotherResearcherOffer() {
+    assertThrows(
+        IllegalArgumentException.class, () -> service.quotePapiFees("offer-id", "UNKNOWN"));
+    offer.getDemand().setResearcher(JResearcher.builder().id("someone-else").build());
+
+    assertThrows(
+        com.devikapps.vaikaparts.exception.ResourceNotFoundException.class,
+        () -> service.quotePapiFees("offer-id", "MVOLA"));
+    verify(pecuniaClient, never()).quotePapiFees(any(), any());
+    verify(persistence, never()).reserve(any());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"MVOLA", "AIRTEL_MONEY", "ORANGE_MONEY"})
   void shouldInitiatePapiWithSavedResearcherIdentityAndNoHostedUrl(String method) {
     buyer.setName("Ada");
     buyer.setPhoneNumber("0340000000");
@@ -143,6 +184,8 @@ class ContactUnlockServiceTest {
 
     assertEquals(PENDING, result.status());
     assertEquals(null, result.paymentUrl());
+    assertEquals(BigDecimal.ZERO, result.payerFee());
+    assertEquals(new BigDecimal("5000"), result.totalAmount());
     var unlock = org.mockito.ArgumentCaptor.forClass(JContactUnlock.class);
     verify(persistence).reserve(unlock.capture());
     assertEquals("PAPI", unlock.getValue().getProvider());
@@ -227,7 +270,7 @@ class ContactUnlockServiceTest {
         .thenReturn(Optional.of(unlock));
     when(pecuniaClient.findPapiByReference("unlock-id"))
         .thenReturn(papiPayment("unlock-id", "MVOLA", "Ada", "0340000000", "SUCCESS"));
-    when(persistence.attachPapiPayment(eq(unlock), any())).thenReturn(unlock);
+    when(persistence.attachPapiPayment(eq(unlock), any())).thenAnswer(this::attachPapiPayment);
     doAnswer(
             invocation -> {
               unlock.setStatus(RELEASED);
@@ -241,6 +284,8 @@ class ContactUnlockServiceTest {
 
     assertEquals(RELEASED, result.status());
     assertEquals(RELEASED, repeated.status());
+    assertEquals(BigDecimal.ZERO, result.payerFee());
+    assertEquals(new BigDecimal("5000"), result.totalAmount());
     verify(contactReleaseService).releasePapi("unlock-id", "payment-id");
     verify(pecuniaClient).findPapiByReference("unlock-id");
   }
@@ -280,6 +325,34 @@ class ContactUnlockServiceTest {
         IllegalStateException.class, () -> service.getUnlockStatus("offer-id", "unlock-id"));
     verify(contactReleaseService, never()).releasePapi(any(), any());
     verify(persistence, never()).failPapi(any(), any());
+  }
+
+  @Test
+  void shouldRejectPapiPaymentWithInconsistentFeeTotal() {
+    var unlock = papiUnlock(PENDING);
+    when(persistence.findOwned("buyer-id", "offer-id", "unlock-id"))
+        .thenReturn(Optional.of(unlock));
+    when(pecuniaClient.findPapiByReference("unlock-id"))
+        .thenReturn(
+            new PapiPaymentResponse(
+                "payment-id",
+                "unlock-id",
+                "unlock-id",
+                "SUCCESS",
+                new BigDecimal("5000"),
+                "MGA",
+                "PROFILE_UNLOCK",
+                "PAPI",
+                "MVOLA",
+                new PecuniaClient.PapiParty("Ada", "0340000000"),
+                null,
+                new BigDecimal("200"),
+                new BigDecimal("5000")));
+
+    assertThrows(
+        IllegalStateException.class, () -> service.getUnlockStatus("offer-id", "unlock-id"));
+    verify(contactReleaseService, never()).releasePapi(any(), any());
+    verify(persistence, never()).attachPapiPayment(any(), any());
   }
 
   @Test
@@ -470,6 +543,8 @@ class ContactUnlockServiceTest {
     JContactUnlock unlock = invocation.getArgument(0);
     PapiPaymentResponse payment = invocation.getArgument(1);
     unlock.setPaymentId(payment.id());
+    unlock.setPayerFee(payment.payerFee());
+    unlock.setTotalAmount(payment.totalAmount());
     return unlock;
   }
 
@@ -491,7 +566,9 @@ class ContactUnlockServiceTest {
         "PAPI",
         method,
         new PecuniaClient.PapiParty(payerName, payerPhone),
-        null);
+        null,
+        BigDecimal.ZERO,
+        new BigDecimal("5000"));
   }
 
   private JContactUnlock papiUnlock(

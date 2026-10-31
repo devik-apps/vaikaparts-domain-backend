@@ -9,10 +9,22 @@ public record ContactUnlockResponse(
     String paymentUrl,
     String paymentPhoneNumber,
     BigDecimal amount,
-    String currency) {
+    String currency,
+    BigDecimal payerFee,
+    BigDecimal totalAmount) {
+
+  public ContactUnlockResponse(
+      String unlockRequestId,
+      ContactUnlockStatus status,
+      String paymentUrl,
+      String paymentPhoneNumber,
+      BigDecimal amount,
+      String currency) {
+    this(unlockRequestId, status, paymentUrl, paymentPhoneNumber, amount, currency, null, null);
+  }
 
   public ContactUnlockResponse(
       String unlockRequestId, ContactUnlockStatus status, String paymentUrl) {
-    this(unlockRequestId, status, paymentUrl, null, null, null);
+    this(unlockRequestId, status, paymentUrl, null, null, null, null, null);
   }
 }

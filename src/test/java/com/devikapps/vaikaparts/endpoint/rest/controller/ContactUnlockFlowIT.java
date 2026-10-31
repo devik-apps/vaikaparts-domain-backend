@@ -158,11 +158,23 @@ class ContactUnlockFlowIT extends FacadeIT {
         contactUnlockService.initiate(
             "papi-flow-offer", new ContactUnlockRequest("PAPI", "MVOLA", null));
 
+    verify(pecuniaClient)
+        .initiatePapi(
+            initiated.unlockRequestId(),
+            new BigDecimal("3000"),
+            "MVOLA",
+            "Buyer",
+            "+261340000001",
+            null);
     assertEquals(PENDING, initiated.status());
     assertEquals(null, initiated.paymentUrl());
+    assertEquals(BigDecimal.ZERO, initiated.payerFee());
+    assertEquals(new BigDecimal("3000"), initiated.totalAmount());
     var unlockBeforeConfirmation =
         contactUnlockRepository.findById(initiated.unlockRequestId()).orElseThrow();
     assertEquals(PENDING, unlockBeforeConfirmation.getStatus());
+    assertEquals(0, unlockBeforeConfirmation.getPayerFee().compareTo(BigDecimal.ZERO));
+    assertEquals(0, unlockBeforeConfirmation.getTotalAmount().compareTo(new BigDecimal("3000")));
 
     when(pecuniaClient.findPapiByReference(initiated.unlockRequestId()))
         .thenReturn(papiPayment(initiated.unlockRequestId(), "SUCCESS"));
@@ -173,6 +185,8 @@ class ContactUnlockFlowIT extends FacadeIT {
 
     assertEquals(RELEASED, released.status());
     assertEquals(RELEASED, repeated.status());
+    assertEquals(0, released.payerFee().compareTo(BigDecimal.ZERO));
+    assertEquals(0, released.totalAmount().compareTo(new BigDecimal("3000")));
     assertEquals(1, notificationRepository.count());
     verify(pecuniaClient, times(1)).findPapiByReference(initiated.unlockRequestId());
     assertEquals("Seller", contactUnlockService.getSellerContact("papi-flow-offer").name());
@@ -226,7 +240,7 @@ class ContactUnlockFlowIT extends FacadeIT {
         "transaction-1",
         paymentUrl,
         "PENDING",
-        new BigDecimal("5000"),
+        new BigDecimal("3000"),
         "MGA",
         "Unlock seller contact for offer flow-offer",
         "PROFILE_UNLOCK",
@@ -242,13 +256,15 @@ class ContactUnlockFlowIT extends FacadeIT {
         reference,
         reference,
         status,
-        new BigDecimal("5000"),
+        new BigDecimal("3000"),
         "MGA",
         "PROFILE_UNLOCK",
         "PAPI",
         "MVOLA",
         new PecuniaClient.PapiParty("Buyer", "0340000001"),
-        null);
+        null,
+        BigDecimal.ZERO,
+        new BigDecimal("3000"));
   }
 
   private ContactReleaseRequested releaseEvent(
