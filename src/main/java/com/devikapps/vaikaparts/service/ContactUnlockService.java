@@ -7,12 +7,14 @@ import static com.devikapps.vaikaparts.model.classifier.PostStatus.PUBLISHED;
 import static java.util.UUID.randomUUID;
 
 import com.devikapps.vaikaparts.client.PecuniaClient;
+import com.devikapps.vaikaparts.client.PecuniaClient.PapiFeeQuote;
 import com.devikapps.vaikaparts.client.PecuniaClient.PapiPaymentResponse;
 import com.devikapps.vaikaparts.client.PecuniaClient.PaymentResponse;
 import com.devikapps.vaikaparts.client.PecuniaClientException;
 import com.devikapps.vaikaparts.client.PecuniaNotFoundException;
 import com.devikapps.vaikaparts.client.PecuniaUnknownOutcomeException;
 import com.devikapps.vaikaparts.config.sec.SecContextUtil;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockFeeQuoteResponse;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockRequest;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockResponse;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.SellerContactResponse;
@@ -62,6 +64,41 @@ public class ContactUnlockService {
 
   public ContactUnlockResponse initiate(String offerId, String provider) {
     return initiate(offerId, new ContactUnlockRequest(provider));
+  }
+
+  public ContactUnlockFeeQuoteResponse quotePapiFees(String offerId, String paymentMethod) {
+    if (paymentMethod == null
+        || !java.util.Set.of("MVOLA", "AIRTEL_MONEY", "ORANGE_MONEY").contains(paymentMethod)) {
+      throw new IllegalArgumentException("Unsupported PAPI payment method");
+    }
+    if (price.compareTo(BigDecimal.valueOf(300)) < 0 || price.stripTrailingZeros().scale() > 0) {
+      throw new IllegalStateException(
+          "PAPI contact unlock price must be an integer of at least 300 MGA");
+    }
+    var user =
+        userRepository
+            .findBySupabaseUserId(SecContextUtil.getCurrentUserId())
+            .orElseThrow(() -> new ResourceNotFoundException("Authenticated user was not found"));
+    if (!(user instanceof JResearcher buyer)) {
+      throw new ResourceNotFoundException("Offer not found");
+    }
+    var offer =
+        offerRepository
+            .findByIdWithRelations(offerId)
+            .orElseThrow(() -> new ResourceNotFoundException("Offer not found: " + offerId));
+    if (offer.getStatus() != PUBLISHED
+        || offer.getDemand() == null
+        || offer.getDemand().getResearcher() == null
+        || !buyer.getId().equals(offer.getDemand().getResearcher().getId())) {
+      throw new ResourceNotFoundException("Offer not found");
+    }
+    PapiFeeQuote quote = pecuniaClient.quotePapiFees(paymentMethod, price);
+    return new ContactUnlockFeeQuoteResponse(
+        quote.paymentMethod(),
+        quote.amount(),
+        quote.payerFee(),
+        quote.totalAmount(),
+        quote.currency());
   }
 
   public ContactUnlockResponse getUnlockStatus(String offerId, String unlockRequestId) {
@@ -317,6 +354,10 @@ public class ContactUnlockService {
         || payment.amount() == null
         || unlock.getPaymentAmount() == null
         || payment.amount().compareTo(unlock.getPaymentAmount()) != 0
+        || payment.payerFee() == null
+        || payment.payerFee().signum() < 0
+        || payment.totalAmount() == null
+        || payment.totalAmount().compareTo(payment.amount().add(payment.payerFee())) != 0
         || payment.status() == null
         || !java.util.Set.of("PENDING", "SUCCESS", "FAILED").contains(payment.status())
         || payment.paymentMethod() == null
@@ -343,7 +384,9 @@ public class ContactUnlockService {
         unlock.getPaymentUrl(),
         manual ? manualPaymentPhoneNumber : null,
         manual ? price : "PAPI".equals(unlock.getProvider()) ? unlock.getPaymentAmount() : null,
-        manual || "PAPI".equals(unlock.getProvider()) ? "MGA" : null);
+        manual || "PAPI".equals(unlock.getProvider()) ? "MGA" : null,
+        "PAPI".equals(unlock.getProvider()) ? unlock.getPayerFee() : null,
+        "PAPI".equals(unlock.getProvider()) ? unlock.getTotalAmount() : null);
   }
 
   private boolean blank(String value) {

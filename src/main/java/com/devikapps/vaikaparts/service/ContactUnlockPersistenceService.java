@@ -56,6 +56,8 @@ public class ContactUnlockPersistenceService {
       throw new IllegalStateException("Pecunia PAPI payment ID does not match the reserved unlock");
     }
     current.setPaymentId(payment.id());
+    current.setPayerFee(payment.payerFee());
+    current.setTotalAmount(payment.totalAmount());
     current.setUpdatedAt(OffsetDateTime.now());
     return repository.save(current);
   }

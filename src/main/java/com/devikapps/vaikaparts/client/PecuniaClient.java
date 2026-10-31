@@ -82,6 +82,37 @@ public class PecuniaClient implements AutoCloseable {
     return exchange("/v1/payments/papi/" + encoded, "GET", null, PapiPaymentResponse.class);
   }
 
+  public PapiFeeQuote quotePapiFees(String paymentMethod, BigDecimal amount) {
+    if (paymentMethod == null
+        || !java.util.Set.of("MVOLA", "AIRTEL_MONEY", "ORANGE_MONEY").contains(paymentMethod)
+        || amount == null
+        || amount.signum() <= 0) {
+      throw new IllegalArgumentException(
+          "A supported PAPI method and positive amount are required");
+    }
+    var method = URLEncoder.encode(paymentMethod, StandardCharsets.UTF_8);
+    var encodedAmount =
+        URLEncoder.encode(amount.stripTrailingZeros().toPlainString(), StandardCharsets.UTF_8);
+    var quote =
+        exchange(
+            "/v1/payments/papi/fees?paymentMethod=" + method + "&amount=" + encodedAmount,
+            "GET",
+            null,
+            PapiFeeQuote.class);
+    if (quote == null
+        || !paymentMethod.equals(quote.paymentMethod())
+        || quote.amount() == null
+        || quote.amount().compareTo(amount) != 0
+        || quote.payerFee() == null
+        || quote.payerFee().signum() < 0
+        || quote.totalAmount() == null
+        || quote.totalAmount().compareTo(amount.add(quote.payerFee())) != 0
+        || !"MGA".equals(quote.currency())) {
+      throw new PecuniaClientException("Pecunia returned an invalid PAPI fee quote");
+    }
+    return quote;
+  }
+
   private <T> T exchange(String path, String method, Object payload, Class<T> responseType) {
     validateConfiguration();
     try {
@@ -164,6 +195,14 @@ public class PecuniaClient implements AutoCloseable {
   public record PapiParty(String name, String phoneNumber) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
+  public record PapiFeeQuote(
+      String paymentMethod,
+      BigDecimal amount,
+      BigDecimal payerFee,
+      BigDecimal totalAmount,
+      String currency) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
   public record PaymentResponse(
       String paymentId,
       String transactionId,
@@ -190,5 +229,7 @@ public class PecuniaClient implements AutoCloseable {
       String provider,
       String paymentMethod,
       PapiParty payer,
-      String papiPaymentReference) {}
+      String papiPaymentReference,
+      BigDecimal payerFee,
+      BigDecimal totalAmount) {}
 }
