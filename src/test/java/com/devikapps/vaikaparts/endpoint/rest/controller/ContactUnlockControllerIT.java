@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.devikapps.vaikaparts.config.JacksonConf;
 import com.devikapps.vaikaparts.endpoint.rest.controller.exchange.ContactUnlockController;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockRequest;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockResponse;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.SellerContactResponse;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
@@ -40,7 +41,7 @@ class ContactUnlockControllerIT {
 
   @Test
   void shouldInitiateVanillaPayContactUnlock() throws Exception {
-    org.mockito.Mockito.when(service.initiate("offer-id", "VANILLA_PAY"))
+    org.mockito.Mockito.when(service.initiate("offer-id", new ContactUnlockRequest("VANILLA_PAY")))
         .thenReturn(
             new ContactUnlockResponse("unlock-id", PENDING, "https://pay.example/checkout"));
 
@@ -52,6 +53,40 @@ class ContactUnlockControllerIT {
         .andExpect(jsonPath("$.unlock_request_id").value("unlock-id"))
         .andExpect(jsonPath("$.status").value("PENDING"))
         .andExpect(jsonPath("$.payment_url").value("https://pay.example/checkout"));
+  }
+
+  @Test
+  void shouldPassPapiMethodAndOrangeCodeToServiceWithoutEchoingCode() throws Exception {
+    org.mockito.Mockito.when(
+            service.initiate(
+                "offer-id", new ContactUnlockRequest("PAPI", "ORANGE_MONEY", "123456")))
+        .thenReturn(new ContactUnlockResponse("unlock-id", PENDING, null));
+
+    mvc.perform(
+            post("/v1/offers/offer-id/contact-unlocks")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"provider\":\"PAPI\",\"payment_method\":\"ORANGE_MONEY\",\"temporary_code\":\"123456\"}"))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.unlock_request_id").value("unlock-id"))
+        .andExpect(jsonPath("$.payment_url").doesNotExist())
+        .andExpect(jsonPath("$.temporary_code").doesNotExist());
+  }
+
+  @Test
+  void shouldExposeOnlyPapiUnlockStatusForPolling() throws Exception {
+    org.mockito.Mockito.when(service.getUnlockStatus("offer-id", "unlock-id"))
+        .thenReturn(
+            new ContactUnlockResponse(
+                "unlock-id", PENDING, null, null, new java.math.BigDecimal("5000"), "MGA"));
+
+    mvc.perform(get("/v1/offers/offer-id/contact-unlocks/unlock-id"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.unlock_request_id").value("unlock-id"))
+        .andExpect(jsonPath("$.status").value("PENDING"))
+        .andExpect(jsonPath("$.amount").value(5000))
+        .andExpect(jsonPath("$.payment_url").doesNotExist())
+        .andExpect(jsonPath("$.phone_number").doesNotExist());
   }
 
   @Test

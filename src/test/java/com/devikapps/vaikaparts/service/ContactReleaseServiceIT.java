@@ -93,6 +93,23 @@ class ContactReleaseServiceIT {
   }
 
   @Test
+  void shouldReleasePapiUnlockIdempotentlyAfterConfirmedSuccess() {
+    unlock.setProvider("PAPI");
+    when(repository.findByUnlockRequestIdForUpdate("unlock-id")).thenReturn(Optional.of(unlock));
+    when(repository.save(unlock)).thenReturn(unlock);
+
+    service.releasePapi("unlock-id", "papi-payment-id");
+    service.releasePapi("unlock-id", "papi-payment-id");
+
+    assertEquals(RELEASED, unlock.getStatus());
+    assertEquals("papi-payment-id", unlock.getPaymentId());
+    assertEquals("PAPI:papi-payment-id", unlock.getReleaseEventId());
+    var request = ArgumentCaptor.forClass(NotificationRequest.class);
+    verify(notificationService).createAndSendNotification(request.capture());
+    assertEquals(CONTACT_UNLOCKED, request.getValue().getNotificationType());
+  }
+
+  @Test
   void shouldRejectEveryCorrelationMismatch() {
     when(repository.findByUnlockRequestIdForUpdate("unlock-id")).thenReturn(Optional.of(unlock));
 

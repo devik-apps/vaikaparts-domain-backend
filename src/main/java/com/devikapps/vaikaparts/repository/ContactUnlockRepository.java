@@ -23,6 +23,9 @@ public interface ContactUnlockRepository extends JpaRepository<JContactUnlock, S
   Optional<JContactUnlock> findByBuyerIdAndOfferIdAndStatusIn(
       String buyerId, String offerId, Collection<ContactUnlockStatus> statuses);
 
+  Optional<JContactUnlock> findByUnlockRequestIdAndBuyerIdAndOfferId(
+      String unlockRequestId, String buyerId, String offerId);
+
   List<JContactUnlock> findByProviderAndStatusOrderByCreatedAtAsc(
       String provider, ContactUnlockStatus status);
 }

@@ -1157,6 +1157,36 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServer'
+  /v1/offers/{offerId}/contact-unlocks/{unlockRequestId}:
+    get:
+      operationId: getContactUnlockStatus
+      tags: [Offers]
+      summary: Get the current researcher's contact-unlock payment status
+      description: For PAPI, this reads the latest status from Pecunia. Seller contacts are returned only by the separate /me endpoint after release.
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: unlockRequestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Contact unlock identifier, status, and safe payment metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactUnlockResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/admin/contact-unlocks:
     get:
       operationId: listPendingManualContactUnlocks
@@ -2008,7 +2038,15 @@ components:
       properties:
         provider:
           type: string
-          enum: [VANILLA_PAY, MANUAL_ORANGE_MONEY]
+          enum: [VANILLA_PAY, MANUAL_ORANGE_MONEY, PAPI]
+        payment_method:
+          type: string
+          description: Required only for provider PAPI.
+          enum: [MVOLA, AIRTEL_MONEY, ORANGE_MONEY]
+        temporary_code:
+          type: string
+          writeOnly: true
+          description: Required for PAPI ORANGE_MONEY only. Used for this initiation request and never stored or returned.
     ContactUnlockResponse:
       type: object
       required: [unlock_request_id, status]

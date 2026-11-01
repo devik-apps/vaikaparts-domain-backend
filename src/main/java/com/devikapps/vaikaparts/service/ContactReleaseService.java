@@ -8,6 +8,7 @@ import com.devikapps.vaikaparts.event.model.ContactReleaseRequested;
 import com.devikapps.vaikaparts.repository.ContactUnlockRepository;
 import com.devikapps.vaikaparts.repository.model.exchange.JContactUnlock;
 import com.devikapps.vaikaparts.service.notification.NotificationService;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,45 @@ public class ContactReleaseService {
       throw new IllegalArgumentException("Payment does not match the reserved unlock");
     }
 
+    releaseContact(unlock, event.getPaymentId(), event.getId(), event.getPaidAt());
+  }
+
+  @Transactional
+  public void releasePapi(String unlockRequestId, String paymentId) {
+    if (unlockRequestId == null
+        || unlockRequestId.isBlank()
+        || paymentId == null
+        || paymentId.isBlank()) {
+      throw new IllegalArgumentException("Incomplete PAPI contact release");
+    }
+    var unlock =
+        repository
+            .findByUnlockRequestIdForUpdate(unlockRequestId)
+            .orElseThrow(() -> new IllegalArgumentException("Unknown contact unlock request"));
+    if (!"PAPI".equals(unlock.getProvider())) {
+      throw new IllegalArgumentException("Contact unlock provider mismatch");
+    }
+    var releaseEventId = "PAPI:" + paymentId;
+    if (unlock.getStatus() == RELEASED) {
+      if (paymentId.equals(unlock.getPaymentId())
+          && releaseEventId.equals(unlock.getReleaseEventId())) {
+        return;
+      }
+      throw new IllegalArgumentException("Conflicting release event for completed unlock");
+    }
+    if (unlock.getStatus()
+        != com.devikapps.vaikaparts.model.classifier.ContactUnlockStatus.PENDING) {
+      throw new IllegalArgumentException("PAPI contact unlock is not pending");
+    }
+    if (unlock.getPaymentId() != null && !unlock.getPaymentId().equals(paymentId)) {
+      throw new IllegalArgumentException("Payment does not match the reserved unlock");
+    }
+
+    releaseContact(unlock, paymentId, releaseEventId, Instant.now());
+  }
+
+  private void releaseContact(
+      JContactUnlock unlock, String paymentId, String releaseEventId, Instant paidAt) {
     var buyer = unlock.getBuyer();
     var message =
         safe(buyer.getName())
@@ -58,9 +98,9 @@ public class ContactReleaseService {
             .build());
 
     var now = OffsetDateTime.now(ZoneOffset.UTC);
-    unlock.setPaymentId(event.getPaymentId());
-    unlock.setReleaseEventId(event.getId());
-    unlock.setPaidAt(event.getPaidAt().atOffset(ZoneOffset.UTC));
+    unlock.setPaymentId(paymentId);
+    unlock.setReleaseEventId(releaseEventId);
+    unlock.setPaidAt(paidAt.atOffset(ZoneOffset.UTC));
     unlock.setReleasedAt(now);
     unlock.setUpdatedAt(now);
     unlock.setStatus(RELEASED);

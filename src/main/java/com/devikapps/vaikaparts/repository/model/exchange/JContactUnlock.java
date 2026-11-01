@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -48,6 +49,12 @@ public class JContactUnlock {
 
   @Column(name = "payment_id", unique = true)
   private String paymentId;
+
+  @Column(name = "payment_method", length = 50)
+  private String paymentMethod;
+
+  @Column(name = "payment_amount", precision = 12, scale = 2)
+  private BigDecimal paymentAmount;
 
   @Column(name = "release_event_id", unique = true)
   private String releaseEventId;
