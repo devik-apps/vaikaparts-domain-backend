@@ -441,6 +441,27 @@ class DemandControllerIT extends FacadeIT {
   }
 
   @Test
+  void should_count_offers_not_part_images_when_paged_for_demand() throws Exception {
+    authenticateUser();
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+    createPersistedOffer(
+        createTestSeller("seller-with-images"),
+        demand,
+        List.of("image-1", "image-2", "image-3", "image-4"));
+    createPersistedOffer(createTestSeller("seller-without-images"), demand);
+
+    mockMvc
+        .perform(
+            get(DEMANDS_ENDPOINT + "/{demandId}/offers", demand.getId())
+                .param("page", "0")
+                .param("size", "1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content", hasSize(1)))
+        .andExpect(jsonPath("$.total_elements").value(2))
+        .andExpect(jsonPath("$.total_pages").value(2));
+  }
+
+  @Test
   void should_return_empty_page_when_no_offers_for_demand() throws Exception {
     authenticateUser();
     val demand = createTestDemand(PostStatus.PUBLISHED);
@@ -530,6 +551,10 @@ class DemandControllerIT extends FacadeIT {
   }
 
   private void createPersistedOffer(JSeller seller, JDemand demand) {
+    createPersistedOffer(seller, demand, List.of());
+  }
+
+  private JOffer createPersistedOffer(JSeller seller, JDemand demand, List<String> imageKeys) {
     val partInfo =
         JPartInfo.builder()
             .id("part-info-" + currentTimeMillis())
@@ -540,7 +565,7 @@ class DemandControllerIT extends FacadeIT {
             .partCategory(PartCategory.FOG_LIGHTS)
             .condition(PartCondition.USED)
             .price(150.00)
-            .partImageBuckets(new ArrayList<>())
+            .partImageBuckets(new ArrayList<>(imageKeys))
             .build();
 
     val offer =
@@ -557,7 +582,7 @@ class DemandControllerIT extends FacadeIT {
             .build();
 
     partInfo.setOffer(offer);
-    offerRepository.save(offer);
+    return offerRepository.save(offer);
   }
 
   private JResearcher createTestResearcher() {
