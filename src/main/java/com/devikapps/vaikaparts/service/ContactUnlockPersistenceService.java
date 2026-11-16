@@ -6,6 +6,7 @@ import static com.devikapps.vaikaparts.model.classifier.ContactUnlockStatus.RELE
 
 import com.devikapps.vaikaparts.client.PecuniaClient.PapiPaymentResponse;
 import com.devikapps.vaikaparts.client.PecuniaClient.PaymentResponse;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.ResearcherContactUnlockSummaryResponse;
 import com.devikapps.vaikaparts.repository.ContactUnlockRepository;
 import com.devikapps.vaikaparts.repository.model.exchange.JContactUnlock;
 import java.time.OffsetDateTime;
@@ -25,6 +26,12 @@ public class ContactUnlockPersistenceService {
   public Optional<JContactUnlock> findActive(String buyerId, String offerId) {
     return repository.findByBuyerIdAndOfferIdAndStatusIn(
         buyerId, offerId, List.of(PENDING, PENDING_MANUAL_REVIEW, RELEASED));
+  }
+
+  @Transactional(readOnly = true)
+  public List<ResearcherContactUnlockSummaryResponse> findReleasedContactUnlocksForBuyer(
+      String buyerId) {
+    return repository.findReleasedContactUnlocksForBuyer(buyerId, RELEASED);
   }
 
   @Transactional(readOnly = true)

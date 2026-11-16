@@ -1,5 +1,6 @@
 package com.devikapps.vaikaparts.repository;
 
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.ResearcherContactUnlockSummaryResponse;
 import com.devikapps.vaikaparts.model.classifier.ContactUnlockStatus;
 import com.devikapps.vaikaparts.repository.model.exchange.JContactUnlock;
 import jakarta.persistence.LockModeType;
@@ -25,6 +26,17 @@ public interface ContactUnlockRepository extends JpaRepository<JContactUnlock, S
 
   Optional<JContactUnlock> findByUnlockRequestIdAndBuyerIdAndOfferId(
       String unlockRequestId, String buyerId, String offerId);
+
+  @Query(
+      """
+      SELECT new com.devikapps.vaikaparts.endpoint.rest.controller.model.ResearcherContactUnlockSummaryResponse(
+          unlock.offer.demand.id, unlock.offer.id)
+      FROM JContactUnlock unlock
+      WHERE unlock.buyer.id = :buyerId AND unlock.status = :status
+      ORDER BY unlock.createdAt DESC
+      """)
+  List<ResearcherContactUnlockSummaryResponse> findReleasedContactUnlocksForBuyer(
+      @Param("buyerId") String buyerId, @Param("status") ContactUnlockStatus status);
 
   List<JContactUnlock> findByProviderAndStatusOrderByCreatedAtAsc(
       String provider, ContactUnlockStatus status);

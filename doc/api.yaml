@@ -477,6 +477,27 @@ paths:
           $ref: '#/components/responses/Forbidden'
         500:
           $ref: '#/components/responses/InternalServer'
+  /researchers/me/contact-unlocks:
+    get:
+      operationId: getMyReleasedContactUnlocks
+      tags: [Researchers]
+      summary: List contact-unlocked offers for the authenticated researcher
+      description: Returns only demand and offer identifiers for released contact unlocks owned by the current researcher.
+      responses:
+        200:
+          description: Released contact unlock references.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ResearcherContactUnlockSummaryResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /researchers/{researcherId}:
     get:
       operationId: getResearcherById
@@ -2185,6 +2206,14 @@ components:
         email:
           type: string
           format: email
+    ResearcherContactUnlockSummaryResponse:
+      type: object
+      required: [demand_id, offer_id]
+      properties:
+        demand_id:
+          type: string
+        offer_id:
+          type: string
     PartInfo:
       type: object
       description: Information about the part offered by the seller, including pricing and condition.
