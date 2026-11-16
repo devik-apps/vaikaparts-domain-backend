@@ -7,6 +7,8 @@ import com.devikapps.vaikaparts.model.classifier.UserLanguage;
 import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.exchange.Exchange;
 import com.devikapps.vaikaparts.model.exchange.Offer;
+import com.devikapps.vaikaparts.model.exchange.Part;
+import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -60,6 +62,112 @@ public class NotificationMessageResolver {
       case CONTACT_UNLOCKED -> fallbackMessage;
       case SYSTEM_ANNOUNCEMENT -> fallbackMessage;
     };
+  }
+
+  public String resolvePushTitle(NotificationType type, UserLanguage language) {
+    return switch (language == null ? UserLanguage.FR : language) {
+      case FR ->
+          switch (type) {
+            case DEMAND_PUBLISHED -> "NOUVELLE DEMANDE";
+            case OFFER_PUBLISHED -> "NOUVELLE OFFRE";
+            case OFFER_ACCEPTED -> "OFFRE ACCEPTÉE";
+            case OFFER_REJECTED -> "OFFRE REFUSÉE";
+            case DEMAND_CANCELED -> "DEMANDE ANNULÉE";
+            case CONTACT_UNLOCKED -> "CONTACT DÉBLOQUÉ";
+            case SYSTEM_ANNOUNCEMENT -> "ANNONCE";
+          };
+      case MG ->
+          switch (type) {
+            case DEMAND_PUBLISHED -> "FANGATAHANA VAOVAO";
+            case OFFER_PUBLISHED -> "TOLOTRA VAOVAO";
+            case OFFER_ACCEPTED -> "NEKENA NY TOLOTRA";
+            case OFFER_REJECTED -> "NOLAVINA NY TOLOTRA";
+            case DEMAND_CANCELED -> "NOFOANANA NY FANGATAHANA";
+            case CONTACT_UNLOCKED -> "VOAVAHANA NY FIFANDRAISANA";
+            case SYSTEM_ANNOUNCEMENT -> "FANAMBARANA";
+          };
+      case EN ->
+          switch (type) {
+            case DEMAND_PUBLISHED -> "NEW REQUEST";
+            case OFFER_PUBLISHED -> "NEW OFFER";
+            case OFFER_ACCEPTED -> "OFFER ACCEPTED";
+            case OFFER_REJECTED -> "OFFER DECLINED";
+            case DEMAND_CANCELED -> "REQUEST CANCELED";
+            case CONTACT_UNLOCKED -> "CONTACT UNLOCKED";
+            case SYSTEM_ANNOUNCEMENT -> "ANNOUNCEMENT";
+          };
+    };
+  }
+
+  public String resolvePushBody(
+      NotificationType type, UserLanguage language, Exchange resource, String fallbackMessage) {
+    var resolvedLanguage = language == null ? UserLanguage.FR : language;
+    if (type == NotificationType.SYSTEM_ANNOUNCEMENT) {
+      return fallbackMessage == null || fallbackMessage.isBlank()
+          ? translate(
+              resolvedLanguage,
+              "Une annonce est disponible.",
+              "Misy fanambarana vaovao.",
+              "An announcement is available.")
+          : fallbackMessage;
+    }
+    var context = resourceContext(resource);
+    if (!context.isBlank()) return context;
+
+    return switch (resolvedLanguage) {
+      case FR ->
+          switch (type) {
+            case DEMAND_PUBLISHED -> "Une nouvelle demande de pièce est disponible.";
+            case OFFER_PUBLISHED -> "Un vendeur a répondu à votre demande.";
+            case OFFER_ACCEPTED -> "Votre offre a été acceptée.";
+            case OFFER_REJECTED -> "Votre offre a été refusée.";
+            case DEMAND_CANCELED -> "Cette demande a été annulée.";
+            case CONTACT_UNLOCKED -> "Un contact a été débloqué pour cette offre.";
+            case SYSTEM_ANNOUNCEMENT -> fallbackMessage;
+          };
+      case MG ->
+          switch (type) {
+            case DEMAND_PUBLISHED -> "Misy fangatahana kojakoja vaovao.";
+            case OFFER_PUBLISHED -> "Nisy mpivarotra namaly ny fangatahanao.";
+            case OFFER_ACCEPTED -> "Nekena ny tolotrao.";
+            case OFFER_REJECTED -> "Nolavina ny tolotrao.";
+            case DEMAND_CANCELED -> "Nofoanana ity fangatahana ity.";
+            case CONTACT_UNLOCKED -> "Voavaha ny fifandraisana amin'ity tolotra ity.";
+            case SYSTEM_ANNOUNCEMENT -> fallbackMessage;
+          };
+      case EN ->
+          switch (type) {
+            case DEMAND_PUBLISHED -> "A new parts request is available.";
+            case OFFER_PUBLISHED -> "A seller responded to your request.";
+            case OFFER_ACCEPTED -> "Your offer has been accepted.";
+            case OFFER_REJECTED -> "Your offer has been declined.";
+            case DEMAND_CANCELED -> "This request has been canceled.";
+            case CONTACT_UNLOCKED -> "A contact was unlocked for this offer.";
+            case SYSTEM_ANNOUNCEMENT -> fallbackMessage;
+          };
+    };
+  }
+
+  private String resourceContext(Exchange resource) {
+    Part part = null;
+    if (resource instanceof Demand demand) part = demand.getPart();
+    if (resource instanceof Offer offer) {
+      part =
+          offer.getDemand() != null && offer.getDemand().getPart() != null
+              ? offer.getDemand().getPart()
+              : offer.getPartsInfo() == null ? null : offer.getPartsInfo().getPart();
+    }
+    if (part == null) return "";
+
+    var vehicle =
+        Stream.of(
+                part.getCarBrand(),
+                part.getCarModel(),
+                part.getCarYear() == null ? null : part.getCarYear().toString())
+            .filter(value -> value != null && !value.isBlank())
+            .reduce((left, right) -> left + " · " + right)
+            .orElse("");
+    return vehicle.isBlank() ? part.getName() : format("%s · %s", part.getName(), vehicle);
   }
 
   private String offerPublished(UserLanguage language, Exchange resource) {
