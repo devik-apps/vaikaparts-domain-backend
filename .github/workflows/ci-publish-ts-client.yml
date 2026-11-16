@@ -32,13 +32,13 @@ jobs:
         run: chmod +x gradlew
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           registry-url: https://npm.pkg.github.com
 
       - name: Cache Gradle dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.gradle/caches
