@@ -17,6 +17,7 @@ import com.devikapps.vaikaparts.config.sec.SecContextUtil;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockFeeQuoteResponse;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockRequest;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockResponse;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.ResearcherContactUnlockSummaryResponse;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.SellerContactResponse;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.repository.OfferRepository;
@@ -27,6 +28,7 @@ import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -106,6 +108,18 @@ public class ContactUnlockService {
         quote.payerFee(),
         quote.totalAmount(),
         quote.currency());
+  }
+
+  @Transactional(readOnly = true)
+  public List<ResearcherContactUnlockSummaryResponse> getReleasedContactUnlocks() {
+    var user =
+        userRepository
+            .findBySupabaseUserId(SecContextUtil.getCurrentUserId())
+            .orElseThrow(() -> new ResourceNotFoundException("Authenticated user was not found"));
+    if (!(user instanceof JResearcher buyer)) {
+      throw new ResourceNotFoundException("Contact unlocks not found");
+    }
+    return persistence.findReleasedContactUnlocksForBuyer(buyer.getId());
   }
 
   public ContactUnlockResponse getUnlockStatus(String offerId, String unlockRequestId) {
