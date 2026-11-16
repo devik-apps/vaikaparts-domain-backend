@@ -2,7 +2,11 @@ package com.devikapps.vaikaparts.client;
 
 import com.devikapps.vaikaparts.config.PecuniaConf;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.URI;
@@ -11,10 +15,15 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
+@Slf4j
 public class PecuniaClient implements AutoCloseable {
 
   private static final String API_KEY_HEADER = "X-Api-Key";
@@ -114,6 +123,7 @@ public class PecuniaClient implements AutoCloseable {
   }
 
   private <T> T exchange(String path, String method, Object payload, Class<T> responseType) {
+    log.warn("[PECUNIA] request method={} path={}", method, path);
     validateConfiguration();
     try {
       var builder =
@@ -134,6 +144,12 @@ public class PecuniaClient implements AutoCloseable {
       var response =
           httpClient.send(
               builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+      log.warn(
+          "[PECUNIA] response method={} path={} status={} body={}",
+          method,
+          path,
+          response.statusCode(),
+          safeResponseBody(response.body()));
       if (response.statusCode() == 404 && path.startsWith("/v1/payments/papi/")) {
         throw new PecuniaNotFoundException("Pecunia PAPI payment was not found");
       }
@@ -143,10 +159,59 @@ public class PecuniaClient implements AutoCloseable {
       return objectMapper.readValue(response.body(), responseType);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
+      log.warn("[PECUNIA] request interrupted method={} path={}", method, path);
       throw new PecuniaUnknownOutcomeException("Pecunia request interrupted", e);
     } catch (IOException e) {
+      log.warn(
+          "[PECUNIA] request failed method={} path={} cause={}",
+          method,
+          path,
+          e.getClass().getSimpleName());
       throw new PecuniaUnknownOutcomeException("Pecunia request outcome is unknown", e);
     }
+  }
+
+  private String safeResponseBody(String body) {
+    if (body == null || body.isBlank()) {
+      return "<empty>";
+    }
+    try {
+      JsonNode json = redactSensitiveFields(objectMapper.readTree(body));
+      String safeBody = objectMapper.writeValueAsString(json);
+      return safeBody.length() <= 2000 ? safeBody : safeBody.substring(0, 2000) + "…";
+    } catch (JsonProcessingException e) {
+      return "<non-JSON body omitted; chars=" + body.length() + ">";
+    }
+  }
+
+  private JsonNode redactSensitiveFields(JsonNode node) {
+    if (node instanceof ObjectNode object) {
+      Iterator<Map.Entry<String, JsonNode>> fields = object.fields();
+      while (fields.hasNext()) {
+        var field = fields.next();
+        String key = field.getKey().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+        if (key.equals("payer")
+            || key.contains("name")
+            || key.contains("phone")
+            || key.contains("msisdn")
+            || key.contains("temporarycode")
+            || key.contains("otp")
+            || key.contains("password")
+            || key.contains("secret")
+            || key.contains("token")
+            || key.contains("signature")
+            || key.contains("paymenturl")
+            || key.contains("authorization")
+            || key.contains("apikey")) {
+          object.put(field.getKey(), "[REDACTED]");
+        } else {
+          redactSensitiveFields(field.getValue());
+        }
+      }
+    } else if (node instanceof ArrayNode array) {
+      array.forEach(this::redactSensitiveFields);
+    }
+    return node;
   }
 
   private URI resolve(String path) {
