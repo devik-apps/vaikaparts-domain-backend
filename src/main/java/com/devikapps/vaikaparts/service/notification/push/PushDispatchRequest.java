@@ -31,10 +31,11 @@ public record PushDispatchRequest(
       throw new IllegalArgumentException("Web push requires a Supabase user UUID");
     }
 
+    var language = notification.getRecipient().getPreferredLanguage();
     var body =
-        resolver.resolve(
+        resolver.resolvePushBody(
             notification.getNotificationType(),
-            notification.getRecipient().getPreferredLanguage(),
+            language,
             notification.getResource(),
             notification.getMessage());
     body = boundBody(body == null ? "" : body);
@@ -42,7 +43,7 @@ public record PushDispatchRequest(
     return new PushDispatchRequest(
         eventId,
         userId,
-        "VaikaParts",
+        resolver.resolvePushTitle(notification.getNotificationType(), language),
         body,
         WebPushPayload.safeClickAction(notification.getClickAction()));
   }

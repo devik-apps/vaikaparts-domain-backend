@@ -94,16 +94,16 @@ class WebPushNotificationChannelTest {
       var json = mapper.readTree(payloads.getAllValues().get(i));
       var keys = new HashSet<String>();
       json.fieldNames().forEachRemaining(keys::add);
-      assertEquals(Set.of("id", "type", "message", "click_action"), keys);
-      assertEquals("notification-1", json.get("id").asText());
-      assertEquals(NotificationType.values()[i].name(), json.get("type").asText());
-      assertFalse(json.get("message").asText().isBlank());
-      assertEquals("/notifications", json.get("click_action").asText());
+      assertEquals(Set.of("notificationId", "title", "body", "url"), keys);
+      assertEquals("notification-1", json.get("notificationId").asText());
+      assertFalse(json.get("title").asText().isBlank());
+      assertFalse(json.get("body").asText().isBlank());
+      assertEquals("/notifications", json.get("url").asText());
       assertFalse(json.toString().contains("secret@example.com"));
     }
     assertEquals(
-        "Your offer has been accepted",
-        mapper.readTree(payloads.getAllValues().get(2)).get("message").asText());
+        "OFFER ACCEPTED",
+        mapper.readTree(payloads.getAllValues().get(2)).get("title").asText());
   }
 
   @Test
@@ -189,7 +189,7 @@ class WebPushNotificationChannelTest {
     verify(sender, times(6)).send(any(), payloads.capture());
     for (var bytes : payloads.getAllValues()) {
       assertTrue(bytes.length <= 3072);
-      assertEquals("/notifications", mapper.readTree(bytes).get("click_action").asText());
+      assertEquals("/notifications", mapper.readTree(bytes).get("url").asText());
     }
   }
 }
