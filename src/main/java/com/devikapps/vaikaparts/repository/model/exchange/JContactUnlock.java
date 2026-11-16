@@ -53,6 +53,9 @@ public class JContactUnlock {
   @Column(name = "payment_method", length = 50)
   private String paymentMethod;
 
+  @Column(name = "payment_phone_number", length = 32)
+  private String paymentPhoneNumber;
+
   @Column(name = "payment_amount", precision = 12, scale = 2)
   private BigDecimal paymentAmount;
 
