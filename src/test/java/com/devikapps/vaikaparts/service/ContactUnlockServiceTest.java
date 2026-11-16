@@ -200,6 +200,23 @@ class ContactUnlockServiceTest {
   }
 
   @Test
+  void shouldRejectSandboxPayerPhoneInPecuniaResponse() {
+    buyer.setName("Ada");
+    buyer.setPhoneNumber("0340000000");
+    when(persistence.findActive("buyer-id", "offer-id")).thenReturn(Optional.empty());
+    when(persistence.reserve(any())).thenAnswer(invocation -> invocation.getArgument(0));
+    when(pecuniaClient.initiatePapi(any(), any(), any(), any(), any(), any()))
+        .thenAnswer(
+            invocation -> papiPayment(invocation.getArgument(0), "MVOLA", "Ada", "0341230001"));
+
+    assertThrows(
+        IllegalStateException.class,
+        () -> service.initiate("offer-id", new ContactUnlockRequest("PAPI", "MVOLA", null)));
+
+    verify(persistence, never()).attachPapiPayment(any(), any());
+  }
+
+  @Test
   void shouldRejectPapiWhenSavedPayerDataOrOrangeCodeIsMissing() {
     assertThrows(
         IllegalStateException.class,
