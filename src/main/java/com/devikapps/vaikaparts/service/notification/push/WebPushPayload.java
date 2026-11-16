@@ -2,30 +2,36 @@ package com.devikapps.vaikaparts.service.notification.push;
 
 import com.devikapps.vaikaparts.model.notification.Notification;
 import com.devikapps.vaikaparts.service.notification.NotificationMessageResolver;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 
 /** Deliberately contains no recipient, resource, or profile objects. */
-public record WebPushPayload(String id, String type, String message, String clickAction) {
+public record WebPushPayload(
+    @JsonProperty("notificationId") String notificationId,
+    @JsonProperty("title") String title,
+    @JsonProperty("body") String body,
+    @JsonProperty("url") String url) {
   public static byte[] from(
       Notification notification, NotificationMessageResolver resolver, ObjectMapper mapper) {
     if (notification.getId() == null || notification.getId().length() > 128) {
       throw new IllegalArgumentException("Web push requires a bounded notification ID");
     }
-    String message =
-        resolver.resolve(
+    var language = notification.getRecipient().getPreferredLanguage();
+    var body =
+        resolver.resolvePushBody(
             notification.getNotificationType(),
-            notification.getRecipient().getPreferredLanguage(),
+            language,
             notification.getResource(),
             notification.getMessage());
-    message = message == null ? "" : message.substring(0, Math.min(256, message.length()));
+    body = boundBody(body == null ? "" : body);
     var payload =
         new WebPushPayload(
             notification.getId(),
-            notification.getNotificationType().name(),
-            message,
+            resolver.resolvePushTitle(notification.getNotificationType(), language),
+            body,
             safeClickAction(notification.getClickAction()));
     try {
       var bytes = mapper.writeValueAsBytes(payload);
@@ -33,12 +39,20 @@ public record WebPushPayload(String id, String type, String message, String clic
         bytes =
             mapper.writeValueAsBytes(
                 new WebPushPayload(
-                    payload.id(), payload.type(), payload.message(), "/notifications"));
+                    payload.notificationId(), payload.title(), payload.body(), "/notifications"));
       }
       return bytes;
     } catch (java.io.IOException exception) {
       throw new IllegalStateException("Unable to encode web push payload");
     }
+  }
+
+  private static String boundBody(String body) {
+    if (body.length() <= 256) return body;
+    int end = 256;
+    if (Character.isHighSurrogate(body.charAt(end - 1))
+        && Character.isLowSurrogate(body.charAt(end))) end--;
+    return body.substring(0, end);
   }
 
   static String safeClickAction(String action) {

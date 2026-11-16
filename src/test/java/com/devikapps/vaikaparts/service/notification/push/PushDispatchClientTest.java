@@ -73,7 +73,7 @@ class PushDispatchClientTest {
     JsonNode body = mapper.readTree(requestBody.get());
     assertEquals("notification-123", body.get("eventId").asText());
     assertEquals("a9c19b5e-8011-45da-9c01-07a0c1278b51", body.get("userId").asText());
-    assertEquals("VaikaParts", body.get("title").asText());
+    assertEquals("ANNOUNCEMENT", body.get("title").asText());
     assertEquals("A notification body", body.get("body").asText());
     assertEquals("/fr/researcher/notifications", body.get("url").asText());
     assertEquals(5, body.size());
