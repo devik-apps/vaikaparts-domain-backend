@@ -171,10 +171,14 @@ public class ContactUnlockService {
     if (!(user instanceof JResearcher buyer)) {
       throw new IllegalStateException("Only a researcher can unlock seller contacts");
     }
+    var payerPhone =
+        papi && !blank(request.paymentPhoneNumber())
+            ? request.paymentPhoneNumber().trim()
+            : buyer.getPhoneNumber();
     if (papi
         && (blank(buyer.getName())
             || buyer.getName().length() > 255
-            || !validMadagascarPhone(buyer.getPhoneNumber()))) {
+            || !validMadagascarPhone(payerPhone))) {
       throw new IllegalStateException(
           "Complete your name and phone number before paying with PAPI");
     }
@@ -205,7 +209,9 @@ public class ContactUnlockService {
                   existing.getPaymentAmount(),
                   request.paymentMethod(),
                   buyer.getName(),
-                  buyer.getPhoneNumber(),
+                  existing.getPaymentPhoneNumber() == null
+                      ? buyer.getPhoneNumber()
+                      : existing.getPaymentPhoneNumber(),
                   request.temporaryCode());
           return attachAndMapPapi(existing, recovered, request.paymentMethod(), buyer);
         } catch (PecuniaClientException unavailable) {
@@ -236,6 +242,7 @@ public class ContactUnlockService {
                   .seller(offer.getSeller())
                   .provider(provider)
                   .paymentMethod(papi ? request.paymentMethod() : null)
+                  .paymentPhoneNumber(papi ? payerPhone : null)
                   .paymentAmount(paymentAmount)
                   .paymentFee(paymentFee)
                   .status("MANUAL_ORANGE_MONEY".equals(provider) ? PENDING_MANUAL_REVIEW : PENDING)
@@ -260,7 +267,7 @@ public class ContactUnlockService {
                 reserved.getPaymentAmount(),
                 request.paymentMethod(),
                 buyer.getName(),
-                buyer.getPhoneNumber(),
+                reserved.getPaymentPhoneNumber(),
                 request.temporaryCode());
       } catch (PecuniaUnknownOutcomeException e) {
         try {
@@ -273,7 +280,7 @@ public class ContactUnlockService {
                     reserved.getPaymentAmount(),
                     request.paymentMethod(),
                     buyer.getName(),
-                    buyer.getPhoneNumber(),
+                    reserved.getPaymentPhoneNumber(),
                     request.temporaryCode());
           } catch (PecuniaClientException retryUnavailable) {
             return map(reserved);
@@ -377,11 +384,15 @@ public class ContactUnlockService {
             && !expectedPaymentMethod.equals(payment.paymentMethod()))) {
       throw new IllegalStateException("Pecunia PAPI payment correlation mismatch");
     }
-    if (buyer != null
-        && (payment.payer() == null
-            || !buyer.getName().equals(payment.payer().name())
-            || !normalizeMadagascarPhone(buyer.getPhoneNumber())
-                .equals(normalizeMadagascarPhone(payment.payer().phoneNumber())))) {
+    var expectedPayerPhone =
+        unlock.getPaymentPhoneNumber() != null
+            ? unlock.getPaymentPhoneNumber()
+            : buyer == null ? null : buyer.getPhoneNumber();
+    if ((buyer != null && (payment.payer() == null || !buyer.getName().equals(payment.payer().name())))
+        || (expectedPayerPhone != null
+            && (payment.payer() == null
+                || !normalizeMadagascarPhone(expectedPayerPhone)
+                    .equals(normalizeMadagascarPhone(payment.payer().phoneNumber()))))) {
       throw new IllegalStateException("Pecunia PAPI payer does not match the researcher profile");
     }
   }

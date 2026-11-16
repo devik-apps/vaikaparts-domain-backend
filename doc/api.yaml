@@ -2084,6 +2084,9 @@ components:
           type: string
           writeOnly: true
           description: Required for PAPI ORANGE_MONEY only. Used for this initiation request and never stored or returned.
+        payment_phone_number:
+          type: string
+          description: Optional phone number to charge for PAPI; defaults to the authenticated researcher's profile number.
     ContactUnlockResponse:
       type: object
       required: [unlock_request_id, status]
