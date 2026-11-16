@@ -56,6 +56,9 @@ public class JContactUnlock {
   @Column(name = "payment_amount", precision = 12, scale = 2)
   private BigDecimal paymentAmount;
 
+  @Column(name = "payment_fee", precision = 12, scale = 2)
+  private BigDecimal paymentFee;
+
   @Column(name = "payer_fee", precision = 12, scale = 2)
   private BigDecimal payerFee;
 

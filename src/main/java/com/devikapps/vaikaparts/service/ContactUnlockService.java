@@ -25,6 +25,7 @@ import com.devikapps.vaikaparts.repository.model.exchange.JContactUnlock;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -33,6 +34,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ContactUnlockService {
+
+  private static final BigDecimal ONE = BigDecimal.ONE;
+  private static final BigDecimal MVOLA_AND_AIRTEL_FEE_RATE = new BigDecimal("0.036");
+  private static final BigDecimal ORANGE_FEE_RATE = new BigDecimal("0.038");
 
   private final UserRepository userRepository;
   private final OfferRepository offerRepository;
@@ -92,10 +97,12 @@ public class ContactUnlockService {
         || !buyer.getId().equals(offer.getDemand().getResearcher().getId())) {
       throw new ResourceNotFoundException("Offer not found");
     }
-    PapiFeeQuote quote = pecuniaClient.quotePapiFees(paymentMethod, price);
+    BigDecimal paymentAmount = paymentAmountFor(paymentMethod);
+    PapiFeeQuote quote = pecuniaClient.quotePapiFees(paymentMethod, paymentAmount);
     return new ContactUnlockFeeQuoteResponse(
         quote.paymentMethod(),
-        quote.amount(),
+        price,
+        paymentAmount.subtract(price),
         quote.payerFee(),
         quote.totalAmount(),
         quote.currency());
@@ -182,6 +189,8 @@ public class ContactUnlockService {
       throw new IllegalStateException("The offer is not unlockable by this researcher");
     }
 
+    BigDecimal paymentAmount = papi ? paymentAmountFor(request.paymentMethod()) : null;
+    BigDecimal paymentFee = papi ? paymentAmount.subtract(price) : null;
     var active = persistence.findActive(buyer.getId(), offerId);
     if (active.isPresent()) {
       var existing = active.orElseThrow();
@@ -227,7 +236,8 @@ public class ContactUnlockService {
                   .seller(offer.getSeller())
                   .provider(provider)
                   .paymentMethod(papi ? request.paymentMethod() : null)
-                  .paymentAmount(papi ? price : null)
+                  .paymentAmount(paymentAmount)
+                  .paymentFee(paymentFee)
                   .status("MANUAL_ORANGE_MONEY".equals(provider) ? PENDING_MANUAL_REVIEW : PENDING)
                   .createdAt(now)
                   .updatedAt(now)
@@ -247,7 +257,7 @@ public class ContactUnlockService {
         payment =
             pecuniaClient.initiatePapi(
                 reserved.getUnlockRequestId(),
-                price,
+                reserved.getPaymentAmount(),
                 request.paymentMethod(),
                 buyer.getName(),
                 buyer.getPhoneNumber(),
@@ -260,7 +270,7 @@ public class ContactUnlockService {
             payment =
                 pecuniaClient.initiatePapi(
                     reserved.getUnlockRequestId(),
-                    price,
+                    reserved.getPaymentAmount(),
                     request.paymentMethod(),
                     buyer.getName(),
                     buyer.getPhoneNumber(),
@@ -385,8 +395,17 @@ public class ContactUnlockService {
         manual ? manualPaymentPhoneNumber : null,
         manual ? price : "PAPI".equals(unlock.getProvider()) ? unlock.getPaymentAmount() : null,
         manual || "PAPI".equals(unlock.getProvider()) ? "MGA" : null,
+        "PAPI".equals(unlock.getProvider()) ? unlock.getPaymentFee() : null,
         "PAPI".equals(unlock.getProvider()) ? unlock.getPayerFee() : null,
         "PAPI".equals(unlock.getProvider()) ? unlock.getTotalAmount() : null);
+  }
+
+  private BigDecimal paymentAmountFor(String paymentMethod) {
+    var feeRate =
+        "ORANGE_MONEY".equals(paymentMethod)
+            ? ORANGE_FEE_RATE
+            : MVOLA_AND_AIRTEL_FEE_RATE;
+    return price.divide(ONE.subtract(feeRate), 0, RoundingMode.HALF_UP);
   }
 
   private boolean blank(String value) {
