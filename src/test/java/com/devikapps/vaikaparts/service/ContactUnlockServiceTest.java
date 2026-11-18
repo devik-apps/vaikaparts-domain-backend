@@ -4,6 +4,7 @@ import static com.devikapps.vaikaparts.model.classifier.ContactUnlockStatus.PEND
 import static com.devikapps.vaikaparts.model.classifier.ContactUnlockStatus.RELEASED;
 import static com.devikapps.vaikaparts.model.classifier.PostStatus.PUBLISHED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -71,6 +72,7 @@ class ContactUnlockServiceTest {
             persistence,
             pecuniaClient,
             contactReleaseService,
+            true,
             new BigDecimal("5000"),
             "0320000000");
     lenient()
@@ -126,6 +128,98 @@ class ContactUnlockServiceTest {
     verify(pecuniaClient, never()).initiate(any(), any(), any(), any(), any());
   }
 
+  @Test
+  void shouldReleaseFreeUnlockWithoutCallingPecuniaWhenPaymentsAreDisabled() {
+    service =
+        new ContactUnlockService(
+            userRepository,
+            offerRepository,
+            persistence,
+            pecuniaClient,
+            contactReleaseService,
+            false,
+            new BigDecimal("3000"),
+            "0320000000");
+    when(persistence.findActive("buyer-id", "offer-id")).thenReturn(Optional.empty());
+    when(persistence.reserve(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+    var result = service.initiate("offer-id", new ContactUnlockRequest("FREE"));
+
+    assertEquals(RELEASED, result.status());
+    assertNull(result.paymentUrl());
+    var captor = org.mockito.ArgumentCaptor.forClass(JContactUnlock.class);
+    verify(persistence).reserve(captor.capture());
+    var saved = captor.getValue();
+    assertEquals("FREE", saved.getProvider());
+    assertEquals(RELEASED, saved.getStatus());
+    assertNull(saved.getPaymentId());
+    assertNull(saved.getPaidAt());
+    verify(pecuniaClient, never()).initiate(any(), any(), any(), any(), any());
+    verify(pecuniaClient, never()).initiatePapi(any(), any(), any(), any(), any(), any());
+    verify(contactReleaseService, never()).releasePapi(any(), any());
+  }
+
+  @Test
+  void shouldRejectFreeUnlockWhilePaymentsAreEnabled() {
+    assertThrows(
+        IllegalStateException.class,
+        () -> service.initiate("offer-id", new ContactUnlockRequest("FREE")));
+
+    verify(persistence, never()).reserve(any());
+    verify(pecuniaClient, never()).initiate(any(), any(), any(), any(), any());
+    verify(pecuniaClient, never()).initiatePapi(any(), any(), any(), any(), any(), any());
+  }
+
+  @Test
+  void shouldPreserveExistingPendingPaymentWhenPaymentsAreDisabled() {
+    service =
+        new ContactUnlockService(
+            userRepository,
+            offerRepository,
+            persistence,
+            pecuniaClient,
+            contactReleaseService,
+            false,
+            new BigDecimal("3000"),
+            "0320000000");
+    var existing =
+        JContactUnlock.builder()
+            .unlockRequestId("pending-unlock")
+            .provider("PAPI")
+            .status(PENDING)
+            .build();
+    when(persistence.findActive("buyer-id", "offer-id")).thenReturn(Optional.of(existing));
+
+    var result = service.initiate("offer-id", new ContactUnlockRequest("FREE"));
+
+    assertEquals(PENDING, result.status());
+    assertEquals("pending-unlock", result.unlockRequestId());
+    verify(persistence, never()).reserve(any());
+    verify(pecuniaClient, never()).initiate(any(), any(), any(), any(), any());
+    verify(pecuniaClient, never()).initiatePapi(any(), any(), any(), any(), any(), any());
+  }
+
+  @Test
+  void shouldRejectPaidUnlockWhenPaymentsAreDisabled() {
+    service =
+        new ContactUnlockService(
+            userRepository,
+            offerRepository,
+            persistence,
+            pecuniaClient,
+            contactReleaseService,
+            false,
+            new BigDecimal("3000"),
+            "0320000000");
+
+    assertThrows(
+        IllegalStateException.class,
+        () -> service.initiate("offer-id", new ContactUnlockRequest("VANILLA_PAY")));
+
+    verify(persistence, never()).reserve(any());
+    verify(pecuniaClient, never()).initiate(any(), any(), any(), any(), any());
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"MVOLA", "AIRTEL_MONEY", "ORANGE_MONEY"})
   void shouldQuoteConfiguredPapiAmountWithoutCreatingUnlock(String method) {
@@ -136,6 +230,7 @@ class ContactUnlockServiceTest {
             persistence,
             pecuniaClient,
             contactReleaseService,
+            true,
             new BigDecimal("3000"),
             "0320000000");
     when(pecuniaClient.quotePapiFees(method, new BigDecimal("3000")))
@@ -268,6 +363,7 @@ class ContactUnlockServiceTest {
             persistence,
             pecuniaClient,
             contactReleaseService,
+            true,
             new BigDecimal("299"),
             "0320000000");
     buyer.setName("Ada");
@@ -388,6 +484,7 @@ class ContactUnlockServiceTest {
             persistence,
             pecuniaClient,
             contactReleaseService,
+            true,
             new BigDecimal("6000"),
             "0320000000");
 
@@ -413,6 +510,7 @@ class ContactUnlockServiceTest {
             persistence,
             pecuniaClient,
             contactReleaseService,
+            true,
             new BigDecimal("6000"),
             "0320000000");
 
