@@ -14,5 +14,6 @@ public class NotificationRequest {
   private final String message;
   private final NotificationType notificationType;
   private final String clickAction;
+  private String notificationId;
   private String notificationRequestedId;
 }

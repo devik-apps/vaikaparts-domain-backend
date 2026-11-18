@@ -6,7 +6,10 @@ import com.devikapps.vaikaparts.mapper.user.ManagerMapper;
 import com.devikapps.vaikaparts.mapper.user.ResearcherMapper;
 import com.devikapps.vaikaparts.mapper.user.SellerMapper;
 import com.devikapps.vaikaparts.model.exchange.Exchange;
+import com.devikapps.vaikaparts.model.exchange.Demand;
+import com.devikapps.vaikaparts.model.exchange.Offer;
 import com.devikapps.vaikaparts.model.notification.Notification;
+import com.devikapps.vaikaparts.model.user.Researcher;
 import com.devikapps.vaikaparts.model.user.User;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedNotification;
 import com.devikapps.vaikaparts.repository.model.user.JManager;
@@ -59,8 +62,30 @@ public class NotificationMapper {
   }
 
   private Exchange mapResource(JDemandPublishedNotification notification) {
-    if (notification.getOffer() != null) return offerMapper.toDomain(notification.getOffer());
-    if (notification.getDemand() != null) return demandMapper.toDomain(notification.getDemand());
+    boolean sellerRecipient =
+        notification.getRecipient() != null
+            && ((JUser) Hibernate.unproxy(notification.getRecipient())).getUserType()
+                == com.devikapps.vaikaparts.model.classifier.UserType.SELLER;
+    if (notification.getOffer() != null) {
+      var offer = offerMapper.toDomain(notification.getOffer());
+      if (sellerRecipient && offer.getDemand() != null) hideResearcherContact(offer.getDemand());
+      return offer;
+    }
+    if (notification.getDemand() != null) {
+      var demand = demandMapper.toDomain(notification.getDemand());
+      if (sellerRecipient) hideResearcherContact(demand);
+      return demand;
+    }
     return null;
+  }
+
+  private void hideResearcherContact(Demand demand) {
+    Researcher researcher = demand.getResearcher();
+    if (researcher == null) return;
+    researcher.setSupabaseUserId(null);
+    researcher.setName(null);
+    researcher.setEmail(null);
+    researcher.setPhoneNumber(null);
+    researcher.setProfileImgUrl(null);
   }
 }

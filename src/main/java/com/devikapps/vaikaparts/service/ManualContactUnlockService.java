@@ -115,7 +115,12 @@ public class ManualContactUnlockService {
                     + safe(contact.getPhoneNumber())
                     + " — "
                     + safe(contact.getEmail()))
-            .clickAction("/offers/" + unlock.getOffer().getId())
+            .clickAction(
+                notifySeller
+                    ? "/dashboard/offers?offerId="
+                        + unlock.getOffer().getId()
+                        + "&showContactUnlock=true"
+                    : "/researcher/contact?offerId=" + unlock.getOffer().getId())
             .build());
   }
 

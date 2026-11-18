@@ -70,6 +70,10 @@ public class NotificationService {
   public Notification createAndSendNotification(NotificationRequest request) {
     var notificationType =
         Objects.requireNonNull(request.getNotificationType(), "Notification type is required");
+    if (request.getNotificationId() != null) {
+      var existing = demandPublishedNotificationRepository.findById(request.getNotificationId());
+      if (existing.isPresent()) return notificationMapper.toDomain(existing.get());
+    }
     log.info(
         "[NOTIF-PIPELINE][NOTIFICATION] Creating notification type={} for recipient user={}",
         forJava(notificationType.toString()),
@@ -185,7 +189,10 @@ public class NotificationService {
     var resource = handleNotificationType(request, recipient.getUserType());
 
     return Notification.builder()
-        .id(notificationId(request.getNotificationRequestedId()))
+        .id(
+            request.getNotificationId() == null
+                ? notificationId(request.getNotificationRequestedId())
+                : request.getNotificationId())
         .recipient(recipient)
         .notificationRequestedId(request.getNotificationRequestedId())
         .resource(resource)

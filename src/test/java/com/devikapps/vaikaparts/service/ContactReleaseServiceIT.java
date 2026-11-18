@@ -77,6 +77,30 @@ class ContactReleaseServiceIT {
     assertEquals("seller-id", request.getValue().getRecipientUserId());
     assertEquals("offer-id", request.getValue().getResourceId());
     assertEquals("Alice — +261340000001 — alice@example.com", request.getValue().getMessage());
+    assertEquals(
+        "/dashboard/offers?offerId=offer-id&showContactUnlock=true",
+        request.getValue().getClickAction());
+  }
+
+  @Test
+  void shouldPersistFreeUnlockAndNotifySellerInSameServiceTransaction() {
+    unlock.setProvider("FREE");
+    unlock.setStatus(RELEASED);
+    when(repository.saveAndFlush(unlock)).thenReturn(unlock);
+
+    service.createFreeUnlock(unlock);
+
+    var request = ArgumentCaptor.forClass(NotificationRequest.class);
+    verify(notificationService).createAndSendNotification(request.capture());
+    assertEquals(CONTACT_UNLOCKED, request.getValue().getNotificationType());
+    assertEquals("seller-id", request.getValue().getRecipientUserId());
+    assertEquals("offer-id", request.getValue().getResourceId());
+    assertEquals("Alice — +261340000001 — alice@example.com", request.getValue().getMessage());
+    assertEquals(
+        java.util.UUID.nameUUIDFromBytes(
+                "free-contact-unlock:unlock-id".getBytes(java.nio.charset.StandardCharsets.UTF_8))
+            .toString(),
+        request.getValue().getNotificationId());
   }
 
   @Test
@@ -126,7 +150,7 @@ class ContactReleaseServiceIT {
   }
 
   @Test
-  void shouldNotPersistReleaseWhenNotificationFails() {
+  void shouldSaveReleaseBeforeNotificationFailure() {
     when(repository.findByUnlockRequestIdForUpdate("unlock-id")).thenReturn(Optional.of(unlock));
     when(notificationService.createAndSendNotification(any()))
         .thenThrow(new IllegalStateException("notification persistence failed"));
@@ -137,7 +161,7 @@ class ContactReleaseServiceIT {
             service.release(
                 event("event-id", "payment-id", "buyer-id", "seller-id", "VANILLA_PAY")));
 
-    verify(repository, never()).save(any());
+    verify(repository).save(unlock);
   }
 
   private ContactReleaseRequested event(
