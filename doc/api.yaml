@@ -1126,7 +1126,7 @@ paths:
     post:
       operationId: initiateContactUnlock
       tags: [Offers]
-      summary: Initiate a paid seller-contact unlock
+      summary: Initiate a seller-contact unlock
       parameters:
         - name: offerId
           in: path
@@ -2096,7 +2096,8 @@ components:
       properties:
         provider:
           type: string
-          enum: [VANILLA_PAY, MANUAL_ORANGE_MONEY, PAPI]
+          enum: [VANILLA_PAY, MANUAL_ORANGE_MONEY, PAPI, FREE]
+          description: FREE is accepted only when contact payment is disabled by the server configuration.
         payment_method:
           type: string
           description: Required only for provider PAPI.
