@@ -4,6 +4,7 @@ import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockFeeQ
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockRequest;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockResponse;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.SellerContactResponse;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.UnlockedBuyerContactResponse;
 import com.devikapps.vaikaparts.service.ContactUnlockService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -45,5 +46,11 @@ public class ContactUnlockController {
   @GetMapping("/me")
   public SellerContactResponse getSellerContact(@PathVariable String offerId) {
     return service.getSellerContact(offerId);
+  }
+
+  @GetMapping("/seller")
+  public UnlockedBuyerContactResponse getUnlockedBuyerContactForSeller(
+      @PathVariable String offerId) {
+    return service.getUnlockedBuyerContactForSeller(offerId);
   }
 }

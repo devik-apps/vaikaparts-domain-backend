@@ -19,6 +19,7 @@ import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockRequ
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockResponse;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ResearcherContactUnlockSummaryResponse;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.SellerContactResponse;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.UnlockedBuyerContactResponse;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
@@ -225,7 +226,12 @@ public class ContactUnlockService {
     var active = persistence.findActive(buyer.getId(), offerId);
     if (active.isPresent()) {
       var existing = active.orElseThrow();
-      if (free) return map(existing);
+      if (free) {
+        if ("FREE".equals(existing.getProvider()) && existing.getStatus() == RELEASED) {
+          contactReleaseService.ensureFreeUnlockNotified(existing.getUnlockRequestId());
+        }
+        return map(existing);
+      }
       if ("PAPI".equals(existing.getProvider())) {
         if (!papi || !request.paymentMethod().equals(existing.getPaymentMethod()))
           return map(existing);
@@ -264,7 +270,7 @@ public class ContactUnlockService {
       JContactUnlock released;
       try {
         released =
-            persistence.reserve(
+            contactReleaseService.createFreeUnlock(
                 JContactUnlock.builder()
                     .unlockRequestId(randomUUID().toString())
                     .offer(offer)
@@ -277,10 +283,14 @@ public class ContactUnlockService {
                     .updatedAt(now)
                     .build());
       } catch (DataIntegrityViolationException concurrentAttempt) {
-        return persistence
-            .findActive(buyer.getId(), offerId)
-            .map(this::map)
-            .orElseThrow(() -> concurrentAttempt);
+        var existing =
+            persistence
+                .findActive(buyer.getId(), offerId)
+                .orElseThrow(() -> concurrentAttempt);
+        if ("FREE".equals(existing.getProvider()) && existing.getStatus() == RELEASED) {
+          contactReleaseService.ensureFreeUnlockNotified(existing.getUnlockRequestId());
+        }
+        return map(existing);
       }
       return map(released);
     }
@@ -384,6 +394,35 @@ public class ContactUnlockService {
       throw new ResourceNotFoundException("Seller not found");
     }
     return new SellerContactResponse(seller.getName(), seller.getPhoneNumber(), seller.getEmail());
+  }
+
+  @Transactional(readOnly = true)
+  public UnlockedBuyerContactResponse getUnlockedBuyerContactForSeller(String offerId) {
+    var user =
+        userRepository
+            .findBySupabaseUserId(SecContextUtil.getCurrentUserId())
+            .orElseThrow(() -> new ResourceNotFoundException("Authenticated user was not found"));
+    if (!(user instanceof JSeller seller)) {
+      throw new ResourceNotFoundException("Released contact unlock not found");
+    }
+    var offer =
+        offerRepository
+            .findByIdWithRelations(offerId)
+            .filter(candidate -> candidate.getSeller() != null)
+            .filter(candidate -> seller.getId().equals(candidate.getSeller().getId()))
+            .orElseThrow(() -> new ResourceNotFoundException("Released contact unlock not found"));
+    var demand = offer.getDemand();
+    if (demand == null || demand.getResearcher() == null) {
+      throw new ResourceNotFoundException("Released contact unlock not found");
+    }
+    var unlock =
+        persistence
+            .findReleasedByBuyerIdAndOfferIdAndSellerId(
+                demand.getResearcher().getId(), offerId, seller.getId())
+            .orElseThrow(() -> new ResourceNotFoundException("Released contact unlock not found"));
+    var buyer = unlock.getBuyer();
+    return new UnlockedBuyerContactResponse(
+        buyer.getName(), buyer.getPhoneNumber(), buyer.getEmail());
   }
 
   private ContactUnlockResponse attachAndMap(

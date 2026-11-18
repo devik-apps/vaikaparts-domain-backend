@@ -105,7 +105,12 @@ public class DemandService {
       throw new IllegalStateException(
           format("User is not a SELLER. Actual type: %s", currentUser.getUserType()));
     }
-    return jDemands.map(demandMapper::toDomain);
+    return jDemands.map(
+        jDemand -> {
+          var demand = demandMapper.toDomain(jDemand);
+          if (currentUser.getUserType() == UserType.SELLER) hideResearcherContact(demand);
+          return demand;
+        });
   }
 
   @Transactional(readOnly = true)
@@ -259,6 +264,15 @@ public class DemandService {
     return demandMapper.toDomain(jDemand);
   }
 
+  private void hideResearcherContact(Demand demand) {
+    if (demand.getResearcher() == null) return;
+    demand.getResearcher().setSupabaseUserId(null);
+    demand.getResearcher().setName(null);
+    demand.getResearcher().setEmail(null);
+    demand.getResearcher().setPhoneNumber(null);
+    demand.getResearcher().setProfileImgUrl(null);
+  }
+
   @Transactional(readOnly = true)
   public Demand getDemandByIdWithoutAuthFilter(String demandId) {
     log.info("Fetching demand with id={}", forJava(demandId));
@@ -271,7 +285,9 @@ public class DemandService {
                         format("No demand with id=%s was found.", forJava(demandId))));
 
     log.info("Successfully retrieved demand with demand id={}", forJava(demandId));
-    return demandMapper.toDomain(jDemand);
+    var demand = demandMapper.toDomain(jDemand);
+    hideResearcherContact(demand);
+    return demand;
   }
 
   private JDemand findDemandByIdAndResearcher(String demandId, String researcherId) {

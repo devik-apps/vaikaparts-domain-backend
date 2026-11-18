@@ -23,6 +23,7 @@ import com.devikapps.vaikaparts.client.PecuniaClientException;
 import com.devikapps.vaikaparts.client.PecuniaNotFoundException;
 import com.devikapps.vaikaparts.client.PecuniaUnknownOutcomeException;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockRequest;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.UnlockedBuyerContactResponse;
 import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
 import com.devikapps.vaikaparts.repository.model.exchange.JContactUnlock;
@@ -30,6 +31,7 @@ import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
 import com.devikapps.vaikaparts.repository.model.user.JSeller;
+import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import java.math.BigDecimal;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
@@ -54,12 +56,19 @@ class ContactUnlockServiceTest {
 
   private ContactUnlockService service;
   private JResearcher buyer;
+  private JSeller seller;
   private JOffer offer;
 
   @BeforeEach
   void setUp() {
     buyer = JResearcher.builder().id("buyer-id").supabaseUserId("supabase-id").build();
-    var seller = JSeller.builder().id("seller-id").build();
+    seller =
+        JSeller.builder()
+            .id("seller-id")
+            .supabaseUserId("seller-supabase-id")
+            .name("Seller Name")
+            .phoneNumber("0320000000")
+            .build();
     var demand = JDemand.builder().id("demand-id").researcher(buyer).build();
     offer = JOffer.builder().id("offer-id").status(PUBLISHED).seller(seller).demand(demand).build();
     SecurityContextHolder.getContext()
@@ -130,6 +139,9 @@ class ContactUnlockServiceTest {
 
   @Test
   void shouldReleaseFreeUnlockWithoutCallingPecuniaWhenPaymentsAreDisabled() {
+    buyer.setName("Buyer Name");
+    buyer.setPhoneNumber("0340000000");
+    buyer.setEmail("buyer@example.com");
     service =
         new ContactUnlockService(
             userRepository,
@@ -141,14 +153,15 @@ class ContactUnlockServiceTest {
             new BigDecimal("3000"),
             "0320000000");
     when(persistence.findActive("buyer-id", "offer-id")).thenReturn(Optional.empty());
-    when(persistence.reserve(any())).thenAnswer(invocation -> invocation.getArgument(0));
+    when(contactReleaseService.createFreeUnlock(any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
 
     var result = service.initiate("offer-id", new ContactUnlockRequest("FREE"));
 
     assertEquals(RELEASED, result.status());
     assertNull(result.paymentUrl());
     var captor = org.mockito.ArgumentCaptor.forClass(JContactUnlock.class);
-    verify(persistence).reserve(captor.capture());
+    verify(contactReleaseService).createFreeUnlock(captor.capture());
     var saved = captor.getValue();
     assertEquals("FREE", saved.getProvider());
     assertEquals(RELEASED, saved.getStatus());
@@ -157,6 +170,99 @@ class ContactUnlockServiceTest {
     verify(pecuniaClient, never()).initiate(any(), any(), any(), any(), any());
     verify(pecuniaClient, never()).initiatePapi(any(), any(), any(), any(), any(), any());
     verify(contactReleaseService, never()).releasePapi(any(), any());
+  }
+
+  @Test
+  void shouldRetryFreeUnlockNotificationForExistingReleasedUnlock() {
+    buyer.setName("Buyer Name");
+    buyer.setPhoneNumber("0340000000");
+    buyer.setEmail("buyer@example.com");
+    service =
+        new ContactUnlockService(
+            userRepository,
+            offerRepository,
+            persistence,
+            pecuniaClient,
+            contactReleaseService,
+            false,
+            new BigDecimal("3000"),
+            "0320000000");
+    var existing =
+        JContactUnlock.builder()
+            .unlockRequestId("free-unlock-id")
+            .provider("FREE")
+            .status(RELEASED)
+            .buyer(buyer)
+            .seller(offer.getSeller())
+            .offer(offer)
+            .build();
+    when(persistence.findActive("buyer-id", "offer-id")).thenReturn(Optional.of(existing));
+
+    var result = service.initiate("offer-id", new ContactUnlockRequest("FREE"));
+
+    assertEquals(RELEASED, result.status());
+    verify(contactReleaseService).ensureFreeUnlockNotified("free-unlock-id");
+    verify(persistence, never()).reserve(any());
+  }
+
+  @Test
+  void shouldReturnReleasedBuyerContactToTheSellerWhoOwnsTheOffer() {
+    buyer.setName("Buyer Name");
+    buyer.setPhoneNumber("0340000000");
+    buyer.setEmail("buyer@example.com");
+    SecurityContextHolder.getContext()
+        .setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                "seller-supabase-id", null, java.util.List.of()));
+    when(userRepository.findBySupabaseUserId("seller-supabase-id"))
+        .thenReturn(Optional.of(seller));
+    var released =
+        JContactUnlock.builder()
+            .unlockRequestId("released-unlock")
+            .buyer(buyer)
+            .seller(seller)
+            .offer(offer)
+            .status(RELEASED)
+            .build();
+    when(persistence.findReleasedByBuyerIdAndOfferIdAndSellerId(
+            "buyer-id", "offer-id", "seller-id"))
+        .thenReturn(Optional.of(released));
+
+    var contact = service.getUnlockedBuyerContactForSeller("offer-id");
+
+    assertEquals(new UnlockedBuyerContactResponse("Buyer Name", "0340000000", "buyer@example.com"), contact);
+  }
+
+  @Test
+  void shouldNotReturnBuyerContactToAnotherSeller() {
+    SecurityContextHolder.getContext()
+        .setAuthentication(
+            new UsernamePasswordAuthenticationToken("other-seller", null, java.util.List.of()));
+    var otherSeller = JSeller.builder().id("other-seller-id").supabaseUserId("other-seller").build();
+    when(userRepository.findBySupabaseUserId("other-seller"))
+        .thenReturn(Optional.of(otherSeller));
+
+    assertThrows(
+        ResourceNotFoundException.class, () -> service.getUnlockedBuyerContactForSeller("offer-id"));
+
+    verify(persistence, never())
+        .findReleasedByBuyerIdAndOfferIdAndSellerId(any(), any(), any());
+  }
+
+  @Test
+  void shouldNotReturnBuyerContactWhenUnlockIsNotReleased() {
+    SecurityContextHolder.getContext()
+        .setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                "seller-supabase-id", null, java.util.List.of()));
+    when(userRepository.findBySupabaseUserId("seller-supabase-id"))
+        .thenReturn(Optional.of(seller));
+    when(persistence.findReleasedByBuyerIdAndOfferIdAndSellerId(
+            "buyer-id", "offer-id", "seller-id"))
+        .thenReturn(Optional.empty());
+
+    assertThrows(
+        ResourceNotFoundException.class, () -> service.getUnlockedBuyerContactForSeller("offer-id"));
   }
 
   @Test

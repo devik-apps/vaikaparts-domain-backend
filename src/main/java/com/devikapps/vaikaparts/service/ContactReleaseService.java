@@ -2,12 +2,14 @@ package com.devikapps.vaikaparts.service;
 
 import static com.devikapps.vaikaparts.model.classifier.ContactUnlockStatus.RELEASED;
 import static com.devikapps.vaikaparts.model.classifier.NotificationType.CONTACT_UNLOCKED;
+import static java.util.UUID.nameUUIDFromBytes;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.NotificationRequest;
 import com.devikapps.vaikaparts.event.model.ContactReleaseRequested;
 import com.devikapps.vaikaparts.repository.ContactUnlockRepository;
 import com.devikapps.vaikaparts.repository.model.exchange.JContactUnlock;
 import com.devikapps.vaikaparts.service.notification.NotificationService;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -21,6 +23,24 @@ public class ContactReleaseService {
 
   private final ContactUnlockRepository repository;
   private final NotificationService notificationService;
+
+  @Transactional
+  public JContactUnlock createFreeUnlock(JContactUnlock unlock) {
+    var saved = repository.saveAndFlush(unlock);
+    notifySeller(saved);
+    return saved;
+  }
+
+  @Transactional
+  public void ensureFreeUnlockNotified(String unlockRequestId) {
+    var unlock =
+        repository
+            .findByUnlockRequestIdForUpdate(unlockRequestId)
+            .orElseThrow(() -> new IllegalArgumentException("Unknown free contact unlock"));
+    if ("FREE".equals(unlock.getProvider()) && unlock.getStatus() == RELEASED) {
+      notifySeller(unlock);
+    }
+  }
 
   @Transactional
   public void release(ContactReleaseRequested event) {
@@ -81,6 +101,18 @@ public class ContactReleaseService {
 
   private void releaseContact(
       JContactUnlock unlock, String paymentId, String releaseEventId, Instant paidAt) {
+    var now = OffsetDateTime.now(ZoneOffset.UTC);
+    unlock.setPaymentId(paymentId);
+    unlock.setReleaseEventId(releaseEventId);
+    unlock.setPaidAt(paidAt.atOffset(ZoneOffset.UTC));
+    unlock.setReleasedAt(now);
+    unlock.setUpdatedAt(now);
+    unlock.setStatus(RELEASED);
+    repository.save(unlock);
+    notifySeller(unlock);
+  }
+
+  private void notifySeller(JContactUnlock unlock) {
     var buyer = unlock.getBuyer();
     var message =
         safe(buyer.getName())
@@ -94,17 +126,16 @@ public class ContactReleaseService {
             .resourceId(unlock.getOffer().getId())
             .notificationType(CONTACT_UNLOCKED)
             .message(message)
-            .clickAction("/offers/" + unlock.getOffer().getId())
+            .clickAction(
+                "/dashboard/offers?offerId="
+                    + unlock.getOffer().getId()
+                    + "&showContactUnlock=true")
+            .notificationId(
+                nameUUIDFromBytes(
+                        ("free-contact-unlock:" + unlock.getUnlockRequestId())
+                            .getBytes(StandardCharsets.UTF_8))
+                    .toString())
             .build());
-
-    var now = OffsetDateTime.now(ZoneOffset.UTC);
-    unlock.setPaymentId(paymentId);
-    unlock.setReleaseEventId(releaseEventId);
-    unlock.setPaidAt(paidAt.atOffset(ZoneOffset.UTC));
-    unlock.setReleasedAt(now);
-    unlock.setUpdatedAt(now);
-    unlock.setStatus(RELEASED);
-    repository.save(unlock);
   }
 
   private void validateRequiredFields(ContactReleaseRequested event) {
