@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPart;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.UpdateDemandRequest;
 import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
@@ -19,6 +20,7 @@ import com.devikapps.vaikaparts.file.FilenameSanitizer;
 import com.devikapps.vaikaparts.mapper.exchange.DemandMapper;
 import com.devikapps.vaikaparts.model.classifier.PartCategory;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
+import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.exchange.Part;
 import com.devikapps.vaikaparts.model.user.Researcher;
@@ -27,7 +29,9 @@ import com.devikapps.vaikaparts.repository.DemandRepository;
 import com.devikapps.vaikaparts.repository.event.JDemandPublishedRequested;
 import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JPart;
+import com.devikapps.vaikaparts.repository.model.user.JManager;
 import com.devikapps.vaikaparts.repository.model.user.JResearcher;
+import com.devikapps.vaikaparts.repository.model.user.JSeller;
 import com.devikapps.vaikaparts.service.outbox.OutboxService;
 import com.devikapps.vaikaparts.service.util.ImageUploader;
 import com.devikapps.vaikaparts.service.util.Paginator;
@@ -48,6 +52,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class DemandServiceTest {
@@ -65,6 +71,7 @@ class DemandServiceTest {
   @Mock private DemandRepository demandRepository;
   @Mock private DemandMapper demandMapper;
   @Mock private ResearcherService researcherService;
+  @Mock private UserService userService;
   @Mock private BucketComponent bucketComponent;
   @Mock private Paginator paginator;
   @Mock private FilenameSanitizer filenameSanitizer;
@@ -93,7 +100,7 @@ class DemandServiceTest {
 
   @Test
   void should_create_demand_successfully() throws Exception {
-    when(researcherService.getCurrentResearcher()).thenReturn(testResearcher);
+    when(researcherService.getOrCreateCurrentResearcher()).thenReturn(testResearcher);
     when(demandMapper.toPersistence(any(Demand.class))).thenReturn(testJDemand);
     when(demandRepository.save(any(JDemand.class))).thenReturn(testJDemand);
     when(demandMapper.toDomain(testJDemand)).thenReturn(testDemand);
@@ -105,12 +112,118 @@ class DemandServiceTest {
     assertEquals(PostStatus.DRAFT, result.getStatus());
     assertEquals(TEST_RESEARCHER_ID, result.getResearcher().getId());
     verify(demandRepository, times(1)).save(any(JDemand.class));
-    verify(researcherService, times(1)).getCurrentResearcher();
+    verify(researcherService, times(1)).getOrCreateCurrentResearcher();
+  }
+
+  @Test
+  void should_allow_owner_researcher_to_partially_update_and_append_images() {
+    testJPart.setImageBuckets(new ArrayList<>(List.of("parts/old.jpg")));
+    testJDemand.setStatus(PostStatus.PUBLISHED);
+    var image = new MockMultipartFile("part.images", "new.jpg", "image/jpeg", new byte[] {1});
+    var request = new UpdateDemandRequest();
+    request.setDescription("Updated description");
+    var part = new UpdateDemandRequest.PartUpdate();
+    part.setCarModel("New model");
+    part.setImages(List.of(image));
+    request.setPart(part);
+    when(userService.getCurrentUser()).thenReturn(testJResearcher);
+    when(demandRepository.findByIdForUpdate(TEST_DEMAND_ID)).thenReturn(Optional.of(testJDemand));
+    when(imageUploader.apply(List.of(image), "parts/")).thenReturn(List.of("parts/new.jpg"));
+    when(demandRepository.save(testJDemand)).thenReturn(testJDemand);
+    when(demandMapper.toDomain(testJDemand)).thenReturn(testDemand);
+
+    demandService.updateDemand(TEST_DEMAND_ID, request);
+
+    assertEquals("Updated description", testJDemand.getDescription());
+    assertEquals(TEST_CAR_BRAND, testJPart.getCarBrand());
+    assertEquals("New model", testJPart.getCarModel());
+    assertEquals(List.of("parts/old.jpg", "parts/new.jpg"), testJPart.getImageBuckets());
+    assertEquals(PostStatus.PUBLISHED, testJDemand.getStatus());
+    verify(demandRepository).save(testJDemand);
+  }
+
+  @Test
+  void should_allow_manager_to_update_a_demand_owned_by_another_researcher() {
+    var manager = JManager.builder().id("manager-1").userType(UserType.MANAGER).build();
+    var request = new UpdateDemandRequest();
+    request.setDescription("Manager correction");
+    when(userService.getCurrentUser()).thenReturn(manager);
+    when(demandRepository.findByIdForUpdate(TEST_DEMAND_ID)).thenReturn(Optional.of(testJDemand));
+    when(demandRepository.save(testJDemand)).thenReturn(testJDemand);
+    when(demandMapper.toDomain(testJDemand)).thenReturn(testDemand);
+
+    demandService.updateDemand(TEST_DEMAND_ID, request);
+
+    assertEquals("Manager correction", testJDemand.getDescription());
+    verify(demandRepository).save(testJDemand);
+  }
+
+  @Test
+  void should_hide_non_owned_demand_from_researcher_update() {
+    var otherResearcher = JResearcher.builder().id("other-researcher").build();
+    testJDemand.setResearcher(otherResearcher);
+    var request = new UpdateDemandRequest();
+    request.setDescription("Should not apply");
+    when(userService.getCurrentUser()).thenReturn(testJResearcher);
+    when(demandRepository.findByIdForUpdate(TEST_DEMAND_ID)).thenReturn(Optional.of(testJDemand));
+
+    assertThrows(
+        ResourceNotFoundException.class, () -> demandService.updateDemand(TEST_DEMAND_ID, request));
+
+    verify(demandRepository, never()).save(any(JDemand.class));
+  }
+
+  @Test
+  void should_deny_seller_from_updating_demand() {
+    var seller = JSeller.builder().id("seller-1").userType(UserType.SELLER).build();
+    var request = new UpdateDemandRequest();
+    request.setDescription("Should not apply");
+    when(userService.getCurrentUser()).thenReturn(seller);
+
+    assertThrows(
+        AuthorizationDeniedException.class,
+        () -> demandService.updateDemand(TEST_DEMAND_ID, request));
+
+    verify(demandRepository, never()).findByIdForUpdate(any());
+    verify(demandRepository, never()).save(any(JDemand.class));
+  }
+
+  @Test
+  void should_reject_blank_updated_values() {
+    var request = new UpdateDemandRequest();
+    request.setDescription("   ");
+    when(userService.getCurrentUser()).thenReturn(testJResearcher);
+    when(demandRepository.findByIdForUpdate(TEST_DEMAND_ID)).thenReturn(Optional.of(testJDemand));
+
+    assertThrows(
+        IllegalArgumentException.class, () -> demandService.updateDemand(TEST_DEMAND_ID, request));
+
+    verify(demandRepository, never()).save(any(JDemand.class));
+  }
+
+  @Test
+  void should_reject_photo_total_above_five_before_upload() {
+    testJPart.setImageBuckets(new ArrayList<>(List.of("1", "2", "3", "4")));
+    var request = new UpdateDemandRequest();
+    var part = new UpdateDemandRequest.PartUpdate();
+    part.setImages(
+        List.of(
+            new MockMultipartFile("part.images", "one.jpg", "image/jpeg", new byte[] {1}),
+            new MockMultipartFile("part.images", "two.jpg", "image/jpeg", new byte[] {2})));
+    request.setPart(part);
+    when(userService.getCurrentUser()).thenReturn(testJResearcher);
+    when(demandRepository.findByIdForUpdate(TEST_DEMAND_ID)).thenReturn(Optional.of(testJDemand));
+
+    assertThrows(
+        IllegalArgumentException.class, () -> demandService.updateDemand(TEST_DEMAND_ID, request));
+
+    verify(imageUploader, never()).apply(any(), any());
+    verify(demandRepository, never()).save(any(JDemand.class));
   }
 
   @Test
   void should_throw_exception_when_description_is_null() {
-    when(researcherService.getCurrentResearcher()).thenReturn(testResearcher);
+    when(researcherService.getOrCreateCurrentResearcher()).thenReturn(testResearcher);
 
     assertThrows(
         IllegalArgumentException.class, () -> demandService.createDemand(null, testRestPart));
@@ -120,7 +233,7 @@ class DemandServiceTest {
 
   @Test
   void should_throw_exception_when_description_is_blank() {
-    when(researcherService.getCurrentResearcher()).thenReturn(testResearcher);
+    when(researcherService.getOrCreateCurrentResearcher()).thenReturn(testResearcher);
 
     assertThrows(
         IllegalArgumentException.class, () -> demandService.createDemand("   ", testRestPart));
@@ -130,7 +243,7 @@ class DemandServiceTest {
 
   @Test
   void should_throw_exception_when_part_is_null() {
-    when(researcherService.getCurrentResearcher()).thenReturn(testResearcher);
+    when(researcherService.getOrCreateCurrentResearcher()).thenReturn(testResearcher);
 
     assertThrows(
         IllegalArgumentException.class, () -> demandService.createDemand(TEST_DESCRIPTION, null));
@@ -418,7 +531,11 @@ class DemandServiceTest {
   }
 
   private JResearcher buildTestJResearcher() {
-    return JResearcher.builder().id(TEST_RESEARCHER_ID).name("John Doe").build();
+    return JResearcher.builder()
+        .id(TEST_RESEARCHER_ID)
+        .name("John Doe")
+        .userType(UserType.RESEARCHER)
+        .build();
   }
 
   private JPart buildTestJPart() {

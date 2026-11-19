@@ -1,6 +1,7 @@
 package com.devikapps.vaikaparts.endpoint.rest.controller.exchange;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.CreateDemandRequest;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.UpdateDemandRequest;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.model.exchange.Demand;
 import com.devikapps.vaikaparts.model.exchange.Offer;
@@ -81,5 +82,11 @@ public class DemandController {
   @GetMapping("/{demandId}")
   public Demand getDemandById(@PathVariable String demandId) {
     return demandService.getDemandById(demandId);
+  }
+
+  @PatchMapping(value = "/{demandId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  public Demand updateDemand(
+      @PathVariable String demandId, @ModelAttribute UpdateDemandRequest request) {
+    return demandService.updateDemand(demandId, request);
   }
 }

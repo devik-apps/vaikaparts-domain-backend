@@ -160,6 +160,107 @@ class DemandControllerIT extends FacadeIT {
   }
 
   @Test
+  void should_allow_owner_researcher_to_update_fields_and_append_an_image() throws Exception {
+    authenticateUser();
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+    val image =
+        new MockMultipartFile("part.images", "new.jpg", "image/jpeg", "image content".getBytes());
+
+    mockMvc
+        .perform(
+            multipart(DEMANDS_ENDPOINT + "/{demandId}", demand.getId())
+                .file(image)
+                .param("description", "Updated demand")
+                .param("part.carModel", "New model")
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .contentType(MediaType.MULTIPART_FORM_DATA))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.description").value("Updated demand"))
+        .andExpect(jsonPath("$.part.car_model").value("New model"))
+        .andExpect(jsonPath("$.status").value(PostStatus.PUBLISHED.name()))
+        .andExpect(jsonPath("$.part.image_urls", hasSize(1)));
+  }
+
+  @Test
+  void should_allow_manager_to_update_any_researcher_demand() throws Exception {
+    val manager = createTestManager();
+    val otherResearcher = createOtherResearcher();
+    val demand = createDemandForResearcher(otherResearcher, PostStatus.PUBLISHED);
+    authenticateAs(manager.getSupabaseUserId());
+
+    mockMvc
+        .perform(
+            multipart(DEMANDS_ENDPOINT + "/{demandId}", demand.getId())
+                .param("description", "Manager correction")
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .contentType(MediaType.MULTIPART_FORM_DATA))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.description").value("Manager correction"))
+        .andExpect(jsonPath("$.researcher.id").value(otherResearcher.getId()));
+  }
+
+  @Test
+  void should_hide_another_researchers_demand_from_update() throws Exception {
+    val demand = createDemandForResearcher(createOtherResearcher(), PostStatus.PUBLISHED);
+    authenticateUser();
+
+    mockMvc
+        .perform(
+            multipart(DEMANDS_ENDPOINT + "/{demandId}", demand.getId())
+                .param("description", "Unauthorized change")
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .contentType(MediaType.MULTIPART_FORM_DATA))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void should_forbid_seller_from_updating_a_demand() throws Exception {
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+    authenticateSeller();
+
+    mockMvc
+        .perform(
+            multipart(DEMANDS_ENDPOINT + "/{demandId}", demand.getId())
+                .param("description", "Unauthorized change")
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .contentType(MediaType.MULTIPART_FORM_DATA))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void should_require_authentication_to_update_demand() throws Exception {
+    val demand = createTestDemand(PostStatus.PUBLISHED);
+
+    mockMvc
+        .perform(
+            multipart(DEMANDS_ENDPOINT + "/{demandId}", demand.getId())
+                .param("description", "Unauthorized change")
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .contentType(MediaType.MULTIPART_FORM_DATA))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
   void should_return_400_when_description_is_blank() throws Exception {
     authenticateUser();
     mockMvc
