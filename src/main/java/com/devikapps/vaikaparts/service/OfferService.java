@@ -15,6 +15,7 @@ import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.mapper.exchange.DemandMapper;
 import com.devikapps.vaikaparts.mapper.exchange.OfferMapper;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
+import com.devikapps.vaikaparts.model.classifier.UserType;
 import com.devikapps.vaikaparts.model.exchange.Offer;
 import com.devikapps.vaikaparts.model.exchange.Part;
 import com.devikapps.vaikaparts.model.exchange.PartInfo;
@@ -77,7 +78,7 @@ public class OfferService {
     var savedJOffer = offerRepository.save(jOffer);
     log.info("Successfully created offer with id: {}", forJava(savedJOffer.getId()));
 
-    return offerMapper.toDomain(savedJOffer);
+    return mapOfferWithoutResearcherContact(savedJOffer);
   }
 
   private PartInfo buildPartInfoFromRestPartInfo(
@@ -128,7 +129,7 @@ public class OfferService {
         forJava(offerId),
         forJava(newStatus.toString()));
 
-    return offerMapper.toDomain(updatedJOffer);
+    return mapOfferWithoutResearcherContact(updatedJOffer);
   }
 
   private void publishOfferNotification(JOffer offer) {
@@ -187,7 +188,9 @@ public class OfferService {
         };
     log.info("Found {} offers with status {}", jOffers.getTotalElements(), forJava(status.toString()));
 
-    return jOffers.map(offerMapper::toDomain);
+    return jOffers.map(offer -> currentUser.getUserType() == UserType.SELLER
+        ? mapOfferWithoutResearcherContact(offer)
+        : offerMapper.toDomain(offer));
   }
 
   @Transactional(readOnly = true)
@@ -211,7 +214,9 @@ public class OfferService {
         };
     log.info("Found {} total offers", jOffers.getTotalElements());
 
-    return jOffers.map(offerMapper::toDomain);
+    return jOffers.map(offer -> currentUser.getUserType() == UserType.SELLER
+        ? mapOfferWithoutResearcherContact(offer)
+        : offerMapper.toDomain(offer));
   }
 
   @Transactional(readOnly = true)
@@ -222,7 +227,7 @@ public class OfferService {
     var jOffer = findOfferByIdAndSeller(offerId, currentSeller.getId());
 
     log.info("Successfully retrieved offer: {}", forJava(offerId));
-    return offerMapper.toDomain(jOffer);
+    return mapOfferWithoutResearcherContact(jOffer);
   }
 
   @Transactional(readOnly = true)
@@ -237,7 +242,7 @@ public class OfferService {
                     new ResourceNotFoundException(
                         format("No offer with id=%s was found.", forJava(offerId))));
 
-    return offerMapper.toDomain(jOffer);
+    return mapOfferWithoutResearcherContact(jOffer);
   }
 
   @Transactional(readOnly = true)
@@ -254,7 +259,20 @@ public class OfferService {
     var jOffers = offerRepository.findByDemandId(demandId, pageable);
     log.info("Found {} offers for demand {}", jOffers.getTotalElements(), forJava(demandId));
 
-    return jOffers.map(offerMapper::toDomain);
+    return jOffers.map(this::mapOfferWithoutResearcherContact);
+  }
+
+  private Offer mapOfferWithoutResearcherContact(JOffer jOffer) {
+    var offer = offerMapper.toDomain(jOffer);
+    if (offer.getDemand() != null && offer.getDemand().getResearcher() != null) {
+      var researcher = offer.getDemand().getResearcher();
+      researcher.setSupabaseUserId(null);
+      researcher.setName(null);
+      researcher.setEmail(null);
+      researcher.setPhoneNumber(null);
+      researcher.setProfileImgUrl(null);
+    }
+    return offer;
   }
 
   private JDemand validateOfferCreation(

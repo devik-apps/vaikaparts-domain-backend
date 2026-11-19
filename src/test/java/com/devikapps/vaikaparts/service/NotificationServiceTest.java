@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -147,6 +148,28 @@ class NotificationServiceTest {
             notificationMapper,
             messageResolver,
             externalNotificationDeliveryService);
+  }
+
+  @Test
+  void shouldReuseNotificationWithAnExistingExplicitId() {
+    var existing = mock(JDemandPublishedNotification.class);
+    var expected = mock(Notification.class);
+    when(demandPublishedNotificationRepository.findById(TEST_NOTIFICATION_ID))
+        .thenReturn(Optional.of(existing));
+    when(notificationMapper.toDomain(existing)).thenReturn(expected);
+
+    var result =
+        notificationService.createAndSendNotification(
+            NotificationRequest.builder()
+                .notificationId(TEST_NOTIFICATION_ID)
+                .recipientUserId(TEST_SELLER_ID)
+                .notificationType(NotificationType.CONTACT_UNLOCKED)
+                .message("Buyer contact")
+                .build());
+
+    assertSame(expected, result);
+    verify(inAppChannel, never()).send(any(Notification.class));
+    verify(demandPublishedNotificationRepository, never()).findByRequestId(any());
   }
 
   @Test

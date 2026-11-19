@@ -29,6 +29,13 @@ public class ContactUnlockPersistenceService {
   }
 
   @Transactional(readOnly = true)
+  public Optional<JContactUnlock> findReleasedByBuyerIdAndOfferIdAndSellerId(
+      String buyerId, String offerId, String sellerId) {
+    return repository.findByBuyerIdAndOfferIdAndSellerIdAndStatus(
+        buyerId, offerId, sellerId, RELEASED);
+  }
+
+  @Transactional(readOnly = true)
   public List<ResearcherContactUnlockSummaryResponse> findReleasedContactUnlocksForBuyer(
       String buyerId) {
     return repository.findReleasedContactUnlocksForBuyer(buyerId, RELEASED);

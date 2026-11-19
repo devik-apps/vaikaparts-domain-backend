@@ -57,6 +57,20 @@ class ContactUnlockControllerIT {
   }
 
   @Test
+  void shouldMapDisabledPaymentModeToBadRequest() throws Exception {
+    org.mockito.Mockito.when(service.initiate("offer-id", new ContactUnlockRequest("VANILLA_PAY")))
+        .thenThrow(new IllegalStateException("Paid contact unlocks are disabled"));
+
+    mvc.perform(
+            post("/v1/offers/offer-id/contact-unlocks")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"provider\":\"VANILLA_PAY\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error_code").value("ILLEGAL_STATE"))
+        .andExpect(jsonPath("$.message").value("Paid contact unlocks are disabled"));
+  }
+
+  @Test
   void shouldPassPapiMethodAndOrangeCodeToServiceWithoutEchoingCode() throws Exception {
     org.mockito.Mockito.when(
             service.initiate(

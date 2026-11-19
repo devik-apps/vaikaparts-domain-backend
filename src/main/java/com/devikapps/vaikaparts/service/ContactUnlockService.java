@@ -19,6 +19,7 @@ import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockRequ
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ContactUnlockResponse;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.ResearcherContactUnlockSummaryResponse;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.SellerContactResponse;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.UnlockedBuyerContactResponse;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.repository.OfferRepository;
 import com.devikapps.vaikaparts.repository.UserRepository;
@@ -46,6 +47,7 @@ public class ContactUnlockService {
   private final ContactUnlockPersistenceService persistence;
   private final PecuniaClient pecuniaClient;
   private final ContactReleaseService contactReleaseService;
+  private final boolean contactPaymentEnabled;
   private final BigDecimal price;
   private final String manualPaymentPhoneNumber;
 
@@ -55,6 +57,7 @@ public class ContactUnlockService {
       ContactUnlockPersistenceService persistence,
       PecuniaClient pecuniaClient,
       ContactReleaseService contactReleaseService,
+      @Value("${contact-unlock.payment-enabled:true}") boolean contactPaymentEnabled,
       @Value("${contact-unlock.price-mga}") BigDecimal price,
       @Value("${contact-unlock.manual.orange-money-number:}") String manualPaymentPhoneNumber) {
     if (price == null || price.signum() <= 0) {
@@ -65,6 +68,7 @@ public class ContactUnlockService {
     this.persistence = persistence;
     this.pecuniaClient = pecuniaClient;
     this.contactReleaseService = contactReleaseService;
+    this.contactPaymentEnabled = contactPaymentEnabled;
     this.price = price;
     this.manualPaymentPhoneNumber = manualPaymentPhoneNumber;
   }
@@ -154,8 +158,18 @@ public class ContactUnlockService {
   public ContactUnlockResponse initiate(String offerId, ContactUnlockRequest request) {
     var provider = request.provider();
     var papi = "PAPI".equals(provider);
-    if (!papi && !"VANILLA_PAY".equals(provider) && !"MANUAL_ORANGE_MONEY".equals(provider)) {
+    var free = "FREE".equals(provider);
+    if (!papi
+        && !free
+        && !"VANILLA_PAY".equals(provider)
+        && !"MANUAL_ORANGE_MONEY".equals(provider)) {
       throw new IllegalArgumentException("Unsupported contact unlock provider");
+    }
+    if (free && contactPaymentEnabled) {
+      throw new IllegalStateException("Free contact unlocks are disabled");
+    }
+    if (!free && !contactPaymentEnabled) {
+      throw new IllegalStateException("Paid contact unlocks are disabled");
     }
     if (papi) {
       if (request.paymentMethod() == null
@@ -212,8 +226,15 @@ public class ContactUnlockService {
     var active = persistence.findActive(buyer.getId(), offerId);
     if (active.isPresent()) {
       var existing = active.orElseThrow();
+      if (free) {
+        if ("FREE".equals(existing.getProvider()) && existing.getStatus() == RELEASED) {
+          contactReleaseService.ensureFreeUnlockNotified(existing.getUnlockRequestId());
+        }
+        return map(existing);
+      }
       if ("PAPI".equals(existing.getProvider())) {
-        if (!request.paymentMethod().equals(existing.getPaymentMethod())) return map(existing);
+        if (!papi || !request.paymentMethod().equals(existing.getPaymentMethod()))
+          return map(existing);
         try {
           return getUnlockStatus(offerId, existing.getUnlockRequestId());
         } catch (PecuniaNotFoundException notCreatedYet) {
@@ -242,6 +263,36 @@ public class ContactUnlockService {
         return attachAndMap(existing, recovered, buyer.getId(), offer.getSeller().getId());
       }
       return map(existing);
+    }
+
+    if (free) {
+      var now = OffsetDateTime.now();
+      JContactUnlock released;
+      try {
+        released =
+            contactReleaseService.createFreeUnlock(
+                JContactUnlock.builder()
+                    .unlockRequestId(randomUUID().toString())
+                    .offer(offer)
+                    .buyer(buyer)
+                    .seller(offer.getSeller())
+                    .provider("FREE")
+                    .status(RELEASED)
+                    .releasedAt(now)
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build());
+      } catch (DataIntegrityViolationException concurrentAttempt) {
+        var existing =
+            persistence
+                .findActive(buyer.getId(), offerId)
+                .orElseThrow(() -> concurrentAttempt);
+        if ("FREE".equals(existing.getProvider()) && existing.getStatus() == RELEASED) {
+          contactReleaseService.ensureFreeUnlockNotified(existing.getUnlockRequestId());
+        }
+        return map(existing);
+      }
+      return map(released);
     }
 
     var now = OffsetDateTime.now();
@@ -345,6 +396,35 @@ public class ContactUnlockService {
     return new SellerContactResponse(seller.getName(), seller.getPhoneNumber(), seller.getEmail());
   }
 
+  @Transactional(readOnly = true)
+  public UnlockedBuyerContactResponse getUnlockedBuyerContactForSeller(String offerId) {
+    var user =
+        userRepository
+            .findBySupabaseUserId(SecContextUtil.getCurrentUserId())
+            .orElseThrow(() -> new ResourceNotFoundException("Authenticated user was not found"));
+    if (!(user instanceof JSeller seller)) {
+      throw new ResourceNotFoundException("Released contact unlock not found");
+    }
+    var offer =
+        offerRepository
+            .findByIdWithRelations(offerId)
+            .filter(candidate -> candidate.getSeller() != null)
+            .filter(candidate -> seller.getId().equals(candidate.getSeller().getId()))
+            .orElseThrow(() -> new ResourceNotFoundException("Released contact unlock not found"));
+    var demand = offer.getDemand();
+    if (demand == null || demand.getResearcher() == null) {
+      throw new ResourceNotFoundException("Released contact unlock not found");
+    }
+    var unlock =
+        persistence
+            .findReleasedByBuyerIdAndOfferIdAndSellerId(
+                demand.getResearcher().getId(), offerId, seller.getId())
+            .orElseThrow(() -> new ResourceNotFoundException("Released contact unlock not found"));
+    var buyer = unlock.getBuyer();
+    return new UnlockedBuyerContactResponse(
+        buyer.getName(), buyer.getPhoneNumber(), buyer.getEmail());
+  }
+
   private ContactUnlockResponse attachAndMap(
       JContactUnlock reserved, PaymentResponse payment, String buyerId, String sellerId) {
     if (payment == null
@@ -402,7 +482,8 @@ public class ContactUnlockService {
         unlock.getPaymentPhoneNumber() != null
             ? unlock.getPaymentPhoneNumber()
             : buyer == null ? null : buyer.getPhoneNumber();
-    if ((buyer != null && (payment.payer() == null || !buyer.getName().equals(payment.payer().name())))
+    if ((buyer != null
+            && (payment.payer() == null || !buyer.getName().equals(payment.payer().name())))
         || (expectedPayerPhone != null
             && (payment.payer() == null
                 || !normalizeMadagascarPhone(expectedPayerPhone)
@@ -427,9 +508,7 @@ public class ContactUnlockService {
 
   private BigDecimal paymentAmountFor(String paymentMethod) {
     var feeRate =
-        "ORANGE_MONEY".equals(paymentMethod)
-            ? ORANGE_FEE_RATE
-            : MVOLA_AND_AIRTEL_FEE_RATE;
+        "ORANGE_MONEY".equals(paymentMethod) ? ORANGE_FEE_RATE : MVOLA_AND_AIRTEL_FEE_RATE;
     return price.divide(ONE.subtract(feeRate), 0, RoundingMode.HALF_UP);
   }
 
