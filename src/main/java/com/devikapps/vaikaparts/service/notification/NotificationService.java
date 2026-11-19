@@ -273,14 +273,16 @@ public class NotificationService {
   }
 
   private boolean requiresPersistentExternalDelivery(Notification notification) {
-    return notification.getNotificationType() == NotificationType.DEMAND_PUBLISHED
+    return (notification.getNotificationType() == NotificationType.DEMAND_PUBLISHED
+            || notification.getNotificationType() == NotificationType.DEMAND_UPDATED)
         && notification.getRecipient().getUserType() == UserType.SELLER;
   }
 
   private boolean isEligibleForNotification(
       Notification notification, NotificationChannel channel) {
-    return notification.getNotificationType() != NotificationType.OFFER_REJECTED
-        || channel.getChannelType() != SMS;
+    return channel.getChannelType() != SMS
+        || (notification.getNotificationType() != NotificationType.DEMAND_UPDATED
+            && notification.getNotificationType() != NotificationType.OFFER_REJECTED);
   }
 
   private boolean isRequestedByRecipient(Notification notification, NotificationChannel channel) {
@@ -360,7 +362,7 @@ public class NotificationService {
     validateRecipientType(notificationType, recipientUserType);
 
     return switch (notificationType) {
-      case DEMAND_PUBLISHED, DEMAND_CANCELED ->
+      case DEMAND_PUBLISHED, DEMAND_UPDATED, DEMAND_CANCELED ->
           demandService.getDemandByIdWithoutAuthFilter(requireResourceId(request));
       case OFFER_ACCEPTED, OFFER_REJECTED, OFFER_PUBLISHED, CONTACT_UNLOCKED ->
           offerService.getOfferByIdWithoutAuthFilter(requireResourceId(request));
@@ -374,7 +376,7 @@ public class NotificationService {
         switch (notificationType) {
           case SYSTEM_ANNOUNCEMENT, DEMAND_CANCELED -> true;
           case OFFER_PUBLISHED -> recipientUserType == UserType.RESEARCHER;
-          case DEMAND_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED ->
+          case DEMAND_PUBLISHED, DEMAND_UPDATED, OFFER_ACCEPTED, OFFER_REJECTED ->
               recipientUserType == UserType.SELLER || recipientUserType == UserType.MANAGER;
           case CONTACT_UNLOCKED ->
               recipientUserType == UserType.SELLER || recipientUserType == UserType.RESEARCHER;

@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPart;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.UpdateDemandRequest;
 import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
+import com.devikapps.vaikaparts.event.model.DemandUpdatedRequested;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.file.FilenameSanitizer;
@@ -140,6 +141,10 @@ class DemandServiceTest {
     assertEquals(List.of("parts/old.jpg", "parts/new.jpg"), testJPart.getImageBuckets());
     assertEquals(PostStatus.PUBLISHED, testJDemand.getStatus());
     verify(demandRepository).save(testJDemand);
+    ArgumentCaptor<DemandUpdatedRequested> eventCaptor =
+        ArgumentCaptor.forClass(DemandUpdatedRequested.class);
+    verify(outboxService).enqueue(eventCaptor.capture());
+    assertEquals(TEST_DEMAND_ID, eventCaptor.getValue().getDemandId());
   }
 
   @Test
@@ -156,6 +161,7 @@ class DemandServiceTest {
 
     assertEquals("Manager correction", testJDemand.getDescription());
     verify(demandRepository).save(testJDemand);
+    verify(outboxService, never()).enqueue(any(DemandUpdatedRequested.class));
   }
 
   @Test
