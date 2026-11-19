@@ -8,6 +8,7 @@ import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPart;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.UpdateDemandRequest;
 import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
@@ -39,8 +40,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @Service
@@ -82,6 +85,108 @@ public class DemandService {
 
     log.info("Successfully created demand with id: {}", forJava(savedJDemand.getId()));
     return demandMapper.toDomain(savedJDemand);
+  }
+
+  @Transactional
+  public Demand updateDemand(String demandId, UpdateDemandRequest request) {
+    if (request == null) throw new IllegalArgumentException("Demand update cannot be empty");
+
+    var currentUser = userService.getCurrentUser();
+    if (currentUser.getUserType() != UserType.RESEARCHER
+        && currentUser.getUserType() != UserType.MANAGER) {
+      throw new AuthorizationDeniedException(
+          "Only the owning researcher or a manager can update a demand");
+    }
+    var jDemand =
+        demandRepository
+            .findByIdForUpdate(demandId)
+            .orElseThrow(
+                () ->
+                    new ResourceNotFoundException(
+                        format("Demand %s not found or access denied", forJava(demandId))));
+
+    if (currentUser.getUserType() == UserType.RESEARCHER) {
+      if (jDemand.getResearcher() == null
+          || !currentUser.getId().equals(jDemand.getResearcher().getId())) {
+        throw new ResourceNotFoundException(
+            format("Demand %s not found or access denied", forJava(demandId)));
+      }
+    }
+
+    var jPart = jDemand.getPart();
+    var partUpdate = request.getPart();
+    if (partUpdate != null && jPart == null) {
+      throw new IllegalStateException("Demand has no part to update");
+    }
+    validateOptionalText(request.getDescription(), "Description");
+    if (partUpdate != null) {
+      validateOptionalText(partUpdate.getName(), "Part name");
+      validateOptionalText(partUpdate.getCarBrand(), "Car brand");
+      validateOptionalText(partUpdate.getCarModel(), "Car model");
+    }
+
+    List<MultipartFile> newImages =
+        partUpdate == null || partUpdate.getImages() == null
+            ? List.of()
+            : partUpdate.getImages().stream().filter(image -> !image.isEmpty()).toList();
+    var currentImageBuckets =
+        jPart == null || jPart.getImageBuckets() == null
+            ? List.<String>of()
+            : jPart.getImageBuckets();
+    if (currentImageBuckets.size() + newImages.size() > 5) {
+      throw new IllegalArgumentException("A demand cannot have more than 5 images");
+    }
+
+    boolean changed = false;
+    if (request.getDescription() != null
+        && !request.getDescription().equals(jDemand.getDescription())) {
+      jDemand.setDescription(request.getDescription());
+      changed = true;
+    }
+    if (partUpdate != null) {
+      if (partUpdate.getName() != null && !partUpdate.getName().equals(jPart.getPartName())) {
+        jPart.setPartName(partUpdate.getName());
+        changed = true;
+      }
+      if (partUpdate.getCarBrand() != null
+          && !partUpdate.getCarBrand().equals(jPart.getCarBrand())) {
+        jPart.setCarBrand(partUpdate.getCarBrand());
+        changed = true;
+      }
+      if (partUpdate.getCarModel() != null
+          && !partUpdate.getCarModel().equals(jPart.getCarModel())) {
+        jPart.setCarModel(partUpdate.getCarModel());
+        changed = true;
+      }
+      if (partUpdate.getCarYear() != null
+          && partUpdate.getCarYear().getValue() != jPart.getCarYear()) {
+        jPart.setCarYear(partUpdate.getCarYear().getValue());
+        changed = true;
+      }
+      if (partUpdate.getPartCategory() != null
+          && partUpdate.getPartCategory() != jPart.getPartCategory()) {
+        jPart.setPartCategory(partUpdate.getPartCategory());
+        changed = true;
+      }
+      if (!newImages.isEmpty()) {
+        var addedKeys = uploadPartImages(newImages);
+        var updatedImageBuckets = new ArrayList<>(currentImageBuckets);
+        updatedImageBuckets.addAll(addedKeys);
+        jPart.setImageBuckets(updatedImageBuckets);
+        changed = true;
+      }
+    }
+    if (!changed) throw new IllegalArgumentException("Demand update contains no changes");
+
+    jDemand.setUpdatedAt(LocalDateTime.now());
+    var savedDemand = demandRepository.save(jDemand);
+    return demandMapper.toDomain(savedDemand);
+  }
+
+  private void validateOptionalText(String value, String field) {
+    if (value != null && value.isBlank()) {
+      throw new IllegalArgumentException(field + " cannot be blank");
+    }
   }
 
   @Transactional(readOnly = true)
@@ -431,6 +536,10 @@ public class DemandService {
   @SneakyThrows
   private List<String> uploadPartImages(RestPart restPart) {
     return imageUploader.apply(restPart.images(), PARTS_BUCKET_PREFIX);
+  }
+
+  private List<String> uploadPartImages(List<MultipartFile> images) {
+    return imageUploader.apply(images, PARTS_BUCKET_PREFIX);
   }
 
   private Part buildPartFromRestPart(RestPart restPart, List<String> imageBucketKeys) {

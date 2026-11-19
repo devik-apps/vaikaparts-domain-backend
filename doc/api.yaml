@@ -796,6 +796,50 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServer'
+    patch:
+      operationId: updateDemand
+      tags: [Demands]
+      summary: Partially update a demand and append photographs
+      description: |
+        Updates only supplied fields using `multipart/form-data`; omitted fields and existing
+        photographs are preserved. New photographs are appended, with a maximum of five total.
+        The lifecycle status, demand owner, and identifiers cannot be changed by this operation.
+
+        **Authorization**: the owning Researcher or any authenticated Manager. A Researcher
+        attempting to modify another Researcher's demand receives 404.
+      parameters:
+        - name: demandId
+          in: path
+          required: true
+          description: Unique identifier of the demand.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DemandUpdateRequest'
+            encoding:
+              part.images:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        200:
+          description: Demand updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Demand'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/demands/{demandId}/status:
     patch:
       operationId: updateDemandStatus
@@ -2035,6 +2079,49 @@ components:
           example: Looking for headlight
         part:
           $ref: '#/components/schemas/PartCreateRequest'
+    DemandUpdateRequest:
+      type: object
+      description: >
+        Partial demand update submitted as multipart/form-data. Fields are optional and use
+        Spring dot-notation (for example, `description`, `part.carBrand`, `part.images`).
+
+      properties:
+        description:
+          type: string
+          description: Updated context or specifications. Omit to preserve the current value.
+          maxLength: 1000
+        part:
+          $ref: '#/components/schemas/PartUpdateRequest'
+    PartUpdateRequest:
+      type: object
+      description: >
+        Optional part fields for a demand update. Omitted properties are unchanged; uploaded
+        images are appended to existing photographs.
+
+      properties:
+        name:
+          type: string
+          description: Updated descriptive name of the part.
+        carBrand:
+          type: string
+          description: Updated vehicle manufacturer.
+        carModel:
+          type: string
+          description: Updated vehicle model designation.
+        carYear:
+          type: integer
+          minimum: 1900
+          maximum: 2100
+          description: Updated four-digit vehicle model year.
+        partCategory:
+          $ref: '#/components/schemas/PartCategory'
+        images:
+          type: array
+          description: New reference photographs to append; maximum five total photos per demand.
+          maxItems: 5
+          items:
+            type: string
+            format: binary
     PartCreateRequest:
       type: object
       description: >
