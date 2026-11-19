@@ -17,12 +17,15 @@ class NotificationMessageResolverTest {
   void localizes_demand_message_in_all_supported_languages() {
     var demand =
         Demand.builder()
+            .id("demand-1")
             .part(
                 Part.builder()
+                    .id("part-1")
                     .carBrand("Toyota")
                     .carModel("Corolla")
                     .name("Phare")
                     .carYear(Year.of(2018))
+                    .partCategory(com.devikapps.vaikaparts.model.classifier.PartCategory.OTHER)
                     .build())
             .build();
 
@@ -46,5 +49,15 @@ class NotificationMessageResolverTest {
         "Maintenance prévue",
         resolver.resolve(
             NotificationType.SYSTEM_ANNOUNCEMENT, UserLanguage.EN, null, "Maintenance prévue"));
+  }
+
+  @Test
+  void resolves_demand_updated_message_and_push_title() {
+    assertEquals(
+        "Une demande de pièce a été modifiée",
+        resolver.resolve(NotificationType.DEMAND_UPDATED, UserLanguage.FR, null, "fallback"));
+    assertEquals(
+        "DEMANDE MODIFIÉE",
+        resolver.resolvePushTitle(NotificationType.DEMAND_UPDATED, UserLanguage.FR));
   }
 }

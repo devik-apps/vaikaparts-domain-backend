@@ -10,6 +10,7 @@ import static org.owasp.encoder.Encode.forJava;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPart;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.UpdateDemandRequest;
 import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
+import com.devikapps.vaikaparts.event.model.DemandUpdatedRequested;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
 import com.devikapps.vaikaparts.file.BucketComponent;
 import com.devikapps.vaikaparts.mapper.exchange.DemandMapper;
@@ -185,6 +186,13 @@ public class DemandService {
 
     jDemand.setUpdatedAt(LocalDateTime.now());
     var savedDemand = demandRepository.save(jDemand);
+    if (savedDemand.getStatus() == PostStatus.PUBLISHED) {
+      outboxService.enqueue(
+          DemandUpdatedRequested.builder()
+              .id(randomUUID().toString())
+              .demandId(savedDemand.getId())
+              .build());
+    }
     return demandMapper.toDomain(savedDemand);
   }
 

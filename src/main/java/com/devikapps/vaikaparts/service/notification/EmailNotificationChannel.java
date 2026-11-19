@@ -73,6 +73,7 @@ public class EmailNotificationChannel implements NotificationChannel {
           case FR ->
               switch (type) {
                 case DEMAND_PUBLISHED -> "Nouvelle demande de pièce";
+                case DEMAND_UPDATED -> "Demande de pièce modifiée";
                 case DEMAND_CANCELED -> "Demande annulée";
                 case OFFER_PUBLISHED -> "Nouvelle offre reçue";
                 case OFFER_ACCEPTED -> "Offre acceptée";
@@ -83,6 +84,7 @@ public class EmailNotificationChannel implements NotificationChannel {
           case MG ->
               switch (type) {
                 case DEMAND_PUBLISHED -> "Fangatahana kojakoja vaovao";
+                case DEMAND_UPDATED -> "Nohavaozina ny fangatahana kojakoja";
                 case DEMAND_CANCELED -> "Nofoanana ny fangatahana";
                 case OFFER_PUBLISHED -> "Tolotra vaovao voaray";
                 case OFFER_ACCEPTED -> "Nekena ny tolotra";
@@ -93,6 +95,7 @@ public class EmailNotificationChannel implements NotificationChannel {
           case EN ->
               switch (type) {
                 case DEMAND_PUBLISHED -> "New part request";
+                case DEMAND_UPDATED -> "Part request updated";
                 case DEMAND_CANCELED -> "Request canceled";
                 case OFFER_PUBLISHED -> "New offer received";
                 case OFFER_ACCEPTED -> "Offer accepted";

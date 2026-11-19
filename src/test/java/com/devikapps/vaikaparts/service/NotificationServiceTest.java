@@ -104,6 +104,109 @@ class NotificationServiceTest {
     verify(webPushChannel, never()).send(any(Notification.class));
   }
 
+  @Test
+  void should_never_send_sms_for_demand_updated_even_when_recipient_enabled_sms() {
+    var smsChannel = mock(NotificationChannel.class);
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    org.mockito.Mockito.lenient().when(smsChannel.isEnabled()).thenReturn(true);
+    when(smsChannel.getChannelType()).thenReturn(SMS);
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(
+            Optional.of(
+                JSeller.builder()
+                    .id(TEST_SELLER_ID)
+                    .userType(UserType.SELLER)
+                    .phoneNumber("0321234567")
+                    .build()));
+    when(sellerMapper.toSeller(any(JSeller.class)))
+        .thenReturn(
+            Seller.builder()
+                .id(TEST_SELLER_ID)
+                .phoneNumber("0321234567")
+                .smsNotificationsEnabled(true)
+                .userType(UserType.SELLER)
+                .build());
+    when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
+        .thenReturn(buildTestDemand());
+
+    var service =
+        new NotificationService(
+            List.of(inAppChannel, smsChannel),
+            userRepository,
+            sellerMapper,
+            researcherMapper,
+            managerMapper,
+            demandService,
+            offerService,
+            demandPublishedNotificationRepository,
+            paginator,
+            userService,
+            notificationMapper,
+            messageResolver,
+            externalNotificationDeliveryService);
+
+    service.createAndSendNotification(
+        NotificationRequest.builder()
+            .recipientUserId(TEST_SELLER_ID)
+            .resourceId(TEST_DEMAND_ID)
+            .notificationType(NotificationType.DEMAND_UPDATED)
+            .notificationRequestedId(TEST_NOTIFICATION_REQUESTED_ID)
+            .message("Updated demand")
+            .build());
+
+    verify(smsChannel, never()).send(any(Notification.class));
+  }
+
+  @Test
+  void should_queue_email_for_demand_updated_until_worker_claims_it() {
+    var emailChannel = mock(NotificationChannel.class);
+    when(inAppChannel.isEnabled()).thenReturn(true);
+    when(emailChannel.isEnabled()).thenReturn(true);
+    when(emailChannel.getChannelType()).thenReturn(EMAIL);
+    when(userRepository.findJUserById(TEST_SELLER_ID))
+        .thenReturn(
+            Optional.of(JSeller.builder().id(TEST_SELLER_ID).userType(UserType.SELLER).build()));
+    when(sellerMapper.toSeller(any(JSeller.class)))
+        .thenReturn(
+            Seller.builder()
+                .id(TEST_SELLER_ID)
+                .email("seller@example.com")
+                .emailNotificationsEnabled(true)
+                .userType(UserType.SELLER)
+                .build());
+    when(demandService.getDemandByIdWithoutAuthFilter(TEST_DEMAND_ID))
+        .thenReturn(buildTestDemand());
+
+    var service =
+        new NotificationService(
+            List.of(inAppChannel, emailChannel),
+            userRepository,
+            sellerMapper,
+            researcherMapper,
+            managerMapper,
+            demandService,
+            offerService,
+            demandPublishedNotificationRepository,
+            paginator,
+            userService,
+            notificationMapper,
+            messageResolver,
+            externalNotificationDeliveryService);
+
+    var notification =
+        service.createAndSendNotification(
+            NotificationRequest.builder()
+                .recipientUserId(TEST_SELLER_ID)
+                .resourceId(TEST_DEMAND_ID)
+                .notificationType(NotificationType.DEMAND_UPDATED)
+                .notificationId(TEST_NOTIFICATION_ID)
+                .message("Updated demand")
+                .build());
+
+    verify(externalNotificationDeliveryService).enqueue(notification, List.of(emailChannel));
+    verify(emailChannel, never()).send(any(Notification.class));
+  }
+
   private static final String TEST_NOTIFICATION_REQUESTED_ID = "notification-requested-123";
   private static final String TEST_SELLER_ID = "seller-123";
   private static final String TEST_DEMAND_ID = "demand-456";
