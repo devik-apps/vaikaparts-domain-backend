@@ -118,11 +118,16 @@ public class DemandService {
     if (partUpdate != null && jPart == null) {
       throw new IllegalStateException("Demand has no part to update");
     }
-    validateOptionalText(request.getDescription(), "Description");
+    validateOptionalText(request.getDescription(), "Description", 1000);
     if (partUpdate != null) {
-      validateOptionalText(partUpdate.getName(), "Part name");
-      validateOptionalText(partUpdate.getCarBrand(), "Car brand");
-      validateOptionalText(partUpdate.getCarModel(), "Car model");
+      validateOptionalText(partUpdate.getName(), "Part name", 255);
+      validateOptionalText(partUpdate.getCarBrand(), "Car brand", 255);
+      validateOptionalText(partUpdate.getCarModel(), "Car model", 255);
+      if (partUpdate.getCarYear() != null
+          && (partUpdate.getCarYear().getValue() < 1900
+              || partUpdate.getCarYear().getValue() > 2100)) {
+        throw new IllegalArgumentException("Car year must be between 1900 and 2100");
+      }
     }
 
     List<MultipartFile> newImages =
@@ -183,9 +188,12 @@ public class DemandService {
     return demandMapper.toDomain(savedDemand);
   }
 
-  private void validateOptionalText(String value, String field) {
+  private void validateOptionalText(String value, String field, int maxLength) {
     if (value != null && value.isBlank()) {
       throw new IllegalArgumentException(field + " cannot be blank");
+    }
+    if (value != null && value.length() > maxLength) {
+      throw new IllegalArgumentException(field + " cannot exceed " + maxLength + " characters");
     }
   }
 
