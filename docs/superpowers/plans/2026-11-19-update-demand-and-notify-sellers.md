@@ -91,7 +91,7 @@
 
 - [x] **Step 1: Generate the Java client from OpenAPI and run focused integration/unit tests**; confirm Flyway applies the enum migration and multipart behavior passes. The full suite was attempted but is not fully green: `NotificationServiceIT` has four assertions expecting English while the configured resolver returns French; the wider run also exposed unrelated environment/test failures.
 - [x] **Step 2: Review the complete diff** for role bypass, field clearing, photo-count bypass, SMS dispatch, duplicate notifications, and accidental unrelated files. A second review confirmed the multipart contract, persistence idempotency and recipient filtering.
-- [ ] **Step 3: Confirm only this plan and feature changes are committed**, then push the feature branch and create a PR targeting `preproduction`.
+- [x] **Step 3: Confirm only this plan and feature changes are committed**, then push the feature branch and create a PR targeting `preproduction`.
 
 ## Execution Notes
 
