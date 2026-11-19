@@ -1689,7 +1689,7 @@ components:
       description: Physical condition of automotive part
     NotificationType:
       type: string
-      enum: [DEMAND_PUBLISHED, OFFER_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED, DEMAND_CANCELED, CONTACT_UNLOCKED, SYSTEM_ANNOUNCEMENT]
+      enum: [DEMAND_PUBLISHED, DEMAND_UPDATED, OFFER_PUBLISHED, OFFER_ACCEPTED, OFFER_REJECTED, DEMAND_CANCELED, CONTACT_UNLOCKED, SYSTEM_ANNOUNCEMENT]
       description: Notification event type
     NotificationChannel:
       type: string
@@ -2082,40 +2082,34 @@ components:
     DemandUpdateRequest:
       type: object
       description: >
-        Partial demand update submitted as multipart/form-data. Fields are optional and use
-        Spring dot-notation (for example, `description`, `part.carBrand`, `part.images`).
+        Partial demand update submitted as multipart/form-data. Omitted fields retain their
+        current values. Use the exact field names below for part properties.
 
       properties:
         description:
           type: string
           description: Updated context or specifications. Omit to preserve the current value.
           maxLength: 1000
-        part:
-          $ref: '#/components/schemas/PartUpdateRequest'
-    PartUpdateRequest:
-      type: object
-      description: >
-        Optional part fields for a demand update. Omitted properties are unchanged; uploaded
-        images are appended to existing photographs.
-
-      properties:
-        name:
+        "part.name":
           type: string
           description: Updated descriptive name of the part.
-        carBrand:
+          maxLength: 255
+        "part.carBrand":
           type: string
           description: Updated vehicle manufacturer.
-        carModel:
+          maxLength: 255
+        "part.carModel":
           type: string
           description: Updated vehicle model designation.
-        carYear:
+          maxLength: 255
+        "part.carYear":
           type: integer
           minimum: 1900
           maximum: 2100
           description: Updated four-digit vehicle model year.
-        partCategory:
+        "part.partCategory":
           $ref: '#/components/schemas/PartCategory'
-        images:
+        "part.images":
           type: array
           description: New reference photographs to append; maximum five total photos per demand.
           maxItems: 5

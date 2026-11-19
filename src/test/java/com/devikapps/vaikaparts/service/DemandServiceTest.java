@@ -202,6 +202,55 @@ class DemandServiceTest {
   }
 
   @Test
+  void should_reject_description_longer_than_api_limit() {
+    var request = new UpdateDemandRequest();
+    request.setDescription("x".repeat(1001));
+    when(userService.getCurrentUser()).thenReturn(testJResearcher);
+    when(demandRepository.findByIdForUpdate(TEST_DEMAND_ID)).thenReturn(Optional.of(testJDemand));
+
+    assertThrows(
+        IllegalArgumentException.class, () -> demandService.updateDemand(TEST_DEMAND_ID, request));
+
+    verify(demandRepository, never()).save(any(JDemand.class));
+  }
+
+  @Test
+  void should_reject_long_part_name_before_uploading_images() {
+    var request = new UpdateDemandRequest();
+    var part = new UpdateDemandRequest.PartUpdate();
+    part.setName("x".repeat(256));
+    part.setImages(
+        List.of(new MockMultipartFile("part.images", "new.jpg", "image/jpeg", new byte[] {1})));
+    request.setPart(part);
+    when(userService.getCurrentUser()).thenReturn(testJResearcher);
+    when(demandRepository.findByIdForUpdate(TEST_DEMAND_ID)).thenReturn(Optional.of(testJDemand));
+
+    assertThrows(
+        IllegalArgumentException.class, () -> demandService.updateDemand(TEST_DEMAND_ID, request));
+
+    verify(imageUploader, never()).apply(any(), any());
+    verify(demandRepository, never()).save(any(JDemand.class));
+  }
+
+  @Test
+  void should_reject_year_outside_api_range_before_uploading_images() {
+    var request = new UpdateDemandRequest();
+    var part = new UpdateDemandRequest.PartUpdate();
+    part.setCarYear(Year.of(1800));
+    part.setImages(
+        List.of(new MockMultipartFile("part.images", "new.jpg", "image/jpeg", new byte[] {1})));
+    request.setPart(part);
+    when(userService.getCurrentUser()).thenReturn(testJResearcher);
+    when(demandRepository.findByIdForUpdate(TEST_DEMAND_ID)).thenReturn(Optional.of(testJDemand));
+
+    assertThrows(
+        IllegalArgumentException.class, () -> demandService.updateDemand(TEST_DEMAND_ID, request));
+
+    verify(imageUploader, never()).apply(any(), any());
+    verify(demandRepository, never()).save(any(JDemand.class));
+  }
+
+  @Test
   void should_reject_photo_total_above_five_before_upload() {
     testJPart.setImageBuckets(new ArrayList<>(List.of("1", "2", "3", "4")));
     var request = new UpdateDemandRequest();
