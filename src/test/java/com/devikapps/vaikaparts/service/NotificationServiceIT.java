@@ -1,6 +1,7 @@
 package com.devikapps.vaikaparts.service;
 
 import static java.lang.System.currentTimeMillis;
+import static java.util.UUID.randomUUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -204,6 +205,25 @@ class NotificationServiceIT extends FacadeIT {
     } finally {
       SecurityContextHolder.clearContext();
     }
+  }
+
+  @Test
+  void should_persist_demand_update_using_stable_notification_id_without_request_row() {
+    var notificationId = randomUUID().toString();
+
+    var notification =
+        notificationService.createAndSendNotification(
+            NotificationRequest.builder()
+                .recipientUserId(testSeller.getId())
+                .resourceId(testDemand.getId())
+                .notificationType(NotificationType.DEMAND_UPDATED)
+                .notificationId(notificationId)
+                .message("Une demande de pièce a été modifiée")
+                .build());
+
+    assertEquals(notificationId, notification.getId());
+    assertNull(notification.getNotificationRequestedId());
+    assertTrue(demandPublishedNotificationRepository.findById(notificationId).isPresent());
   }
 
   @Test

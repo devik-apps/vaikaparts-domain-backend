@@ -40,6 +40,12 @@ public class NotificationMessageResolver {
 
     return switch (type) {
       case DEMAND_PUBLISHED -> demandPublished(resolvedLanguage, resource, fallbackMessage);
+      case DEMAND_UPDATED ->
+          translate(
+              resolvedLanguage,
+              "Une demande de pièce a été modifiée",
+              "Nohavaozina ny fangatahana kojakoja",
+              "A parts request has been updated");
       case DEMAND_CANCELED ->
           translate(
               resolvedLanguage,
@@ -69,6 +75,7 @@ public class NotificationMessageResolver {
       case FR ->
           switch (type) {
             case DEMAND_PUBLISHED -> "NOUVELLE DEMANDE";
+            case DEMAND_UPDATED -> "DEMANDE MODIFIÉE";
             case OFFER_PUBLISHED -> "NOUVELLE OFFRE";
             case OFFER_ACCEPTED -> "OFFRE ACCEPTÉE";
             case OFFER_REJECTED -> "OFFRE REFUSÉE";
@@ -79,6 +86,7 @@ public class NotificationMessageResolver {
       case MG ->
           switch (type) {
             case DEMAND_PUBLISHED -> "FANGATAHANA VAOVAO";
+            case DEMAND_UPDATED -> "NIOVA NY FANGATAHANA";
             case OFFER_PUBLISHED -> "TOLOTRA VAOVAO";
             case OFFER_ACCEPTED -> "NEKENA NY TOLOTRA";
             case OFFER_REJECTED -> "NOLAVINA NY TOLOTRA";
@@ -89,6 +97,7 @@ public class NotificationMessageResolver {
       case EN ->
           switch (type) {
             case DEMAND_PUBLISHED -> "NEW REQUEST";
+            case DEMAND_UPDATED -> "REQUEST UPDATED";
             case OFFER_PUBLISHED -> "NEW OFFER";
             case OFFER_ACCEPTED -> "OFFER ACCEPTED";
             case OFFER_REJECTED -> "OFFER DECLINED";
@@ -118,6 +127,7 @@ public class NotificationMessageResolver {
       case FR ->
           switch (type) {
             case DEMAND_PUBLISHED -> "Une nouvelle demande de pièce est disponible.";
+            case DEMAND_UPDATED -> "Une demande de pièce a été modifiée.";
             case OFFER_PUBLISHED -> "Un vendeur a répondu à votre demande.";
             case OFFER_ACCEPTED -> "Votre offre a été acceptée.";
             case OFFER_REJECTED -> "Votre offre a été refusée.";
@@ -128,6 +138,7 @@ public class NotificationMessageResolver {
       case MG ->
           switch (type) {
             case DEMAND_PUBLISHED -> "Misy fangatahana kojakoja vaovao.";
+            case DEMAND_UPDATED -> "Nohavaozina ny fangatahana kojakoja.";
             case OFFER_PUBLISHED -> "Nisy mpivarotra namaly ny fangatahanao.";
             case OFFER_ACCEPTED -> "Nekena ny tolotrao.";
             case OFFER_REJECTED -> "Nolavina ny tolotrao.";
@@ -138,6 +149,7 @@ public class NotificationMessageResolver {
       case EN ->
           switch (type) {
             case DEMAND_PUBLISHED -> "A new parts request is available.";
+            case DEMAND_UPDATED -> "A parts request has been updated.";
             case OFFER_PUBLISHED -> "A seller responded to your request.";
             case OFFER_ACCEPTED -> "Your offer has been accepted.";
             case OFFER_REJECTED -> "Your offer has been declined.";

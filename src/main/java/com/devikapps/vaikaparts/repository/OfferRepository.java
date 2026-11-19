@@ -94,4 +94,7 @@ public interface OfferRepository extends JpaRepository<JOffer, String> {
       @Param("demandId") String demandId, @Param("status") PostStatus status);
 
   boolean existsByDemandIdAndSellerId(String demandId, String sellerId);
+
+  @Query("SELECT DISTINCT o.seller.id FROM JOffer o WHERE o.demand.id = :demandId")
+  List<String> findDistinctSellerIdsByDemandId(@Param("demandId") String demandId);
 }
