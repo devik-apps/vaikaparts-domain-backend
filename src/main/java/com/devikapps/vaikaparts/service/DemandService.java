@@ -277,7 +277,8 @@ public class DemandService {
     var jDemand =
         switch (currentUser.getUserType()) {
           case RESEARCHER ->
-              findDemandByIdAndResearcher(demandId, researcherService.getCurrentResearcher().getId());
+              findDemandByIdAndResearcher(
+                  demandId, researcherService.getCurrentResearcher().getId());
           case MANAGER -> {
             userService.getCurrentManager();
             yield demandRepository

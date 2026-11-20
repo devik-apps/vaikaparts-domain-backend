@@ -292,8 +292,7 @@ public class OfferService {
 
   @Transactional(readOnly = true)
   public Page<Offer> getSellerOffersByStatus(PostStatus status, Integer page, Integer size) {
-    log.info(
-        "Fetching offers with status: {} for authenticated user", forJava(status.toString()));
+    log.info("Fetching offers with status: {} for authenticated user", forJava(status.toString()));
 
     var pagination = paginator.apply(page, size);
     var pageable =
@@ -311,11 +310,14 @@ public class OfferService {
           case RESEARCHER ->
               throw new IllegalStateException("User is not a SELLER. Actual type: RESEARCHER");
         };
-    log.info("Found {} offers with status {}", jOffers.getTotalElements(), forJava(status.toString()));
+    log.info(
+        "Found {} offers with status {}", jOffers.getTotalElements(), forJava(status.toString()));
 
-    return jOffers.map(offer -> currentUser.getUserType() == UserType.SELLER
-        ? mapOfferWithoutResearcherContact(offer)
-        : offerMapper.toDomain(offer));
+    return jOffers.map(
+        offer ->
+            currentUser.getUserType() == UserType.SELLER
+                ? mapOfferWithoutResearcherContact(offer)
+                : offerMapper.toDomain(offer));
   }
 
   @Transactional(readOnly = true)
@@ -339,9 +341,11 @@ public class OfferService {
         };
     log.info("Found {} total offers", jOffers.getTotalElements());
 
-    return jOffers.map(offer -> currentUser.getUserType() == UserType.SELLER
-        ? mapOfferWithoutResearcherContact(offer)
-        : offerMapper.toDomain(offer));
+    return jOffers.map(
+        offer ->
+            currentUser.getUserType() == UserType.SELLER
+                ? mapOfferWithoutResearcherContact(offer)
+                : offerMapper.toDomain(offer));
   }
 
   @Transactional(readOnly = true)
@@ -456,9 +460,7 @@ public class OfferService {
     return offerRepository
         .findByIdWithRelations(offerId)
         .orElseThrow(
-            () ->
-                new ResourceNotFoundException(
-                    format("Offer %s not found", forJava(offerId))));
+            () -> new ResourceNotFoundException(format("Offer %s not found", forJava(offerId))));
   }
 
   private void throwOfferNotFound(String offerId, String sellerId) {

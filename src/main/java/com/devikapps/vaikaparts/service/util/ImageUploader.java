@@ -48,9 +48,7 @@ public class ImageUploader implements BiFunction<List<MultipartFile>, String, Li
     validateImages(nonEmptyImages);
 
     log.info(
-        "Uploading {} image(s) to bucket prefix: {}",
-        nonEmptyImages.size(),
-        forJava(bucketPrefix));
+        "Uploading {} image(s) to bucket prefix: {}", nonEmptyImages.size(), forJava(bucketPrefix));
 
     List<String> bucketKeys =
         nonEmptyImages.stream().map(image -> uploadSingleImage(image, bucketPrefix)).toList();
@@ -67,8 +65,7 @@ public class ImageUploader implements BiFunction<List<MultipartFile>, String, Li
                 image.getContentType() == null
                     || !SUPPORTED_CONTENT_TYPES.contains(
                         image.getContentType().toLowerCase(Locale.ROOT)))) {
-      throw new IllegalArgumentException(
-          "Images must be JPEG, PNG, WebP, HEIC, or HEIF");
+      throw new IllegalArgumentException("Images must be JPEG, PNG, WebP, HEIC, or HEIF");
     }
     if (images.stream().anyMatch(image -> image.getSize() > MAX_IMAGE_SIZE_BYTES)) {
       throw new IllegalArgumentException("Each image must be no larger than 5 MB");
