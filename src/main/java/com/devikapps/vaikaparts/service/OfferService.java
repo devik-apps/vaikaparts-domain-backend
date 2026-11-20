@@ -51,6 +51,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class OfferService {
 
   public static final String CREATED_AT_FIELD = "createdAt";
+  private static final long MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
   private static final Duration PRESIGN_DURATION = Duration.ofDays(7);
   private static final String PART_INFO_BUCKET_PREFIX = "part-infos/";
   private final OfferRepository offerRepository;
@@ -170,6 +171,10 @@ public class OfferService {
         partInfoUpdate == null || partInfoUpdate.getImages() == null
             ? List.of()
             : partInfoUpdate.getImages().stream().filter(image -> !image.isEmpty()).toList();
+    List<String> imageKeysToRemove =
+        partInfoUpdate == null || partInfoUpdate.getImageKeysToRemove() == null
+            ? List.of()
+            : partInfoUpdate.getImageKeysToRemove().stream().distinct().toList();
     if (partInfoUpdate != null) {
       validateOptionalText(partInfoUpdate.getName(), "Part name", 255);
       validateOptionalText(partInfoUpdate.getCarBrand(), "Car brand", 255);
@@ -188,11 +193,21 @@ public class OfferService {
         jPartInfo == null || jPartInfo.getPartImageBuckets() == null
             ? List.<String>of()
             : jPartInfo.getPartImageBuckets();
-    if (currentImageBuckets.size() + newImages.size() > 5) {
+    if (!currentImageBuckets.containsAll(imageKeysToRemove)) {
+      throw new IllegalArgumentException("A photo to remove does not belong to this offer");
+    }
+    var remainingImageBuckets =
+        currentImageBuckets.stream().filter(key -> !imageKeysToRemove.contains(key)).toList();
+    if (remainingImageBuckets.size() + newImages.size() > 5) {
       throw new IllegalArgumentException("An offer cannot have more than 5 images");
     }
-    if (newImages.stream().anyMatch(image -> !isSupportedImage(image.getContentType()))) {
-      throw new IllegalArgumentException("Offer images must be JPEG, PNG, or WebP");
+    if (newImages.stream()
+        .anyMatch(
+            image ->
+                !isSupportedImage(image.getContentType())
+                    || image.getSize() > MAX_IMAGE_SIZE_BYTES)) {
+      throw new IllegalArgumentException(
+          "Offer images must be JPEG, PNG, or WebP and no larger than 5 MB");
     }
 
     boolean changed = false;
@@ -237,8 +252,8 @@ public class OfferService {
         jPartInfo.setPrice(partInfoUpdate.getPrice().doubleValue());
         changed = true;
       }
-      if (!newImages.isEmpty()) {
-        var updatedImages = new ArrayList<>(currentImageBuckets);
+      if (!newImages.isEmpty() || !imageKeysToRemove.isEmpty()) {
+        var updatedImages = new ArrayList<>(remainingImageBuckets);
         updatedImages.addAll(imageUploader.apply(newImages, PART_INFO_BUCKET_PREFIX));
         jPartInfo.setPartImageBuckets(updatedImages);
         changed = true;
@@ -247,7 +262,9 @@ public class OfferService {
     if (!changed) throw new IllegalArgumentException("Offer update contains no changes");
 
     jOffer.setUpdatedAt(LocalDateTime.now());
-    return offerMapper.toDomain(offerRepository.save(jOffer));
+    var updatedOffer = offerRepository.save(jOffer);
+    deletePhotosAfterCommit(imageKeysToRemove, jOffer.getId());
+    return offerMapper.toDomain(updatedOffer);
   }
 
   private void publishOfferNotification(JOffer offer) {
@@ -472,6 +489,26 @@ public class OfferService {
     if (value != null && value.length() > maxLength) {
       throw new IllegalArgumentException(field + " cannot exceed " + maxLength + " characters");
     }
+  }
+
+  private void deletePhotosAfterCommit(List<String> imageKeys, String offerId) {
+    if (imageKeys.isEmpty()) return;
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCommit() {
+            for (String imageKey : imageKeys) {
+              try {
+                bucketComponent.delete(imageKey);
+              } catch (Exception e) {
+                log.warn(
+                    "Failed to delete removed photo from offer {} after database update",
+                    forJava(offerId),
+                    e);
+              }
+            }
+          }
+        });
   }
 
   private void validateStatusTransition(PostStatus current, PostStatus next) {

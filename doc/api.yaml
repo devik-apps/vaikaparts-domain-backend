@@ -2074,6 +2074,13 @@ components:
             format: uri
           maxItems: 5
           readOnly: true
+        image_keys:
+          type: array
+          description: Opaque stored-photo references accepted by authorized update operations.
+          items:
+            type: string
+          maxItems: 5
+          readOnly: true
     Demand:
       type: object
       description: A Researcher's request for a specific automotive part.
@@ -2157,11 +2164,16 @@ components:
           $ref: '#/components/schemas/PartCategory'
         "part.images":
           type: array
-          description: New reference photographs to append; maximum five total photos per demand.
+          description: New reference photographs; maximum five photos after removals and additions.
           maxItems: 5
           items:
             type: string
             format: binary
+        "part.imageKeysToRemove":
+          type: array
+          description: Stored photo keys to remove; every key must belong to this demand.
+          items:
+            type: string
     PartCreateRequest:
       type: object
       description: >
@@ -2468,7 +2480,7 @@ components:
       type: object
       description: >
         Partial offer update submitted as multipart/form-data. Omitted fields retain their
-        current values. Uploaded photos are appended to the existing part photos.
+        current values. Uploaded photos are added and selected existing photos are removed.
       properties:
         "partInfo.price":
           type: number
@@ -2496,11 +2508,16 @@ components:
           maxLength: 1000
         "partInfo.images":
           type: array
-          description: New reference photos to append; maximum five total photos per offer.
+          description: New reference photos; maximum five photos after removals and additions.
           maxItems: 5
           items:
             type: string
             format: binary
+        "partInfo.imageKeysToRemove":
+          type: array
+          description: Stored photo keys to remove; every key must belong to this offer.
+          items:
+            type: string
     Notification:
       type: object
       required: [id, recipient, message, notification_type, created_at, read]

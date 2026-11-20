@@ -13,6 +13,7 @@ import org.mapstruct.Mapping;
 public interface PartMapper {
 
   @Mapping(source = "imageBuckets", target = "imageUrls", qualifiedByName = "toUrlList")
+  @Mapping(source = "imageBuckets", target = "imageKeys")
   @Mapping(source = "partName", target = "name")
   Part toDomain(JPart jpart);
 

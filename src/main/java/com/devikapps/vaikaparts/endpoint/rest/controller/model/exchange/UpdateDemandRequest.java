@@ -25,5 +25,6 @@ public class UpdateDemandRequest {
     private Year carYear;
     private PartCategory partCategory;
     private List<MultipartFile> images;
+    private List<String> imageKeysToRemove;
   }
 }
