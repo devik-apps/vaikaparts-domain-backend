@@ -30,6 +30,8 @@ public class ImageUploader implements BiFunction<List<MultipartFile>, String, Li
   private static final long MAX_TOTAL_IMAGE_SIZE_BYTES = 25 * 1024 * 1024;
   private static final Set<String> SUPPORTED_CONTENT_TYPES =
       Set.of("image/jpeg", "image/png", "image/webp", "image/heic", "image/heif");
+  private static final Set<String> HEIC_CONTENT_TYPE_ALIASES =
+      Set.of("image/heic-sequence", "image/heif-sequence", "image/x-heic", "image/x-heif");
 
   private final BucketComponent bucketComponent;
   private final TempFileManager tempFileManager;
@@ -59,12 +61,7 @@ public class ImageUploader implements BiFunction<List<MultipartFile>, String, Li
 
   private void validateImages(List<MultipartFile> images) {
     long totalSize = images.stream().mapToLong(MultipartFile::getSize).sum();
-    if (images.stream()
-        .anyMatch(
-            image ->
-                image.getContentType() == null
-                    || !SUPPORTED_CONTENT_TYPES.contains(
-                        image.getContentType().toLowerCase(Locale.ROOT)))) {
+    if (images.stream().anyMatch(image -> supportedContentType(image) == null)) {
       throw new IllegalArgumentException("Images must be JPEG, PNG, WebP, HEIC, or HEIF");
     }
     if (images.stream().anyMatch(image -> image.getSize() > MAX_IMAGE_SIZE_BYTES)) {
@@ -73,6 +70,27 @@ public class ImageUploader implements BiFunction<List<MultipartFile>, String, Li
     if (totalSize > MAX_TOTAL_IMAGE_SIZE_BYTES) {
       throw new IllegalArgumentException("The total image size must not exceed 25 MB");
     }
+  }
+
+  private String supportedContentType(MultipartFile image) {
+    String contentType = image.getContentType();
+    String normalizedType =
+        contentType == null ? "" : contentType.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
+    if (SUPPORTED_CONTENT_TYPES.contains(normalizedType)) return normalizedType;
+
+    String filename = image.getOriginalFilename();
+    String extensionType =
+        filename == null
+            ? ""
+            : filename.toLowerCase(Locale.ROOT).endsWith(".heic")
+                ? "image/heic"
+                : filename.toLowerCase(Locale.ROOT).endsWith(".heif") ? "image/heif" : "";
+    if (HEIC_CONTENT_TYPE_ALIASES.contains(normalizedType)) {
+      return normalizedType.contains("heif") ? "image/heif" : "image/heic";
+    }
+    boolean ambiguousType =
+        normalizedType.isEmpty() || "application/octet-stream".equals(normalizedType);
+    return ambiguousType ? extensionType : null;
   }
 
   private String uploadSingleImage(MultipartFile image, String bucketPrefix) {
@@ -93,7 +111,7 @@ public class ImageUploader implements BiFunction<List<MultipartFile>, String, Li
 
     try {
       image.transferTo(tempFile);
-      bucketComponent.upload(tempFile, bucketKey, image.getContentType());
+      bucketComponent.upload(tempFile, bucketKey, supportedContentType(image));
       log.debug("Successfully uploaded image: {}", forJava(bucketKey));
       return bucketKey;
     } catch (IOException e) {
