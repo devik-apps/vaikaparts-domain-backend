@@ -29,5 +29,6 @@ public class UpdateOfferRequest {
     private PartCondition condition;
     private BigDecimal price;
     private List<MultipartFile> images;
+    private List<String> imageKeysToRemove;
   }
 }
