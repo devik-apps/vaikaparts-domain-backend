@@ -82,6 +82,51 @@ class ProfilePhotoServiceIT extends FacadeIT {
   }
 
   @Test
+  void should_accept_heic_media_type_and_preserve_extension() {
+    val photo =
+        new MockMultipartFile("photo", "profile.heic", "image/heic", createMockImageBytes());
+
+    profilePhotoService.uploadPhoto(testUser, photo);
+
+    val updatedUser = userRepository.findById(testUser.getId()).orElseThrow();
+    assertTrue(updatedUser.getProfileImgKey().endsWith(".heic"));
+  }
+
+  @Test
+  void should_upload_heif_photo_when_browser_sends_generic_mime_type() {
+    val photo =
+        new MockMultipartFile(
+            "photo", "profile.heif", "application/octet-stream", createMockImageBytes());
+
+    profilePhotoService.uploadPhoto(testUser, photo);
+
+    val updatedUser = userRepository.findById(testUser.getId()).orElseThrow();
+    assertTrue(updatedUser.getProfileImgKey().endsWith(".heif"));
+  }
+
+  @Test
+  void should_upload_heic_photo_when_browser_omits_mime_type() {
+    val photo = new MockMultipartFile("photo", "profile.heic", null, createMockImageBytes());
+
+    profilePhotoService.uploadPhoto(testUser, photo);
+
+    val updatedUser = userRepository.findById(testUser.getId()).orElseThrow();
+    assertTrue(updatedUser.getProfileImgKey().endsWith(".heic"));
+  }
+
+  @Test
+  void should_reject_heic_extension_with_incompatible_mime_type() {
+    val photo =
+        new MockMultipartFile("photo", "profile.heic", "application/pdf", createMockImageBytes());
+
+    val exception =
+        assertThrows(
+            IllegalArgumentException.class, () -> profilePhotoService.uploadPhoto(testUser, photo));
+
+    assertTrue(exception.getMessage().contains("Invalid photo format"));
+  }
+
+  @Test
   void should_replace_old_photo_when_uploading_new_one() {
     val oldPhoto = createMockJpegPhoto();
     val oldPhotoUrl = profilePhotoService.uploadPhoto(testUser, oldPhoto);
