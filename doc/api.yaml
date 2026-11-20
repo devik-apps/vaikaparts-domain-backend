@@ -386,7 +386,7 @@ paths:
         Uploads a profile photograph to S3 storage and updates the user profile with the resulting URL. The photograph will be displayed in an anonymized format (blurred or masked) in public contexts until a contact unlock transaction is completed.
 
         **File Requirements**:
-        - Formats: JPEG, PNG
+        - Formats: JPEG, JPG, PNG, GIF, WebP, BMP, SVG, HEIC, and HEIF
         - Maximum size: 5 MB
         - Recommended dimensions: 400x400 pixels minimum
       requestBody:

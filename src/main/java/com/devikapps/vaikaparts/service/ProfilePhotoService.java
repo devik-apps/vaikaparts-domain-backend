@@ -11,8 +11,8 @@ import com.devikapps.vaikaparts.repository.model.user.JUser;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +36,8 @@ public class ProfilePhotoService {
           "image/webp",
           "image/bmp",
           "image/svg+xml");
+  private static final Set<String> HEIC_CONTENT_TYPE_ALIASES =
+      Set.of("image/heic-sequence", "image/heif-sequence", "image/x-heic", "image/x-heif");
 
   private final BucketComponent bucketComponent;
   private final UserRepository userRepository;
@@ -44,7 +46,7 @@ public class ProfilePhotoService {
 
   @Transactional
   public URL uploadPhoto(JUser user, MultipartFile photo) {
-    validatePhoto(photo);
+    String contentType = validatePhoto(photo);
 
     var oldPhotoKey = user.getProfileImgKey();
     File tempFile = null;
@@ -53,8 +55,8 @@ public class ProfilePhotoService {
       tempFile = tempFileManager.createSecureTempFile("profile-photo-", getFileExtension(photo));
       photo.transferTo(tempFile);
 
-      var photoKey = generatePhotoKey(user.getId());
-      bucketComponent.upload(tempFile, photoKey);
+      var photoKey = generatePhotoKey(user.getId(), contentType);
+      bucketComponent.upload(tempFile, photoKey, contentType);
 
       user.setProfileImgKey(photoKey);
       user.setUpdatedAt(OffsetDateTime.now());
@@ -92,7 +94,7 @@ public class ProfilePhotoService {
     log.info("Profile photo deleted for user: {}", forJava(user.getId()));
   }
 
-  private void validatePhoto(MultipartFile photo) {
+  private String validatePhoto(MultipartFile photo) {
     if (photo.isEmpty()) {
       log.warn("Photo upload rejected: file is empty");
       throw new IllegalArgumentException("Photo file is empty");
@@ -104,14 +106,38 @@ public class ProfilePhotoService {
           format("Photo size exceeds limit of %d MB", MAX_FILE_SIZE / ONE_MEGABYTE / ONE_MEGABYTE));
     }
 
-    String contentType = photo.getContentType();
-    if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType.toLowerCase())) {
-      log.warn("Photo upload rejected: invalid content type {}", forJava(contentType));
+    String contentType = supportedContentType(photo);
+    if (contentType == null) {
+      log.warn("Photo upload rejected: invalid content type {}", forJava(photo.getContentType()));
       throw new IllegalArgumentException(
           format(
-              "Invalid photo format '%s'. Allowed formats: %s",
-              contentType, ALLOWED_CONTENT_TYPES));
+              "Invalid photo format '%s'. Allowed formats: JPEG, PNG, GIF, WebP, BMP, SVG, HEIC,"
+                  + " and HEIF",
+              photo.getContentType()));
     }
+    return contentType;
+  }
+
+  private String supportedContentType(MultipartFile photo) {
+    String contentType = photo.getContentType();
+    String normalizedType =
+        contentType == null ? "" : contentType.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
+    if (ALLOWED_CONTENT_TYPES.contains(normalizedType)) return normalizedType;
+    if (HEIC_CONTENT_TYPE_ALIASES.contains(normalizedType)) {
+      return normalizedType.contains("heif") ? "image/heif" : "image/heic";
+    }
+
+    String filename = photo.getOriginalFilename();
+    String extensionType =
+        filename == null
+            ? ""
+            : filename.toLowerCase(Locale.ROOT).endsWith(".heic")
+                ? "image/heic"
+                : filename.toLowerCase(Locale.ROOT).endsWith(".heif") ? "image/heif" : "";
+    if (normalizedType.isEmpty() || "application/octet-stream".equals(normalizedType)) {
+      return extensionType.isEmpty() ? null : extensionType;
+    }
+    return null;
   }
 
   private String getFileExtension(MultipartFile photo) {
@@ -122,9 +148,13 @@ public class ProfilePhotoService {
     return ".jpg";
   }
 
-  private String generatePhotoKey(String userId) {
+  private String generatePhotoKey(String userId, String contentType) {
     String timestamp = String.valueOf(System.currentTimeMillis());
-    return format("profiles/%s/photo-%s.jpg", userId, timestamp);
+    String extension =
+        "image/heic".equals(contentType)
+            ? ".heic"
+            : "image/heif".equals(contentType) ? ".heif" : ".jpg";
+    return format("profiles/%s/photo-%s%s", userId, timestamp, extension);
   }
 
   private void deletePhotoFromBucket(String photoKey) {
