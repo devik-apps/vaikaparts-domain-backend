@@ -8,6 +8,7 @@ import static java.util.UUID.randomUUID;
 import static org.owasp.encoder.Encode.forJava;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.RestPartInfo;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.UpdateOfferRequest;
 import com.devikapps.vaikaparts.event.model.DemandPublishedRequested;
 import com.devikapps.vaikaparts.event.model.EventProducer;
 import com.devikapps.vaikaparts.exception.ResourceNotFoundException;
@@ -26,6 +27,7 @@ import com.devikapps.vaikaparts.repository.model.exchange.JDemand;
 import com.devikapps.vaikaparts.repository.model.exchange.JOffer;
 import com.devikapps.vaikaparts.service.util.ImageUploader;
 import com.devikapps.vaikaparts.service.util.Paginator;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -36,10 +38,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @Service
@@ -114,8 +118,18 @@ public class OfferService {
         forJava(offerId),
         forJava(newStatus.toString()));
 
-    var currentSeller = sellerService.getCurrentSeller();
-    var jOffer = findOfferByIdAndSeller(offerId, currentSeller.getId());
+    var currentUser = userService.getCurrentUser();
+    var jOffer =
+        switch (currentUser.getUserType()) {
+          case SELLER -> findOfferByIdAndSeller(offerId, sellerService.getCurrentSeller().getId());
+          case MANAGER -> {
+            userService.getCurrentManager();
+            yield findOfferById(offerId);
+          }
+          case RESEARCHER ->
+              throw new AuthorizationDeniedException(
+                  "Only the owning seller or a manager can update an offer status");
+        };
 
     validateStatusTransition(jOffer.getStatus(), newStatus);
     boolean shouldNotify =
@@ -129,7 +143,111 @@ public class OfferService {
         forJava(offerId),
         forJava(newStatus.toString()));
 
-    return mapOfferWithoutResearcherContact(updatedJOffer);
+    return currentUser.getUserType() == UserType.SELLER
+        ? mapOfferWithoutResearcherContact(updatedJOffer)
+        : offerMapper.toDomain(updatedJOffer);
+  }
+
+  @Transactional
+  public Offer updateOffer(String offerId, UpdateOfferRequest request) {
+    if (request == null) throw new IllegalArgumentException("Offer update cannot be empty");
+
+    var currentUser = userService.getCurrentUser();
+    if (currentUser.getUserType() != UserType.MANAGER) {
+      throw new AuthorizationDeniedException("Only a manager can update an offer");
+    }
+    userService.getCurrentManager();
+
+    var jOffer = findOfferById(offerId);
+    var partInfoUpdate = request.getPartInfo();
+    var jPartInfo = jOffer.getPartInfo();
+    if (partInfoUpdate != null && jPartInfo == null) {
+      throw new IllegalArgumentException("Offer has no part information to update");
+    }
+
+    validateOptionalText(request.getDescription(), "Description", 1000);
+    List<MultipartFile> newImages =
+        partInfoUpdate == null || partInfoUpdate.getImages() == null
+            ? List.of()
+            : partInfoUpdate.getImages().stream().filter(image -> !image.isEmpty()).toList();
+    if (partInfoUpdate != null) {
+      validateOptionalText(partInfoUpdate.getName(), "Part name", 255);
+      validateOptionalText(partInfoUpdate.getCarBrand(), "Car brand", 255);
+      validateOptionalText(partInfoUpdate.getCarModel(), "Car model", 255);
+      if (partInfoUpdate.getCarYear() != null
+          && (partInfoUpdate.getCarYear().getValue() < 1900
+              || partInfoUpdate.getCarYear().getValue() > 2100)) {
+        throw new IllegalArgumentException("Car year must be between 1900 and 2100");
+      }
+      if (partInfoUpdate.getPrice() != null && partInfoUpdate.getPrice().signum() <= 0) {
+        throw new IllegalArgumentException("Price must be positive");
+      }
+    }
+
+    var currentImageBuckets =
+        jPartInfo == null || jPartInfo.getPartImageBuckets() == null
+            ? List.<String>of()
+            : jPartInfo.getPartImageBuckets();
+    if (currentImageBuckets.size() + newImages.size() > 5) {
+      throw new IllegalArgumentException("An offer cannot have more than 5 images");
+    }
+    if (newImages.stream().anyMatch(image -> !isSupportedImage(image.getContentType()))) {
+      throw new IllegalArgumentException("Offer images must be JPEG, PNG, or WebP");
+    }
+
+    boolean changed = false;
+    if (request.getDescription() != null
+        && !request.getDescription().equals(jOffer.getDescription())) {
+      jOffer.setDescription(request.getDescription());
+      changed = true;
+    }
+    if (partInfoUpdate != null) {
+      if (partInfoUpdate.getName() != null
+          && !partInfoUpdate.getName().equals(jPartInfo.getPartName())) {
+        jPartInfo.setPartName(partInfoUpdate.getName());
+        changed = true;
+      }
+      if (partInfoUpdate.getCarBrand() != null
+          && !partInfoUpdate.getCarBrand().equals(jPartInfo.getCarBrand())) {
+        jPartInfo.setCarBrand(partInfoUpdate.getCarBrand());
+        changed = true;
+      }
+      if (partInfoUpdate.getCarModel() != null
+          && !partInfoUpdate.getCarModel().equals(jPartInfo.getCarModel())) {
+        jPartInfo.setCarModel(partInfoUpdate.getCarModel());
+        changed = true;
+      }
+      if (partInfoUpdate.getCarYear() != null
+          && partInfoUpdate.getCarYear().getValue() != jPartInfo.getCarYear()) {
+        jPartInfo.setCarYear(partInfoUpdate.getCarYear().getValue());
+        changed = true;
+      }
+      if (partInfoUpdate.getPartCategory() != null
+          && partInfoUpdate.getPartCategory() != jPartInfo.getPartCategory()) {
+        jPartInfo.setPartCategory(partInfoUpdate.getPartCategory());
+        changed = true;
+      }
+      if (partInfoUpdate.getCondition() != null
+          && partInfoUpdate.getCondition() != jPartInfo.getCondition()) {
+        jPartInfo.setCondition(partInfoUpdate.getCondition());
+        changed = true;
+      }
+      if (partInfoUpdate.getPrice() != null
+          && partInfoUpdate.getPrice().compareTo(BigDecimal.valueOf(jPartInfo.getPrice())) != 0) {
+        jPartInfo.setPrice(partInfoUpdate.getPrice().doubleValue());
+        changed = true;
+      }
+      if (!newImages.isEmpty()) {
+        var updatedImages = new ArrayList<>(currentImageBuckets);
+        updatedImages.addAll(imageUploader.apply(newImages, PART_INFO_BUCKET_PREFIX));
+        jPartInfo.setPartImageBuckets(updatedImages);
+        changed = true;
+      }
+    }
+    if (!changed) throw new IllegalArgumentException("Offer update contains no changes");
+
+    jOffer.setUpdatedAt(LocalDateTime.now());
+    return offerMapper.toDomain(offerRepository.save(jOffer));
   }
 
   private void publishOfferNotification(JOffer offer) {
@@ -320,15 +438,40 @@ public class OfferService {
   }
 
   private JOffer findOfferByIdAndSeller(String offerId, String sellerId) {
+    var offer = findOfferById(offerId);
+    if (!offer.getSeller().getId().equals(sellerId)) {
+      throwOfferNotFound(offerId, sellerId);
+    }
+    return offer;
+  }
+
+  private JOffer findOfferById(String offerId) {
     return offerRepository
         .findByIdWithRelations(offerId)
-        .filter(o -> o.getSeller().getId().equals(sellerId))
         .orElseThrow(
-            () -> {
-              log.error("Offer {} not found for seller {}", forJava(offerId), forJava(sellerId));
-              return new ResourceNotFoundException(
-                  format("Offer %s not found or access denied", offerId));
-            });
+            () ->
+                new ResourceNotFoundException(
+                    format("Offer %s not found", forJava(offerId))));
+  }
+
+  private void throwOfferNotFound(String offerId, String sellerId) {
+    log.error("Offer {} not found for seller {}", forJava(offerId), forJava(sellerId));
+    throw new ResourceNotFoundException(format("Offer %s not found or access denied", offerId));
+  }
+
+  private boolean isSupportedImage(String contentType) {
+    return "image/jpeg".equals(contentType)
+        || "image/png".equals(contentType)
+        || "image/webp".equals(contentType);
+  }
+
+  private void validateOptionalText(String value, String field, int maxLength) {
+    if (value != null && value.isBlank()) {
+      throw new IllegalArgumentException(field + " cannot be blank");
+    }
+    if (value != null && value.length() > maxLength) {
+      throw new IllegalArgumentException(field + " cannot exceed " + maxLength + " characters");
+    }
   }
 
   private void validateStatusTransition(PostStatus current, PostStatus next) {

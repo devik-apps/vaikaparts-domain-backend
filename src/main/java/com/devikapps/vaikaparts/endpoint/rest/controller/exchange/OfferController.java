@@ -1,6 +1,7 @@
 package com.devikapps.vaikaparts.endpoint.rest.controller.exchange;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.CreateOfferRequest;
+import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.UpdateOfferRequest;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.model.exchange.Offer;
 import com.devikapps.vaikaparts.service.OfferService;
@@ -42,6 +43,12 @@ public class OfferController {
   public Offer updateOfferStatus(@PathVariable String offerId, @RequestParam PostStatus status) {
 
     return offerService.updateOfferStatus(offerId, status);
+  }
+
+  @PatchMapping(value = "/{offerId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  public Offer updateOffer(
+      @PathVariable String offerId, @ModelAttribute UpdateOfferRequest request) {
+    return offerService.updateOffer(offerId, request);
   }
 
   @GetMapping

@@ -263,8 +263,24 @@ public class DemandService {
         forJava(demandId),
         forJava(newStatus.toString()));
 
-    var currentResearcher = researcherService.getCurrentResearcher();
-    var jDemand = findDemandByIdAndResearcher(demandId, currentResearcher.getId());
+    var currentUser = userService.getCurrentUser();
+    var jDemand =
+        switch (currentUser.getUserType()) {
+          case RESEARCHER ->
+              findDemandByIdAndResearcher(demandId, researcherService.getCurrentResearcher().getId());
+          case MANAGER -> {
+            userService.getCurrentManager();
+            yield demandRepository
+                .findByIdForUpdate(demandId)
+                .orElseThrow(
+                    () ->
+                        new ResourceNotFoundException(
+                            format("Demand %s not found", forJava(demandId))));
+          }
+          case SELLER ->
+              throw new AuthorizationDeniedException(
+                  "Only the owning researcher or a manager can update a demand status");
+        };
 
     validateStatusTransition(jDemand.getStatus(), newStatus);
 

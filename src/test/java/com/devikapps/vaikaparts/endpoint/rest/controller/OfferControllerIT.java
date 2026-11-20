@@ -395,6 +395,86 @@ class OfferControllerIT extends FacadeIT {
   }
 
   @Test
+  void should_allow_manager_to_update_any_sellers_offer_status() throws Exception {
+    createTestManager();
+    val otherSeller = createOtherSeller();
+    val offer = createPersistedOffer(otherSeller, testDemand, PostStatus.DRAFT);
+    authenticateManager();
+
+    mockMvc
+        .perform(
+            patch(OFFERS_ENDPOINT + "/{offerId}/status", offer.getId())
+                .param("status", PostStatus.PUBLISHED.name()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(offer.getId()))
+        .andExpect(jsonPath("$.status").value(PostStatus.PUBLISHED.name()))
+        .andExpect(jsonPath("$.seller_id").value(otherSeller.getId()));
+  }
+
+  @Test
+  void should_allow_manager_to_update_an_offer_without_changing_its_owner_or_demand()
+      throws Exception {
+    createTestManager(ManagerRole.ADMIN);
+    val otherSeller = createOtherSeller();
+    val offer = createPersistedOffer(otherSeller, testDemand, PostStatus.PUBLISHED);
+    authenticateManager();
+
+    mockMvc
+        .perform(
+            multipart(OFFERS_ENDPOINT + "/{offerId}", offer.getId())
+                .param("description", "Manager corrected this offer")
+                .param("partInfo.name", "Updated headlight")
+                .param("partInfo.carBrand", "Honda")
+                .param("partInfo.carModel", "Civic")
+                .param("partInfo.carYear", "2020")
+                .param("partInfo.partCategory", PartCategory.FOG_LIGHTS.name())
+                .param("partInfo.condition", PartCondition.NEW.name())
+                .param("partInfo.price", "275000")
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .contentType(MediaType.MULTIPART_FORM_DATA))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(offer.getId()))
+        .andExpect(jsonPath("$.description").value("Manager corrected this offer"))
+        .andExpect(jsonPath("$.seller_id").value(otherSeller.getId()))
+        .andExpect(jsonPath("$.demand.id").value(testDemand.getId()));
+
+    val updated = offerRepository.findByIdWithRelations(offer.getId()).orElseThrow();
+    org.junit.jupiter.api.Assertions.assertEquals(275000.0, updated.getPartInfo().getPrice());
+    org.junit.jupiter.api.Assertions.assertEquals(
+        "Updated headlight", updated.getPartInfo().getPartName());
+    org.junit.jupiter.api.Assertions.assertEquals("Honda", updated.getPartInfo().getCarBrand());
+    org.junit.jupiter.api.Assertions.assertEquals("Civic", updated.getPartInfo().getCarModel());
+    org.junit.jupiter.api.Assertions.assertEquals(2020, updated.getPartInfo().getCarYear());
+    org.junit.jupiter.api.Assertions.assertEquals(
+        PartCondition.NEW, updated.getPartInfo().getCondition());
+    org.junit.jupiter.api.Assertions.assertEquals(PostStatus.PUBLISHED, updated.getStatus());
+    org.junit.jupiter.api.Assertions.assertEquals(otherSeller.getId(), updated.getSeller().getId());
+    org.junit.jupiter.api.Assertions.assertEquals(testDemand.getId(), updated.getDemand().getId());
+  }
+
+  @Test
+  void should_not_allow_seller_to_use_manager_offer_update_endpoint() throws Exception {
+    val offer = createPersistedOffer(testSeller, testDemand, PostStatus.PUBLISHED);
+    authenticateSeller();
+
+    mockMvc
+        .perform(
+            multipart(OFFERS_ENDPOINT + "/{offerId}", offer.getId())
+                .param("description", "Unauthorized change")
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .contentType(MediaType.MULTIPART_FORM_DATA))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
   void should_return_400_when_updating_to_same_status() throws Exception {
     authenticateSeller();
     val offer = createPersistedOffer(testSeller, testDemand, PostStatus.PUBLISHED);
@@ -713,6 +793,10 @@ class OfferControllerIT extends FacadeIT {
   }
 
   private JManager createTestManager() {
+    return createTestManager(ManagerRole.MANAGER);
+  }
+
+  private JManager createTestManager(ManagerRole managerRole) {
     return userRepository.save(
         JManager.builder()
             .id("manager-123")
@@ -723,7 +807,7 @@ class OfferControllerIT extends FacadeIT {
             .profileImgKey("")
             .userType(UserType.MANAGER)
             .status(UserStatus.ENABLED)
-            .managerRole(ManagerRole.MANAGER)
+            .managerRole(managerRole)
             .build());
   }
 
