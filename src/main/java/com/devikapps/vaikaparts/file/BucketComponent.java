@@ -63,7 +63,13 @@ public class BucketComponent {
    * @return the computed {@link FileHash}
    */
   public FileHash upload(File file, String bucketKey) {
-    return file.isDirectory() ? uploadDirectory(file, bucketKey) : uploadFile(file, bucketKey);
+    return upload(file, bucketKey, null);
+  }
+
+  public FileHash upload(File file, String bucketKey, String contentType) {
+    return file.isDirectory()
+        ? uploadDirectory(file, bucketKey)
+        : uploadFile(file, bucketKey, contentType);
   }
 
   private FileHash uploadDirectory(File directory, String bucketKey) {
@@ -84,17 +90,21 @@ public class BucketComponent {
     String relativeKey =
         bucketKey + "/" + rootDir.toPath().relativize(path).toString().replace("\\", "/");
 
-    uploadFile(path.toFile(), relativeKey);
+    uploadFile(path.toFile(), relativeKey, null);
   }
 
-  private FileHash uploadFile(File file, String bucketKey) {
+  private FileHash uploadFile(File file, String bucketKey, String contentType) {
     log.info("Uploading file to bucket: key={}", forJava(bucketKey));
 
     try {
       var request =
           UploadFileRequest.builder()
               .source(file)
-              .putObjectRequest(req -> req.bucket(bucketConf.getBucketName()).key(bucketKey))
+              .putObjectRequest(
+                  req -> {
+                    req.bucket(bucketConf.getBucketName()).key(bucketKey);
+                    if (contentType != null) req.contentType(contentType);
+                  })
               .addTransferListener(LoggingTransferListener.create())
               .build();
 

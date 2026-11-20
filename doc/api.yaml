@@ -725,7 +725,8 @@ paths:
         Creates a new demand on behalf of the authenticated Researcher. The request
         is submitted as `multipart/form-data`. Part fields are bound using Spring
         dot-notation (`part.name`, `part.carBrand`, etc.). Images are optional and
-        bound under `part.images`; maximum 5 files per demand.
+        bound under `part.images`; maximum 5 files per demand, 5 MB per file and
+        25 MB total. Supported formats: JPEG, PNG, WebP, HEIC, and HEIF.
 
         **Authorization**: Researcher role required.
       parameters:
@@ -743,7 +744,7 @@ paths:
               $ref: '#/components/schemas/DemandCreateRequest'
             encoding:
               part.images:
-                contentType: image/jpeg, image/png, image/webp
+                contentType: image/jpeg, image/png, image/webp, image/heic, image/heif
       responses:
         201:
           description: Demand created successfully.
@@ -822,7 +823,7 @@ paths:
               $ref: '#/components/schemas/DemandUpdateRequest'
             encoding:
               part.images:
-                contentType: image/jpeg, image/png, image/webp
+                contentType: image/jpeg, image/png, image/webp, image/heic, image/heif
       responses:
         200:
           description: Demand updated successfully.
@@ -1027,7 +1028,9 @@ paths:
         Creates a new offer on behalf of the authenticated seller. The request is
         submitted as `multipart/form-data`. Part info fields are bound using Spring
         dot-notation (`part_info.name`, `part_info.car_brand`, etc.). Images are
-        optional and bound under `part_info.images`; maximum 5 files per offer.
+        optional and bound under `part_info.images`; maximum 5 files per offer,
+        5 MB per file and 25 MB total. Supported formats: JPEG, PNG, WebP, HEIC,
+        and HEIF.
 
         **Authorization**: Seller role required.
       requestBody:
@@ -1038,7 +1041,7 @@ paths:
               $ref: '#/components/schemas/OfferCreateRequest'
             encoding:
               part_info.images:
-                contentType: image/jpeg, image/png, image/webp
+                contentType: image/jpeg, image/png, image/webp, image/heic, image/heif
       responses:
         201:
           description: Offer created successfully.
@@ -1152,7 +1155,7 @@ paths:
               $ref: '#/components/schemas/OfferUpdateRequest'
             encoding:
               partInfo.images:
-                contentType: image/jpeg, image/png, image/webp
+                contentType: image/jpeg, image/png, image/webp, image/heic, image/heif
       responses:
         200:
           description: Offer updated successfully.
@@ -2204,7 +2207,7 @@ components:
         images:
           type: array
           description: >
-            Reference photographs of the sought part. Bound under the multipart field name `part.images`. Optional; maximum 5 files.
+            Reference photographs of the sought part. Bound under `part.images`. Optional; maximum 5 files. JPEG, PNG, WebP, HEIC, and HEIF are supported; each file is limited to 5 MB and the total to 25 MB.
 
           items:
             type: string
@@ -2470,7 +2473,7 @@ components:
         images:
           type: array
           description: >
-            Photographs of the offered part. Bound under the multipart field name `part_info.images`. Optional; maximum 5 files.
+            Photographs of the offered part. Bound under `part_info.images`. Optional; maximum 5 files. JPEG, PNG, WebP, HEIC, and HEIF are supported; each file is limited to 5 MB and the total to 25 MB.
 
           items:
             type: string

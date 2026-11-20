@@ -51,7 +51,6 @@ import org.springframework.web.multipart.MultipartFile;
 public class OfferService {
 
   public static final String CREATED_AT_FIELD = "createdAt";
-  private static final long MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
   private static final Duration PRESIGN_DURATION = Duration.ofDays(7);
   private static final String PART_INFO_BUCKET_PREFIX = "part-infos/";
   private final OfferRepository offerRepository;
@@ -201,15 +200,6 @@ public class OfferService {
     if (remainingImageBuckets.size() + newImages.size() > 5) {
       throw new IllegalArgumentException("An offer cannot have more than 5 images");
     }
-    if (newImages.stream()
-        .anyMatch(
-            image ->
-                !isSupportedImage(image.getContentType())
-                    || image.getSize() > MAX_IMAGE_SIZE_BYTES)) {
-      throw new IllegalArgumentException(
-          "Offer images must be JPEG, PNG, or WebP and no larger than 5 MB");
-    }
-
     boolean changed = false;
     if (request.getDescription() != null
         && !request.getDescription().equals(jOffer.getDescription())) {
@@ -474,12 +464,6 @@ public class OfferService {
   private void throwOfferNotFound(String offerId, String sellerId) {
     log.error("Offer {} not found for seller {}", forJava(offerId), forJava(sellerId));
     throw new ResourceNotFoundException(format("Offer %s not found or access denied", offerId));
-  }
-
-  private boolean isSupportedImage(String contentType) {
-    return "image/jpeg".equals(contentType)
-        || "image/png".equals(contentType)
-        || "image/webp".equals(contentType);
   }
 
   private void validateOptionalText(String value, String field, int maxLength) {
