@@ -851,7 +851,8 @@ paths:
         A demand cannot be moved directly to `SATISFIED`: the Researcher must
         select one of its published offers through the offer outcome endpoint.
 
-        **Authorization**: Researcher role required.
+        **Authorization**: Researcher role required to update an owned demand. Manager role may
+        update any demand; the same lifecycle transition rules apply.
       parameters:
         - name: demandId
           in: path
@@ -1125,6 +1126,50 @@ paths:
           $ref: '#/components/responses/NotFound'
         500:
           $ref: '#/components/responses/InternalServer'
+    patch:
+      operationId: updateOffer
+      tags: [Offers]
+      summary: Partially update an offer's editable details
+      description: |
+        Updates the offer description and supplied part details using
+        `multipart/form-data`. Omitted fields are preserved. New images are appended to the
+        existing part images, up to five total. The offer status, seller, demand, and identifiers
+        cannot be changed by this operation.
+
+        **Authorization**: Manager role required.
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          description: Unique identifier of the offer.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OfferUpdateRequest'
+            encoding:
+              partInfo.images:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        200:
+          description: Offer updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/InternalServer'
   /v1/offers/{offerId}/status:
     patch:
       operationId: updateOfferStatus
@@ -1132,10 +1177,11 @@ paths:
       summary: Update the lifecycle status of an offer
       description: |
         Transitions the authenticated Seller's offer to a seller-controlled
-        lifecycle status. `CLOSED` and `SATISFIED` are Researcher outcomes and
-        are rejected on this endpoint.
+        lifecycle status, or allows a Manager to update any offer using the same
+        lifecycle rules. `CLOSED` and `SATISFIED` are Researcher outcomes and are
+        rejected on this endpoint.
 
-        **Authorization**: Seller role required.
+        **Authorization**: Seller role required for the owning offer; Manager role may update any offer.
       parameters:
         - name: offerId
           in: path
@@ -2420,22 +2466,41 @@ components:
           maxItems: 5
     OfferUpdateRequest:
       type: object
-      description: Offer modification payload
+      description: >
+        Partial offer update submitted as multipart/form-data. Omitted fields retain their
+        current values. Uploaded photos are appended to the existing part photos.
       properties:
-        price:
+        "partInfo.price":
           type: number
           format: double
-        condition:
+          minimum: 0
+        "partInfo.name":
+          type: string
+          maxLength: 255
+        "partInfo.carBrand":
+          type: string
+          maxLength: 255
+        "partInfo.carModel":
+          type: string
+          maxLength: 255
+        "partInfo.carYear":
+          type: integer
+          minimum: 1900
+          maximum: 2100
+        "partInfo.partCategory":
+          $ref: '#/components/schemas/PartCategory'
+        "partInfo.condition":
           $ref: '#/components/schemas/PartCondition'
         description:
           type: string
           maxLength: 1000
-        image_urls:
+        "partInfo.images":
           type: array
+          description: New reference photos to append; maximum five total photos per offer.
+          maxItems: 5
           items:
             type: string
-            format: uri
-          maxItems: 5
+            format: binary
     Notification:
       type: object
       required: [id, recipient, message, notification_type, created_at, read]
