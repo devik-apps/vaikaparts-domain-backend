@@ -54,7 +54,6 @@ import org.springframework.web.multipart.MultipartFile;
 public class DemandService {
 
   public static final String CREATED_AT_FIELD = "createdAt";
-  private static final long MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
   private static final Duration PRESIGN_DURATION = Duration.ofDays(7);
   private static final String PARTS_BUCKET_PREFIX = "parts/";
   private final DemandRepository demandRepository;
@@ -154,15 +153,6 @@ public class DemandService {
     if (remainingImageBuckets.size() + newImages.size() > 5) {
       throw new IllegalArgumentException("A demand cannot have more than 5 images");
     }
-    if (newImages.stream()
-        .anyMatch(
-            image ->
-                !isSupportedImage(image.getContentType())
-                    || image.getSize() > MAX_IMAGE_SIZE_BYTES)) {
-      throw new IllegalArgumentException(
-          "Demand images must be JPEG, PNG, or WebP and no larger than 5 MB");
-    }
-
     boolean changed = false;
     if (request.getDescription() != null
         && !request.getDescription().equals(jDemand.getDescription())) {
@@ -287,7 +277,8 @@ public class DemandService {
     var jDemand =
         switch (currentUser.getUserType()) {
           case RESEARCHER ->
-              findDemandByIdAndResearcher(demandId, researcherService.getCurrentResearcher().getId());
+              findDemandByIdAndResearcher(
+                  demandId, researcherService.getCurrentResearcher().getId());
           case MANAGER -> {
             userService.getCurrentManager();
             yield demandRepository
@@ -592,12 +583,6 @@ public class DemandService {
 
   private List<String> uploadPartImages(List<MultipartFile> images) {
     return imageUploader.apply(images, PARTS_BUCKET_PREFIX);
-  }
-
-  private boolean isSupportedImage(String contentType) {
-    return "image/jpeg".equals(contentType)
-        || "image/png".equals(contentType)
-        || "image/webp".equals(contentType);
   }
 
   private void deletePhotosAfterCommit(List<String> imageKeys, String demandId) {

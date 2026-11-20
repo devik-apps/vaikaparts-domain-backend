@@ -1,10 +1,10 @@
 spring:
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 50MB
+      max-file-size: 5MB
+      max-request-size: 26MB
       file-size-threshold: 5MB
 logging:
   level:
     com.example: DEBUG
-    org.hibernate.SQL: DEBUG
+    org.hibernate.SQL: OFF
