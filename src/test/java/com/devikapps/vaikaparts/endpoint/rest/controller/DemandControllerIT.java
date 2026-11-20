@@ -488,6 +488,23 @@ class DemandControllerIT extends FacadeIT {
   }
 
   @Test
+  void should_allow_manager_to_update_status_of_any_researcher_demand() throws Exception {
+    val manager = createTestManager(ManagerRole.ADMIN);
+    val otherResearcher = createOtherResearcher();
+    val demand = createDemandForResearcher(otherResearcher, PostStatus.PUBLISHED);
+    authenticateAs(manager.getSupabaseUserId());
+
+    mockMvc
+        .perform(
+            patch(DEMANDS_ENDPOINT + "/{demandId}/status", demand.getId())
+                .param("status", PostStatus.CANCELED.name()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(demand.getId()))
+        .andExpect(jsonPath("$.status").value(PostStatus.CANCELED.name()))
+        .andExpect(jsonPath("$.researcher.id").value(otherResearcher.getId()));
+  }
+
+  @Test
   void should_not_return_other_researcher_demands() throws Exception {
     authenticateUser();
 
@@ -619,6 +636,10 @@ class DemandControllerIT extends FacadeIT {
   }
 
   private JManager createTestManager() {
+    return createTestManager(ManagerRole.MANAGER);
+  }
+
+  private JManager createTestManager(ManagerRole managerRole) {
     return userRepository.save(
         JManager.builder()
             .id("manager-" + currentTimeMillis())
@@ -629,7 +650,7 @@ class DemandControllerIT extends FacadeIT {
             .profileImgKey("")
             .userType(UserType.MANAGER)
             .status(UserStatus.ENABLED)
-            .managerRole(ManagerRole.MANAGER)
+            .managerRole(managerRole)
             .build());
   }
 
