@@ -457,6 +457,51 @@ class OfferControllerIT extends FacadeIT {
   }
 
   @Test
+  void should_allow_manager_to_remove_a_photo_from_any_sellers_offer() throws Exception {
+    createTestManager();
+    val otherSeller = createOtherSeller();
+    val offer = createPersistedOffer(otherSeller, testDemand, PostStatus.PUBLISHED);
+    offer.getPartInfo().setPartImageBuckets(new ArrayList<>(List.of("part-infos/test-photo.jpg")));
+    offerRepository.save(offer);
+    authenticateManager();
+
+    mockMvc
+        .perform(
+            multipart(OFFERS_ENDPOINT + "/{offerId}", offer.getId())
+                .param("partInfo.imageKeysToRemove", "part-infos/test-photo.jpg")
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .contentType(MediaType.MULTIPART_FORM_DATA))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.parts_info.part.image_keys", hasSize(0)))
+        .andExpect(jsonPath("$.parts_info.part.image_urls", hasSize(0)));
+  }
+
+  @Test
+  void should_reject_removing_a_photo_that_does_not_belong_to_the_offer() throws Exception {
+    createTestManager();
+    val offer = createPersistedOffer(testSeller, testDemand, PostStatus.PUBLISHED);
+    offer.getPartInfo().setPartImageBuckets(new ArrayList<>(List.of("part-infos/owned-photo.jpg")));
+    offerRepository.save(offer);
+    authenticateManager();
+
+    mockMvc
+        .perform(
+            multipart(OFFERS_ENDPOINT + "/{offerId}", offer.getId())
+                .param("partInfo.imageKeysToRemove", "part-infos/another-offer-photo.jpg")
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .contentType(MediaType.MULTIPART_FORM_DATA))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
   void should_not_allow_seller_to_use_manager_offer_update_endpoint() throws Exception {
     val offer = createPersistedOffer(testSeller, testDemand, PostStatus.PUBLISHED);
     authenticateSeller();

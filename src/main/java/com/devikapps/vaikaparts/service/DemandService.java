@@ -44,6 +44,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
@@ -52,6 +54,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class DemandService {
 
   public static final String CREATED_AT_FIELD = "createdAt";
+  private static final long MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
   private static final Duration PRESIGN_DURATION = Duration.ofDays(7);
   private static final String PARTS_BUCKET_PREFIX = "parts/";
   private final DemandRepository demandRepository;
@@ -135,12 +138,29 @@ public class DemandService {
         partUpdate == null || partUpdate.getImages() == null
             ? List.of()
             : partUpdate.getImages().stream().filter(image -> !image.isEmpty()).toList();
+    List<String> imageKeysToRemove =
+        partUpdate == null || partUpdate.getImageKeysToRemove() == null
+            ? List.of()
+            : partUpdate.getImageKeysToRemove().stream().distinct().toList();
     var currentImageBuckets =
         jPart == null || jPart.getImageBuckets() == null
             ? List.<String>of()
             : jPart.getImageBuckets();
-    if (currentImageBuckets.size() + newImages.size() > 5) {
+    if (!currentImageBuckets.containsAll(imageKeysToRemove)) {
+      throw new IllegalArgumentException("A photo to remove does not belong to this demand");
+    }
+    var remainingImageBuckets =
+        currentImageBuckets.stream().filter(key -> !imageKeysToRemove.contains(key)).toList();
+    if (remainingImageBuckets.size() + newImages.size() > 5) {
       throw new IllegalArgumentException("A demand cannot have more than 5 images");
+    }
+    if (newImages.stream()
+        .anyMatch(
+            image ->
+                !isSupportedImage(image.getContentType())
+                    || image.getSize() > MAX_IMAGE_SIZE_BYTES)) {
+      throw new IllegalArgumentException(
+          "Demand images must be JPEG, PNG, or WebP and no larger than 5 MB");
     }
 
     boolean changed = false;
@@ -174,10 +194,9 @@ public class DemandService {
         jPart.setPartCategory(partUpdate.getPartCategory());
         changed = true;
       }
-      if (!newImages.isEmpty()) {
-        var addedKeys = uploadPartImages(newImages);
-        var updatedImageBuckets = new ArrayList<>(currentImageBuckets);
-        updatedImageBuckets.addAll(addedKeys);
+      if (!newImages.isEmpty() || !imageKeysToRemove.isEmpty()) {
+        var updatedImageBuckets = new ArrayList<>(remainingImageBuckets);
+        updatedImageBuckets.addAll(uploadPartImages(newImages));
         jPart.setImageBuckets(updatedImageBuckets);
         changed = true;
       }
@@ -186,6 +205,7 @@ public class DemandService {
 
     jDemand.setUpdatedAt(LocalDateTime.now());
     var savedDemand = demandRepository.save(jDemand);
+    deletePhotosAfterCommit(imageKeysToRemove, jDemand.getId());
     if (savedDemand.getStatus() == PostStatus.PUBLISHED) {
       outboxService.enqueue(
           DemandUpdatedRequested.builder()
@@ -572,6 +592,32 @@ public class DemandService {
 
   private List<String> uploadPartImages(List<MultipartFile> images) {
     return imageUploader.apply(images, PARTS_BUCKET_PREFIX);
+  }
+
+  private boolean isSupportedImage(String contentType) {
+    return "image/jpeg".equals(contentType)
+        || "image/png".equals(contentType)
+        || "image/webp".equals(contentType);
+  }
+
+  private void deletePhotosAfterCommit(List<String> imageKeys, String demandId) {
+    if (imageKeys.isEmpty()) return;
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCommit() {
+            for (String imageKey : imageKeys) {
+              try {
+                bucketComponent.delete(imageKey);
+              } catch (Exception e) {
+                log.warn(
+                    "Failed to delete removed photo from demand {} after database update",
+                    forJava(demandId),
+                    e);
+              }
+            }
+          }
+        });
   }
 
   private Part buildPartFromRestPart(RestPart restPart, List<String> imageBucketKeys) {

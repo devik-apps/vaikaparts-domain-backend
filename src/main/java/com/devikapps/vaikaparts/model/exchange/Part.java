@@ -28,6 +28,7 @@ public final class Part {
   private String carModel;
   private Year carYear;
   @Nullable private List<URL> imageUrls;
+  @Nullable private List<String> imageKeys;
   @NotNull private PartCategory partCategory;
 
   @Override

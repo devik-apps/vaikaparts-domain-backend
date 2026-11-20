@@ -505,6 +505,51 @@ class DemandControllerIT extends FacadeIT {
   }
 
   @Test
+  void should_allow_manager_to_remove_a_photo_from_any_researcher_demand() throws Exception {
+    val manager = createTestManager();
+    val otherResearcher = createOtherResearcher();
+    val demand = createDemandForResearcher(otherResearcher, PostStatus.PUBLISHED);
+    demand.getPart().setImageBuckets(new ArrayList<>(List.of("parts/test-photo.jpg")));
+    demandRepository.save(demand);
+    authenticateAs(manager.getSupabaseUserId());
+
+    mockMvc
+        .perform(
+            multipart(DEMANDS_ENDPOINT + "/{demandId}", demand.getId())
+                .param("part.imageKeysToRemove", "parts/test-photo.jpg")
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .contentType(MediaType.MULTIPART_FORM_DATA))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.part.image_keys", hasSize(0)))
+        .andExpect(jsonPath("$.part.image_urls", hasSize(0)));
+  }
+
+  @Test
+  void should_reject_removing_a_photo_that_does_not_belong_to_the_demand() throws Exception {
+    val manager = createTestManager();
+    val demand = createDemandForResearcher(createOtherResearcher(), PostStatus.PUBLISHED);
+    demand.getPart().setImageBuckets(new ArrayList<>(List.of("parts/owned-photo.jpg")));
+    demandRepository.save(demand);
+    authenticateAs(manager.getSupabaseUserId());
+
+    mockMvc
+        .perform(
+            multipart(DEMANDS_ENDPOINT + "/{demandId}", demand.getId())
+                .param("part.imageKeysToRemove", "parts/another-demand-photo.jpg")
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .contentType(MediaType.MULTIPART_FORM_DATA))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
   void should_not_return_other_researcher_demands() throws Exception {
     authenticateUser();
 
