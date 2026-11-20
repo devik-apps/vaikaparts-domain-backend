@@ -11,6 +11,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.function.BiFunction;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +26,11 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class ImageUploader implements BiFunction<List<MultipartFile>, String, List<String>> {
 
+  private static final long MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+  private static final long MAX_TOTAL_IMAGE_SIZE_BYTES = 25 * 1024 * 1024;
+  private static final Set<String> SUPPORTED_CONTENT_TYPES =
+      Set.of("image/jpeg", "image/png", "image/webp", "image/heic", "image/heif");
+
   private final BucketComponent bucketComponent;
   private final TempFileManager tempFileManager;
   private final FilenameSanitizer filenameSanitizer;
@@ -35,13 +42,37 @@ public class ImageUploader implements BiFunction<List<MultipartFile>, String, Li
       return List.of();
     }
 
-    log.info("Uploading {} image(s) to bucket prefix: {}", images.size(), forJava(bucketPrefix));
+    List<MultipartFile> nonEmptyImages =
+        images.stream().filter(image -> image != null && !image.isEmpty()).toList();
+    if (nonEmptyImages.isEmpty()) return List.of();
+    validateImages(nonEmptyImages);
+
+    log.info(
+        "Uploading {} image(s) to bucket prefix: {}", nonEmptyImages.size(), forJava(bucketPrefix));
 
     List<String> bucketKeys =
-        images.stream().map(image -> uploadSingleImage(image, bucketPrefix)).toList();
+        nonEmptyImages.stream().map(image -> uploadSingleImage(image, bucketPrefix)).toList();
 
     log.info("Successfully uploaded {} image(s)", bucketKeys.size());
     return bucketKeys;
+  }
+
+  private void validateImages(List<MultipartFile> images) {
+    long totalSize = images.stream().mapToLong(MultipartFile::getSize).sum();
+    if (images.stream()
+        .anyMatch(
+            image ->
+                image.getContentType() == null
+                    || !SUPPORTED_CONTENT_TYPES.contains(
+                        image.getContentType().toLowerCase(Locale.ROOT)))) {
+      throw new IllegalArgumentException("Images must be JPEG, PNG, WebP, HEIC, or HEIF");
+    }
+    if (images.stream().anyMatch(image -> image.getSize() > MAX_IMAGE_SIZE_BYTES)) {
+      throw new IllegalArgumentException("Each image must be no larger than 5 MB");
+    }
+    if (totalSize > MAX_TOTAL_IMAGE_SIZE_BYTES) {
+      throw new IllegalArgumentException("The total image size must not exceed 25 MB");
+    }
   }
 
   private String uploadSingleImage(MultipartFile image, String bucketPrefix) {
@@ -62,7 +93,7 @@ public class ImageUploader implements BiFunction<List<MultipartFile>, String, Li
 
     try {
       image.transferTo(tempFile);
-      bucketComponent.upload(tempFile, bucketKey);
+      bucketComponent.upload(tempFile, bucketKey, image.getContentType());
       log.debug("Successfully uploaded image: {}", forJava(bucketKey));
       return bucketKey;
     } catch (IOException e) {
