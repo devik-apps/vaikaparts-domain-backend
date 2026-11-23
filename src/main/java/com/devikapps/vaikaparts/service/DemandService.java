@@ -71,10 +71,27 @@ public class DemandService {
 
   @Transactional
   public Demand createDemand(String description, RestPart restPart) {
+    return createDemand(description, restPart, null);
+  }
+
+  @Transactional
+  public Demand createDemand(String description, RestPart restPart, String creationRequestKey) {
     log.info("Creating new demand for authenticated researcher");
 
     var currentResearcher = researcherService.getOrCreateCurrentResearcher();
     log.debug("Authenticated researcher: {}", forJava(currentResearcher.getId()));
+
+    if (creationRequestKey != null) {
+      var existing = demandRepository.findByCreationRequestKeyWithRelations(creationRequestKey);
+      if (existing.isPresent()) {
+        var existingDemand = existing.get();
+        if (!currentResearcher.getId().equals(existingDemand.getResearcher().getId())) {
+          throw new IllegalArgumentException("Creation request key conflicts with this submission");
+        }
+        log.info("Returning previously created demand for request key");
+        return demandMapper.toDomain(existingDemand);
+      }
+    }
 
     validateDemandCreation(description, restPart);
 
@@ -83,11 +100,23 @@ public class DemandService {
     var demand = buildNewDemand(description, part, currentResearcher);
 
     var jDemand = demandMapper.toPersistence(demand);
+    jDemand.setCreationRequestKey(creationRequestKey);
     jDemand.getPart().setImageBuckets(partImageBucketKeys);
-    var savedJDemand = demandRepository.save(jDemand);
+    var savedJDemand = demandRepository.saveAndFlush(jDemand);
 
     log.info("Successfully created demand with id: {}", forJava(savedJDemand.getId()));
     return demandMapper.toDomain(savedJDemand);
+  }
+
+  @Transactional(readOnly = true)
+  public Demand findCreatedDemandByRequestKey(String creationRequestKey) {
+    var currentResearcher = researcherService.getCurrentResearcher();
+    var jDemand =
+        demandRepository.findByCreationRequestKeyWithRelations(creationRequestKey).orElse(null);
+    if (jDemand == null || !currentResearcher.getId().equals(jDemand.getResearcher().getId())) {
+      return null;
+    }
+    return demandMapper.toDomain(jDemand);
   }
 
   @Transactional

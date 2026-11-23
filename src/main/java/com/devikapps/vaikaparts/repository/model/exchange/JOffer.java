@@ -40,6 +40,9 @@ import org.hibernate.type.SqlTypes;
 public class JOffer implements StatusAware {
   @Id private String id;
 
+  @Column(name = "creation_request_key", unique = true, length = 36, updatable = false)
+  private String creationRequestKey;
+
   private String description;
 
   @ElementCollection
