@@ -28,6 +28,11 @@ public interface DemandRepository extends JpaRepository<JDemand, String> {
       """)
   Optional<JDemand> findByIdWithRelations(@Param("id") String id);
 
+  @Query(
+      "SELECT d FROM JDemand d LEFT JOIN FETCH d.researcher LEFT JOIN FETCH d.part "
+          + "WHERE d.creationRequestKey = :key")
+  Optional<JDemand> findByCreationRequestKeyWithRelations(@Param("key") String key);
+
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("SELECT d FROM JDemand d WHERE d.id = :id")
   Optional<JDemand> findByIdForUpdate(@Param("id") String id);

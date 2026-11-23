@@ -730,6 +730,13 @@ paths:
 
         **Authorization**: Researcher role required.
       parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: UUID reused by the client when retrying this same creation request.
+          schema:
+            type: string
+            format: uuid
         - name: published
           in: query
           required: false
@@ -1017,6 +1024,13 @@ paths:
       tags: [Offers]
       summary: Submit a new offer in response to a demand
       parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: UUID reused by the client when retrying this same creation request.
+          schema:
+            type: string
+            format: uuid
         - name: published
           in: query
           required: false

@@ -66,9 +66,27 @@ public class OfferService {
 
   @Transactional
   public Offer createOffer(String demandId, String description, RestPartInfo restPartInfo) {
+    return createOffer(demandId, description, restPartInfo, null);
+  }
+
+  @Transactional
+  public Offer createOffer(
+      String demandId, String description, RestPartInfo restPartInfo, String creationRequestKey) {
     log.info("Creating new offer for demand: {}", forJava(demandId));
 
     var currentSeller = sellerService.getCurrentSeller();
+    if (creationRequestKey != null) {
+      var existing = offerRepository.findByCreationRequestKeyWithRelations(creationRequestKey);
+      if (existing.isPresent()) {
+        var existingOffer = existing.get();
+        if (!currentSeller.getId().equals(existingOffer.getSeller().getId())
+            || !demandId.equals(existingOffer.getDemand().getId())) {
+          throw new IllegalArgumentException("Creation request key conflicts with this submission");
+        }
+        log.info("Returning previously created offer for request key");
+        return mapOfferWithoutResearcherContact(existingOffer);
+      }
+    }
     var jDemand = validateOfferCreation(demandId, description, restPartInfo, currentSeller.getId());
 
     var imageBucketKeys = uploadPartInfoImages(restPartInfo);
@@ -76,13 +94,27 @@ public class OfferService {
     var offer = buildNewOffer(jDemand, description, partInfo, currentSeller);
 
     var jOffer = offerMapper.toPersistence(offer);
+    jOffer.setCreationRequestKey(creationRequestKey);
     jOffer.setDemand(jDemand);
     jOffer.getPartInfo().setPartImageBuckets(imageBucketKeys);
 
-    var savedJOffer = offerRepository.save(jOffer);
+    var savedJOffer = offerRepository.saveAndFlush(jOffer);
     log.info("Successfully created offer with id: {}", forJava(savedJOffer.getId()));
 
     return mapOfferWithoutResearcherContact(savedJOffer);
+  }
+
+  @Transactional(readOnly = true)
+  public Offer findCreatedOfferByRequestKey(String creationRequestKey, String demandId) {
+    var currentSeller = sellerService.getCurrentSeller();
+    var jOffer =
+        offerRepository.findByCreationRequestKeyWithRelations(creationRequestKey).orElse(null);
+    if (jOffer == null
+        || !currentSeller.getId().equals(jOffer.getSeller().getId())
+        || !demandId.equals(jOffer.getDemand().getId())) {
+      return null;
+    }
+    return mapOfferWithoutResearcherContact(jOffer);
   }
 
   private PartInfo buildPartInfoFromRestPartInfo(
