@@ -2,11 +2,13 @@ package com.devikapps.vaikaparts.endpoint.rest.controller.exchange;
 
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.CreateOfferRequest;
 import com.devikapps.vaikaparts.endpoint.rest.controller.model.exchange.UpdateOfferRequest;
+import com.devikapps.vaikaparts.endpoint.rest.controller.util.IdempotencyKey;
 import com.devikapps.vaikaparts.model.classifier.PostStatus;
 import com.devikapps.vaikaparts.model.exchange.Offer;
 import com.devikapps.vaikaparts.service.OfferService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,10 +33,20 @@ public class OfferController {
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   public ResponseEntity<Offer> createOffer(
       @Valid @ModelAttribute CreateOfferRequest request,
-      @RequestParam(name = "published", defaultValue = "true") Boolean published) {
-    var offer =
-        offerService.createOffer(request.demandId(), request.description(), request.partInfo());
-    if (published) {
+      @RequestParam(name = "published", defaultValue = "true") Boolean published,
+      @RequestHeader(name = "Idempotency-Key", required = false) String creationRequestKey) {
+    IdempotencyKey.validate(creationRequestKey);
+    Offer offer;
+    try {
+      offer =
+          offerService.createOffer(
+              request.demandId(), request.description(), request.partInfo(), creationRequestKey);
+    } catch (DataIntegrityViolationException error) {
+      if (creationRequestKey == null) throw error;
+      offer = offerService.findCreatedOfferByRequestKey(creationRequestKey, request.demandId());
+      if (offer == null) throw error;
+    }
+    if (published && offer.getStatus() != PostStatus.PUBLISHED) {
       offer = offerService.updateOfferStatus(offer.getId(), PostStatus.PUBLISHED);
     }
     return ResponseEntity.status(HttpStatus.CREATED).body(offer);

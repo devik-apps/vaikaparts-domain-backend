@@ -26,6 +26,12 @@ public interface OfferRepository extends JpaRepository<JOffer, String> {
   Optional<JOffer> findByIdWithRelations(@Param("offerId") String offerId);
 
   @Query(
+      "SELECT o FROM JOffer o LEFT JOIN FETCH o.seller LEFT JOIN FETCH o.demand "
+          + "LEFT JOIN FETCH o.partInfo pi LEFT JOIN FETCH pi.partImageBuckets "
+          + "WHERE o.creationRequestKey = :key")
+  Optional<JOffer> findByCreationRequestKeyWithRelations(@Param("key") String key);
+
+  @Query(
       """
       SELECT o FROM JOffer o
       LEFT JOIN FETCH o.seller
@@ -69,8 +75,7 @@ public interface OfferRepository extends JpaRepository<JOffer, String> {
           WHERE o.status = :status
           """,
       countQuery = "SELECT COUNT(o) FROM JOffer o WHERE o.status = :status")
-  Page<JOffer> findAllByStatusWithRelations(
-      @Param("status") PostStatus status, Pageable pageable);
+  Page<JOffer> findAllByStatusWithRelations(@Param("status") PostStatus status, Pageable pageable);
 
   @Query(
       value =
